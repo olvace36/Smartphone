@@ -8,7 +8,7 @@ public class AssetHelper
     }
 
 
-    public class BarsConstants
+    public class ImagesConstants
     {
         public const string PhoneBackground = "phone_background.png";
         public const string PhoneEmpty = "phone_empty.png";
@@ -19,6 +19,7 @@ public class AssetHelper
         public const string AppPhoto = "appPhoto.png";
         public const string AppSetting = "appSetting.png";
         public const string AppGame = "appGame.png";
+        public const string AppNotification = "appNotification.png";
 
         public const string GameDarts = "gameDarts.png";
         public const string GameCart = "gameCart.png";

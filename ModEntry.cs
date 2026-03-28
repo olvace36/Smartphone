@@ -12,6 +12,7 @@ using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Extensions;
+using StardewValley.GameData.Characters;
 using StardewValley.Menus;
 using StardewValley.Objects;
 
@@ -29,15 +30,21 @@ namespace Smartphone
 
         public List<string> GetPhoneNpcList()
         {
+            // Ensure phoneMenu exists before accessing it (lazy init)
+            if (ModEntry.phoneMenu == null)
+                ModEntry.phoneMenu = new PhoneMenu();
+
             List<string> npcNames = ModEntry.phoneMenu.messageableNpcList
-            .Select(npc => npc.name)
-            .ToList(); ;
+                .Select(npc => npc.name)
+                .ToList();
             return npcNames;
         }
 
         public void SendSmartphoneMessageFromNPC(string npcName, string message)
         {
-            if (Game1.getCharacterFromName(npcName) == null || ModEntry.phoneMenu.messageableNpcList.Select(npc => npc.name).ToList().Contains(npcName)) return;
+            if (Game1.getCharacterFromName(npcName) == null) return;
+            if (ModEntry.phoneMenu == null) return;
+            if (ModEntry.phoneMenu.messageableNpcList.Select(npc => npc.name).ToList().Contains(npcName)) return;
 
             MessageManager.AddMessage(npcName, $"{npcName}: " + message);
             Game1.addHUDMessage(new HUDMessage($"A new message from {npcName}", HUDMessage.newQuest_type));
@@ -47,11 +54,20 @@ namespace Smartphone
 
         public void SendSmartphoneMessageFromPlayer(string npcName, string message)
         {
-            if (Game1.getCharacterFromName(npcName) == null || ModEntry.phoneMenu.messageableNpcList.Select(npc => npc.name).ToList().Contains(npcName)) return;
+            if (Game1.getCharacterFromName(npcName) == null) return;
+            if (ModEntry.phoneMenu == null) return;
+            if (ModEntry.phoneMenu.messageableNpcList.Select(npc => npc.name).ToList().Contains(npcName)) return;
             MessageManager.AddMessage(npcName, $"PLAYER: {message}");
         }
 
+        public void SendSmartphoneNotification(string message)
+        {
+            if (ModEntry.phoneMenu == null) return;
+            NotificationManager.addNotication(message);
+        }
+
     }
+
     public partial class ModEntry : Mod
     {
 
@@ -77,6 +93,8 @@ namespace Smartphone
         public static int currentMenuX;
         public static int currentMenuY;
 
+        public static bool pendingInitNotification = false;
+
         public static Dictionary<string, GiftMemory> GiftMemories = new();
         public static List<RecentEvent> RecentEvents = new();
 
@@ -96,14 +114,18 @@ namespace Smartphone
         public static Dictionary<string, List<string>> npcAges;
         public static Dictionary<string, string> npcToAgeGroup;
 
-        public static string k1 = "sk-proj-Ar1wrGqrRUoRX_gt2uFGud1X4NkYJMjGtxfEt1ohRgBjH";
-        public static string k2 = "_mqidASxaBKL-CU_ZACPfxOX16-5hT3BlbkFJTFiGdxfcD";
-        public static string k3 = "-5pTks8uug8a1b7xTCi1mD7VKyUNBd2FtKWtFAXhwii72kCGyCumOxJqvRGP4yLYA";
+        public static string k1 = "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";
+        public static string k2 = "";
+        public static string k3 = "";
 
-        public static string summaryModel = "gpt-5-mini";
-        public static string chatModel = "gpt-5-mini";
+        public static string xk1 = "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";
+        public static string xk2 = "";
+        public static string xk3 = "";
 
-        public static PhoneMenu phoneMenu = new PhoneMenu();
+        public static string summaryModel = "gpt-5.4-mini";
+        public static string chatModel = "gpt-5.4-mini";
+
+        public static PhoneMenu phoneMenu;
 
 
         // =========================================================================================

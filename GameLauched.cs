@@ -1,33 +1,34 @@
-﻿using StardewModdingAPI;
+﻿using System;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text;
+using ContentPatcher;
+using HarmonyLib;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Smartphone.Data;
+using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
-using System.Text;
-using Newtonsoft.Json;
-using Microsoft.Xna.Framework.Graphics;
-using StardewValley.Network;
-using Newtonsoft.Json.Linq;
-using Microsoft.Xna.Framework;
-using HarmonyLib;
-using System.Reflection;
-using static StardewValley.Minigames.MineCart;
-using System.Runtime.CompilerServices;
-using StardewValley.Tools;
-using StardewValley.TerrainFeatures;
-using StardewValley.Extensions;
-using StardewValley.Minigames;
-using StardewValley.GameData.Characters;
-using ContentPatcher;
-using StardewValley.Objects;
-using StardewValley.Menus;
-using StardewValley.Triggers;
-using StardewValley.Delegates;
-using StardewValley.Locations;
-using xTile.Dimensions;
-using StardewValley.GameData.Crops;
-using xTile.Tiles;
 using StardewValley.Characters;
-using Smartphone.Data;
-
+using StardewValley.Delegates;
+using StardewValley.Extensions;
+using StardewValley.GameData.Characters;
+using StardewValley.GameData.Crops;
+using StardewValley.Locations;
+using StardewValley.Menus;
+using StardewValley.Minigames;
+using StardewValley.Monsters;
+using StardewValley.Network;
+using StardewValley.Objects;
+using StardewValley.TerrainFeatures;
+using StardewValley.Tools;
+using StardewValley.Triggers;
+using xTile.Dimensions;
+using xTile.Tiles;
+using static StardewValley.Minigames.MineCart;
 
 namespace Smartphone
 {
@@ -63,7 +64,7 @@ namespace Smartphone
             helper.Events.GameLoop.OneSecondUpdateTicked += OneOneSecondUpdateTicked;
             helper.Events.Display.Rendered += OnRendered;
 
-            
+
             var harmony = new Harmony(this.ModManifest.UniqueID);
             harmony.PatchAll();
 
@@ -71,7 +72,6 @@ namespace Smartphone
 
         }
 
-        
 
 
         [HarmonyPatch(typeof(NPC), nameof(NPC.receiveGift))]
@@ -108,9 +108,10 @@ namespace Smartphone
 
             if (iUnlimitedEventExpansionApi == null)
             {
-                Monitor.Log("Failed to get Mod1 API.", LogLevel.Warn);
+                Monitor.Log("Failed to get iUnlimitedEventExpansionApi API.", LogLevel.Warn);
                 return;
             }
+
         }       // **** Config Handle ****
 
 
@@ -185,6 +186,9 @@ namespace Smartphone
                 return;
             if (e.Button == Config.ModKey && Game1.activeClickableMenu == null && Game1.currentMinigame == null)
             {
+                if (phoneMenu == null)
+                    phoneMenu = new PhoneMenu();
+
                 Game1.activeClickableMenu = phoneMenu;
             }
         }
@@ -194,8 +198,10 @@ namespace Smartphone
         private void OnSaving(object sender, SavingEventArgs e)
         {
             MessageManager.SaveData();
+            NotificationManager.SaveNoticationData();
 
-            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/GiftMemoryData", GiftMemories);
+            if (phoneMenu != null)
+                phoneMenu.ClosePhoneMenu();
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/RecentEventMemory", RecentEvents);
         }
 
@@ -237,6 +243,7 @@ namespace Smartphone
             FarmTreeNames.Clear();
 
             MessageManager.LoadData();
+            NotificationManager.LoadNoticationData();
             GiftMemories = Helper.Data.ReadJsonFile<Dictionary<string, GiftMemory>>($"./userdata/{Constants.SaveFolderName}/GiftMemoryData")
                    ?? new Dictionary<string, GiftMemory>();
             RecentEvents = Helper.Data.ReadJsonFile<List<RecentEvent>>($"./userdata/{Constants.SaveFolderName}/RecentEventMemory")
@@ -263,7 +270,7 @@ namespace Smartphone
             // send conversationSummary to iModApi
             iUnlimitedEventExpansionApi.SendNpcConversationSummary(npcConversationSummary);
         }
-        
+
         private void OnDayEnding(object sender, DayEndingEventArgs e)
         {
             // gift memory
@@ -312,12 +319,36 @@ namespace Smartphone
                 });
             }
         }
-        
+
 
         private void OnTimeChange(object sender, TimeChangedEventArgs e)
         {
+
             if (Game1.timeOfDay < 2300)
                 CheckSendNewMessage();
+
+            if (pendingInitNotification
+                && Game1.timeOfDay > 600
+                && Game1.player.CanMove
+                && !(Game1.player.isRidingHorse()
+                    || Game1.currentLocation == null
+                    || Game1.eventUp
+                    || Game1.isFestival()
+                    || Game1.IsFading()
+                    || Game1.activeClickableMenu != null
+                    || Game1.dialogueUp
+                    || Game1.player.UsingTool))
+            {
+                Game1.drawLetterMessage("=== Smartphone ===^^It looks like this your first time here, or you have recently updated the mod and ]] LOST YOUR DATA [[^^" +
+                    "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in        $$/Mods/Smartphone/Userdata$$ folder.^    ]] YOU MUST COPY IT WHEN UPDATE THE MOD [[^^" +
+                        "Thanks for trying out the mod, HaPyke +++");
+
+                NotificationManager.addNotication("=== Smartphone ===^^It looks like this your first time here, or you have recently updated the mod and LOST YOUR DATA^^" +
+                    "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in /Mods/Smartphone/Userdata folder. YOU MUST COPY IT WHEN UPDATE THE MOD^^" +
+                        "Thanks for trying out the mod, HaPyke");
+
+                pendingInitNotification = false;
+            }
         }
 
         private void OneOneSecondUpdateTicked(object sender, OneSecondUpdateTickedEventArgs e)
@@ -352,33 +383,58 @@ namespace Smartphone
                     system = GetSystemMessage(npc, type, textCount);
                 else
                     system = GetSystemMessage(npc, type);
-                
+
                 string responseMessage = "";
                 using (var httpClient = new HttpClient())
                 {
                     httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
-                    var requestBody = new
+                    var requestBody = new Dictionary<string, object>
                     {
-                        model = chatModel,
-                        messages = new[]
-                        {
-                            new { role = "system", content = system},
-                            new { role = "user", content = user },
+                        { "model", "gpt-5.4-mini" },
+                        { "input", new object[]
+                            {
+                                new
+                                {
+                                    role = "developer",
+                                    content = new object[]
+                                    {
+                                        new { type = "input_text", text = system }
+                                    }
+                                },
+                                new
+                                {
+                                    role = "user",
+                                    content = new object[]
+                                    {
+                                        new { type = "input_text", text = user }
+                                    }
+                                }
+                            }
                         },
-                        tools = GetToolList(npc),
-                        tool_choice = "auto",
-                        reasoning_effort = "minimal",
-                        verbosity = "low"
+                        { "text", new { format = new { type = "text" }, verbosity = "low" } },
+                        { "reasoning", new { effort = "none", summary = "auto" } }
                     };
+                    var tools = GetToolList(npc);
+                    if (tools.Length > 0)
+                    {
+                        requestBody.Add("tools", tools);
+                        requestBody.Add("tool_choice", "auto");
+                    }
 
                     var jsonRequest = JsonConvert.SerializeObject(requestBody);
                     var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
-                    var httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/chat/completions", httpContent);
+                    var httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/responses", httpContent);
                     if (httpResponse.IsSuccessStatusCode)
                     {
                         var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
 
-                        //SMonitor.Log(jsonResponse.ToString(), LogLevel.Error);
+
+
+                        SMonitor.Log(jsonResponse.ToString(), LogLevel.Error);
+
+                        JObject json = JObject.Parse(jsonResponse);
+                        JArray toolCalls = GetResponseFunctionCalls(json);
+                        responseMessage = GetResponseOutputText(json);
 
                         //SMonitor.Log(system, LogLevel.Error);
                         //SMonitor.Log("-----", LogLevel.Error);
@@ -388,24 +444,26 @@ namespace Smartphone
                         //SMonitor.Log("\n\n", LogLevel.Error);
 
 
-                        dynamic json = JsonConvert.DeserializeObject(jsonResponse);
-                        var msg = json.choices[0].message;
-
-
-                        if (msg.tool_calls != null)
+                        if (toolCalls.Count > 0)
                         {
-                            foreach (var call in msg.tool_calls)
+                            foreach (var call in toolCalls)
                             {
-                                if (call.function.name == "Dinner_Event")
+                                string functionName = call["name"]?.ToString() ?? string.Empty;
+                                string argumentsJson = call["arguments"]?.ToString() ?? "{}";
+
+                                if (functionName == "Dinner_Event")
                                 {
-                                    phoneMenu.ClosePhoneMenu();
+
+                                    if (phoneMenu != null)
+                                        phoneMenu.ClosePhoneMenu();
                                     Game1.activeClickableMenu = new ConfirmationDialog(
                                         $"You are going for dinner with {npc.Name}",
                                         onConfirm: (Farmer who) =>
                                         {
                                             Game1.activeClickableMenu = null;
-                                            var args = JsonConvert.DeserializeObject(call.function.arguments.ToString());
-                                            iUnlimitedEventExpansionApi.TriggerDinnerEvent((string)args.npc);
+                                            var args = JObject.Parse(argumentsJson);
+                                            iUnlimitedEventExpansionApi.TriggerDinnerEvent(args["npc"]?.ToString() ?? npc.Name);
+                                            MessageManager.AddMessage(npcName, $"{npcName}: Yes. That sounds wonderfull.");
 
                                         },
                                         onCancel: (Farmer who) =>
@@ -414,16 +472,18 @@ namespace Smartphone
                                         }
                                     );
                                 }
-                                else if (call.function.name == "NPC_Birthday_Event")
+                                else if (functionName == "NPC_Birthday_Event")
                                 {
-                                    phoneMenu.ClosePhoneMenu();
+                                    if (phoneMenu != null)
+                                        phoneMenu.ClosePhoneMenu();
                                     Game1.activeClickableMenu = new ConfirmationDialog(
                                         $"You are going to celebrate {npc.Name}'s birthday",
                                         onConfirm: (Farmer who) =>
                                         {
                                             Game1.activeClickableMenu = null;
-                                            var args = JsonConvert.DeserializeObject(call.function.arguments.ToString());
-                                            iUnlimitedEventExpansionApi.TriggerNpcBirthdayEvent((string)args.npc);
+                                            var args = JObject.Parse(argumentsJson);
+                                            iUnlimitedEventExpansionApi.TriggerNpcBirthdayEvent(args["npc"]?.ToString() ?? npc.Name);
+                                            MessageManager.AddMessage(npcName, $"{npcName}: Thank you so much!");
 
                                         },
                                         onCancel: (Farmer who) =>
@@ -432,16 +492,18 @@ namespace Smartphone
                                         }
                                     );
                                 }
-                                else if (call.function.name == "Picnic_Event")
+                                else if (functionName == "Picnic_Event")
                                 {
-                                    phoneMenu.ClosePhoneMenu();
+                                    if (phoneMenu != null)
+                                        phoneMenu.ClosePhoneMenu();
                                     Game1.activeClickableMenu = new ConfirmationDialog(
                                         $"You are going for a picnic with {npc.Name}",
                                         onConfirm: (Farmer who) =>
                                         {
                                             Game1.activeClickableMenu = null;
-                                            var args = JsonConvert.DeserializeObject(call.function.arguments.ToString());
-                                            iUnlimitedEventExpansionApi.TriggerPicnicEvent((string)args.npc);
+                                            var args = JObject.Parse(argumentsJson);
+                                            iUnlimitedEventExpansionApi.TriggerPicnicEvent(args["npc"]?.ToString() ?? npc.Name);
+                                            MessageManager.AddMessage(npcName, $"{npcName}: Yes. That sounds wonderfull.");
 
                                         },
                                         onCancel: (Farmer who) =>
@@ -450,16 +512,18 @@ namespace Smartphone
                                         }
                                     );
                                 }
-                                else if (call.function.name == "Campfire_Event")
+                                else if (functionName == "Campfire_Event")
                                 {
-                                    phoneMenu.ClosePhoneMenu();
+                                    if (phoneMenu != null)
+                                        phoneMenu.ClosePhoneMenu();
                                     Game1.activeClickableMenu = new ConfirmationDialog(
                                         $"You are going for a campfire night with {npc.Name}",
                                         onConfirm: (Farmer who) =>
                                         {
                                             Game1.activeClickableMenu = null;
-                                            var args = JsonConvert.DeserializeObject(call.function.arguments.ToString());
-                                            iUnlimitedEventExpansionApi.TriggerCampingEvent((string)args.npc);
+                                            var args = JObject.Parse(argumentsJson);
+                                            iUnlimitedEventExpansionApi.TriggerCampingEvent(args["npc"]?.ToString() ?? npc.Name);
+                                            MessageManager.AddMessage(npcName, $"{npcName}: Yes. That sounds wonderfull.");
 
                                         },
                                         onCancel: (Farmer who) =>
@@ -468,11 +532,9 @@ namespace Smartphone
                                         }
                                     );
                                 }
+                                if (phoneMenu != null)
+                                    phoneMenu.ClosePhoneMenu();
                             }
-                        }
-                        else if (!string.IsNullOrEmpty((string)msg.content))
-                        {
-                            responseMessage = msg.content;
                         }
 
 
@@ -486,7 +548,6 @@ namespace Smartphone
 
                         Game1.addHUDMessage(new HUDMessage($"A new message from {npcName}", HUDMessage.newQuest_type));
                         DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 0);
-                        DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 1500);
 
                         return responseMessage;
                     }
@@ -511,7 +572,7 @@ namespace Smartphone
                                 break;
                         }
 
-                        SMonitor.Log($"Unable to receive AI content. {errorMessage}\n\n", LogLevel.Error);
+                        SMonitor.Log($"Unable to receive AI content. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
                         return "an error";
                     }
                 }
@@ -570,7 +631,7 @@ namespace Smartphone
                 string data = @$"Player location: {playerLocation}; {npc.Name} location: {npcLocation}; Current time: {timeFormatted}; Today weather: {Game1.currentLocation.GetWeather().Weather}; Tomorrow weather: {Game1.weatherForTomorrow}; Day of months: {Game1.dayOfMonth}; Current season: {Game1.currentLocation.GetSeason()};";
 
                 if (planting != "")
-                    data += $"Player planting some {planting}";
+                    data += $"Player planting some {planting} on the farm";
                 else
                     data += "Player not planting any crop on the farm";
 
@@ -622,18 +683,7 @@ namespace Smartphone
                 }
                 if (type == "response")
                 {
-                    var systemMessage = @$"You are an AI assistant in context of game Stardew Valley. Your task is to read the user message and the context of the conversation, and then decide one of these 2 cases:
-                            1. If the conversation expresses an intent that matches a function, you **just return a function call**.
-                            2. Else, respond to the player {Game1.player.Name} ({Game1.player.Gender}, teen/young adult), who is {relation} to {npc.Name}, as if you are the NPC {npc.Name}, using their tone, relationship, personality, and the tone of the player message." +
-
-                            $" {npcCharacteristic} " +
-                            "\nYou will be given a summary of their relationship, recent messages, and other in-world context. Limit spoken responses to under 40 words. Only call a function if the player is asking to do something specific." +
-                            "\nSUMMARY:\n" + summary +
-                            "\nMASSAGE HISTORY: \n" + combined +
-                            "\nWORLD CONTEXT:\n" + data 
-                            ;
-
-                    systemMessage = $@"You are an AI assistant in game Stardew Valley. You will act as NPC {npc.Name}, texting with the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult, is {relation} to {npc.Name}).
+                    var systemMessage = $@"You are an AI assistant in game Stardew Valley. You will act as NPC {npc.Name}, texting with the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult, is {relation} to {npc.Name}).
                         First, base on the user message and the **current** conversation (not the summary), decide:
                         • If the conversation is pointing directly toward an action that matches a listed function, then reply with **only** the function call.
                         • Otherwise, answer as {npc.Name} in ≤40 words, matching their tone, characteristic and current relationship with PLAYER: {npcCharacteristic} 
@@ -687,14 +737,16 @@ namespace Smartphone
 
                 var key = k1 + k2 + k3;
 
-                var user = $"From the previous summary of the conversation and the new discusstion today, create a new summary of the conversation between NPC {npcName} in Stardew Valley and PLAYER."
-                    + "\nPREVIOUS SUMMARY: " + summary
-                    + "\nNEW DISCUSSTION: " + messageList;
+                var system = $"You are the memory manager for the NPC {npcName} in Stardew Valley. "
+                + "Your job is to read the previous memory summary and today's new conversation with the PLAYER, and summarize them into an updated memory bank. "
+                + "Focus on retaining factual lore such as the player's preferences, recent gifts, important life events, current quests or goals, and most important the current emotional standing and relationship between the NPC and the PLAYER. "
+                + "Keep the summary under 350 words. Remove outdated pleasantries, trivial daily greetings, or resolved minor topics, and just like human, some memory could be faded. " 
+                + "Be concise, do not include header, irelevant or no value information.";
 
-                var system = $"You are an AI assistant specialized in summarizing conversations between a NPC {npcName} and the PLAYER in the context of the game Stardew Valley. "
-                    + "You will be given the previous summary of the conversation, along with today’s new conversation. "
-                    + "Your task is to create a new summary of under 250 words, focus on the key points, tone and flow of the conversation. "
-                    + "You may remove less important or outdated information if necessary to stay within the word limit.";
+                var user = $"Update the memory summary for {npcName} based on today's conversation.\n\n"
+                    + "PREVIOUS SUMMARY:\n" + summary + "\n"
+                    + "TODAY'S NEW CONVERSATION:\n" + messageList
+                    + "";
 
 
 
@@ -707,24 +759,38 @@ namespace Smartphone
                     var requestBody = new
                     {
                         model = model,
-                        messages = new[]
+                        input = new object[]
                         {
-                            new { role = "system", content = system},
-                            new { role = "user", content = user },
+                            new
+                            {
+                                role = "developer",
+                                content = new object[]
+                                {
+                                    new { type = "input_text", text = system }
+                                }
+                            },
+                            new
+                            {
+                                role = "user",
+                                content = new object[]
+                                {
+                                    new { type = "input_text", text = user }
+                                }
+                            },
                         },
-                        reasoning_effort = "minimal",
-                        verbosity = "low"
+                        text = new { format = new { type = "text" }, verbosity = "medium" },
+                        reasoning = new { effort = "low", summary = "auto" }
                     };
 
                     var jsonRequest = JsonConvert.SerializeObject(requestBody);
                     var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
-                    var httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/chat/completions", httpContent);
+                    var httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/responses", httpContent);
                     if (httpResponse.IsSuccessStatusCode)
                     {
                         var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
 
-                        dynamic json = JsonConvert.DeserializeObject(jsonResponse);
-                        responseMessage = json.choices[0].message.content;
+                        JObject json = JObject.Parse(jsonResponse);
+                        responseMessage = GetResponseOutputText(json);
 
                         //Game1.chatBox.addErrorMessage(jsonResponse.ToString());
 
@@ -781,40 +847,38 @@ namespace Smartphone
                     new
                     {
                         type = "function",
-                        function = new
+                        name = "NPC_Birthday_Event",
+                        description = "Use this function when PLAYER want to hold an event to celebrate NPC's birthday.",
+                        parameters = new
                         {
-                            name = "NPC_Birthday_Event",
-                            description = "Use this function when PLAYER want to hold an event to celebrate NPC's birthday.",
-                            parameters = new
+                            type = "object",
+                            properties = new
                             {
-                                type = "object",
-                                properties = new
-                                {
-                                    npc = new { type = "string", description = "Name of the NPC" }
-                                },
-                                required = new[] { "npc" }
-                            }
-                        }
+                                npc = new { type = "string", description = "Name of the NPC" }
+                            },
+                            required = new[] { "npc" },
+                            additionalProperties = false
+                        },
+                        strict = true
                     }
                 );
                 functionList.Add(
                     new
                     {
                         type = "function",
-                        function = new
+                        name = "Campfire_Event",
+                        description = "Use this function when PLAYER and NPC is planning to go for campfire together.",
+                        parameters = new
                         {
-                            name = "Campfire_Event",
-                            description = "Use this function when PLAYER and NPC is planning to go for campfire together.",
-                            parameters = new
+                            type = "object",
+                            properties = new
                             {
-                                type = "object",
-                                properties = new
-                                {
-                                    npc = new { type = "string", description = "Name of the NPC" }
-                                },
-                                required = new[] { "npc" }
-                            }
-                        }
+                                npc = new { type = "string", description = "Name of the NPC" }
+                            },
+                            required = new[] { "npc" },
+                            additionalProperties = false
+                        },
+                        strict = true
                     }
                 );
             }
@@ -824,46 +888,221 @@ namespace Smartphone
                     new
                     {
                         type = "function",
-                        function = new
+                        name = "Picnic_Event",
+                        description = "Use this function when PLAYER and NPC is planning to go for a picnic together.",
+                        parameters = new
                         {
-                            name = "Picnic_Event",
-                            description = "Use this function when PLAYER and NPC is planning to go for a picnic together.",
-                            parameters = new
+                            type = "object",
+                            properties = new
                             {
-                                type = "object",
-                                properties = new
-                                {
-                                    npc = new { type = "string", description = "Name of the NPC" }
-                                },
-                                required = new[] { "npc" }
-                            }
-                        }
+                                npc = new { type = "string", description = "Name of the NPC" }
+                            },
+                            required = new[] { "npc" },
+                            additionalProperties = false
+                        },
+                        strict = true
                     }
                 );
                 functionList.Add(
                     new
                     {
                         type = "function",
-                        function = new
+                        name = "Dinner_Event",
+                        description = "Use this function when PLAYER and NPC is planning to have dinner together.",
+                        parameters = new
                         {
-                            name = "Dinner_Event",
-                            description = "Use this function when PLAYER and NPC is planning to have dinner together.",
-                            parameters = new
+                            type = "object",
+                            properties = new
                             {
-                                type = "object",
-                                properties = new
-                                {
-                                    npc = new { type = "string", description = "Name of the NPC" }
-                                },
-                                required = new[] { "npc" }
-                            }
-                        }
+                                npc = new { type = "string", description = "Name of the NPC" }
+                            },
+                            required = new[] { "npc" },
+                            additionalProperties = false
+                        },
+                        strict = true
                     }
                 );
             }
             return functionList.ToArray();
         }
 
+        private static JArray GetResponseFunctionCalls(JObject responseJson)
+        {
+            var calls = new JArray();
+            var output = responseJson?["output"] as JArray;
+            if (output == null)
+                return calls;
+
+            foreach (var item in output)
+            {
+                if (item?["type"]?.ToString() == "function_call")
+                    calls.Add(item);
+            }
+
+            return calls;
+        }
+
+        private static string GetResponseOutputText(JObject responseJson)
+        {
+            var output = responseJson?["output"] as JArray;
+            if (output != null)
+            {
+                foreach (var item in output)
+                {
+                    if (item?["type"]?.ToString() != "message")
+                        continue;
+
+                    var content = item["content"] as JArray;
+                    if (content == null)
+                        continue;
+
+                    foreach (var part in content)
+                    {
+                        if (part?["type"]?.ToString() == "output_text")
+                        {
+                            var text = part["text"]?.ToString();
+                            if (!string.IsNullOrWhiteSpace(text))
+                                return text;
+                        }
+                    }
+                }
+            }
+
+            var fallbackText = responseJson?["output_text"]?.ToString();
+            return fallbackText ?? string.Empty;
+        }
+
+
+        public static async Task GetOpenAIUsage()
+        {
+            SMonitor.Log("Checking OpenAI usage...", LogLevel.Error);
+            List<string> premiumModels = new List<string> { "gpt-5.4", "gpt-5.2", "gpt-5.1", "gpt-5.1-codex", "gpt-5", "gpt-5-codex", "gpt-5-chat-latest", "gpt-4.1", "gpt-4o", "o1", "o3" };
+            List<string> regularModels = new List<string> { "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.1-codex-mini", "gpt-5-mini", "gpt-5-nano", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini", 
+                                                            "o1-mini", "o3-mini", "o4-mini", "codex-mini-latest" };
+            string admin_key = xk1 + xk2 + xk3;
+            string usageUrl = "https://api.openai.com/v1/organization/usage/completions";
+            using HttpClient client = new HttpClient();
+
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", admin_key);
+
+            DateTime utcNow = DateTime.UtcNow;
+            DateTime utcStartOfToday = utcNow.Date;
+            long startTime = new DateTimeOffset(utcStartOfToday).ToUnixTimeSeconds();
+            long endTime = new DateTimeOffset(utcNow).ToUnixTimeSeconds();
+
+            try
+            {
+                var perModelTotals = new Dictionary<string, (long Input, long Output)>();
+                string? nextPage = null;
+                bool hasMore;
+
+                do
+                {
+                    var query = $"start_time={startTime}&end_time={endTime}&group_by=model";
+                    if (!string.IsNullOrWhiteSpace(nextPage))
+                        query += $"&page={Uri.EscapeDataString(nextPage)}";
+
+                    string requestUrl = $"{usageUrl}?{query}";
+                    HttpResponseMessage response = await client.GetAsync(requestUrl);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        string error = await response.Content.ReadAsStringAsync();
+                        SMonitor.Log($"Error: {response.StatusCode} - {error}", LogLevel.Error);
+                        return;
+                    }
+
+                    string jsonResponse = await response.Content.ReadAsStringAsync();
+                    JObject json = JObject.Parse(jsonResponse);
+
+                    var data = json["data"] as JArray;
+                    if (data != null)
+                    {
+                        foreach (var bucket in data)
+                        {
+                            var results = bucket?["results"] as JArray;
+                            if (results == null)
+                                continue;
+
+                            foreach (var result in results)
+                            {
+                                string? model = result?["model"]?.ToString();
+                                if (string.IsNullOrWhiteSpace(model))
+                                    model = "unknown";
+
+                                long inputTokens = result?["input_tokens"]?.Value<long>() ?? 0;
+                                long outputTokens = result?["output_tokens"]?.Value<long>() ?? 0;
+
+                                if (perModelTotals.TryGetValue(model, out var totals))
+                                {
+                                    perModelTotals[model] = (totals.Input + inputTokens, totals.Output + outputTokens);
+                                }
+                                else
+                                {
+                                    perModelTotals[model] = (inputTokens, outputTokens);
+                                }
+                            }
+                        }
+                    }
+
+                    hasMore = json["has_more"]?.Value<bool>() ?? false;
+                    nextPage = json["next_page"]?.ToString();
+                }
+                while (hasMore && !string.IsNullOrWhiteSpace(nextPage));
+
+                SMonitor.Log($"OpenAI usage window (UTC): {utcStartOfToday:yyyy-MM-dd HH:mm:ss} -> {utcNow:yyyy-MM-dd HH:mm:ss}", LogLevel.Info);
+                if (perModelTotals.Count == 0)
+                {
+                    SMonitor.Log("No usage records found for the current UTC day.", LogLevel.Info);
+                    return;
+                }
+
+                foreach (var item in perModelTotals.OrderByDescending(x => x.Value.Input + x.Value.Output))
+                {
+                    SMonitor.Log($"Model: {item.Key} | Input: {item.Value.Input} | Output: {item.Value.Output}", LogLevel.Info);
+                }
+
+                // Aggregate totals for premium and regular model groups
+                long premiumInputTotal = 0, premiumOutputTotal = 0;
+                long regularInputTotal = 0, regularOutputTotal = 0;
+
+                foreach (var kv in perModelTotals)
+                {
+                    var modelName = kv.Key ?? string.Empty;
+                    var input = kv.Value.Input;
+                    var output = kv.Value.Output;
+
+                    // Prefer matching regular (specific) names first, then premium.
+                    bool isRegular = regularModels.Any(rm =>
+                        modelName.StartsWith(rm, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(rm, modelName, StringComparison.OrdinalIgnoreCase)
+                    );
+                    bool isPremium = !isRegular && premiumModels.Any(pm =>
+                        modelName.StartsWith(pm, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(pm, modelName, StringComparison.OrdinalIgnoreCase)
+                    );
+
+                    if (isRegular)
+                    {
+                        regularInputTotal += input;
+                        regularOutputTotal += output;
+                    }
+                    else if (isPremium)
+                    {
+                        premiumInputTotal += input;
+                        premiumOutputTotal += output;
+                    }
+                }
+
+                SMonitor.Log($"Premium Models Total | Input: {premiumInputTotal} | Output: {premiumOutputTotal}", LogLevel.Info);
+                SMonitor.Log($"Regular Models Total | Input: {regularInputTotal} | Output: {regularOutputTotal}", LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                SMonitor.Log($"Request failed: {ex.Message}", LogLevel.Error);
+            }
+        }
+        
 
     }
 }

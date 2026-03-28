@@ -35,6 +35,7 @@ namespace Smartphone
         private Texture2D textureAppPhoto = Textures.AppPhoto;
         private Texture2D textureAppSetting = Textures.AppSetting;
         private Texture2D textureAppGame = Textures.AppGame;
+        private Texture2D textureAppNotification = Textures.AppNotification;
 
         private Texture2D textureGameDarts = Textures.GameDarts;
         private Texture2D textureGameJack = Textures.GameJack;
@@ -53,6 +54,8 @@ namespace Smartphone
         private string currentMessage = "";
         public static List<string> messageHistory = new();
         private int chatScrollOffset = 0;
+        public static List<string> notificationHistory = new();
+        private int notificationScrollOffset = 0;
         int maxBubbleWidth = 400;
 
         private Dictionary<string, ClickableTextureComponent> favourityNpcButton = new();
@@ -77,6 +80,7 @@ namespace Smartphone
         private ClickableTextureComponent appSetting;
         private ClickableTextureComponent appGame;
         private ClickableTextureComponent appCalendar;
+        private ClickableTextureComponent appNotification;
 
 
         private ClickableTextureComponent gamePirate;
@@ -175,9 +179,17 @@ namespace Smartphone
 
         public override void draw(SpriteBatch b)
         {
+            // notification app
+            appNotification = new ClickableTextureComponent(
+                new Rectangle(this.xPositionOnScreen + 80, this.yPositionOnScreen + 250, 84, 84),
+                textureAppNotification,
+                new Rectangle(0, 0, 84, 84),
+                1f
+            );
+
             // text app
             appText = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 80, this.yPositionOnScreen + 250, 84, 84),
+                new Rectangle(this.xPositionOnScreen + 200, this.yPositionOnScreen + 250, 84, 84),
                 textureAppText,
                 new Rectangle(0, 0, 84, 84),
                 1f);
@@ -196,7 +208,7 @@ namespace Smartphone
 
             // camera app
             appCamera = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 200, this.yPositionOnScreen + 250, 84, 84),
+                new Rectangle(this.xPositionOnScreen + 320, this.yPositionOnScreen + 250, 84, 84),
                 textureAppCamera,
                 new Rectangle(0, 0, 84, 84),
                 1f);
@@ -209,7 +221,7 @@ namespace Smartphone
 
             // photo app
             appPhoto = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 320, this.yPositionOnScreen + 250, 84, 84),
+                new Rectangle(this.xPositionOnScreen + 440, this.yPositionOnScreen + 250, 84, 84),
                 textureAppPhoto,
                 new Rectangle(0, 0, 84, 84),
                 1f);
@@ -230,7 +242,7 @@ namespace Smartphone
 
             // setting app
             appSetting = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 440, this.yPositionOnScreen + 250, 84, 84),
+                new Rectangle(this.xPositionOnScreen + 80, this.yPositionOnScreen + 370, 84, 84),
                 textureAppSetting,
                 new Rectangle(0, 0, 84, 84),
                 1f);
@@ -238,7 +250,7 @@ namespace Smartphone
 
             // calendar app
             appCalendar = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 80, this.yPositionOnScreen + 370, 84, 84),
+                new Rectangle(this.xPositionOnScreen + 200, this.yPositionOnScreen + 370, 84, 84),
                 furnitureTexture,
                 new Rectangle(417, 698, 15, 16),
                 5.25f 
@@ -246,7 +258,7 @@ namespace Smartphone
 
             // game app
             appGame = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 200, this.yPositionOnScreen + 370, 84, 84),
+                new Rectangle(this.xPositionOnScreen + 320, this.yPositionOnScreen + 370, 84, 84),
                 textureAppGame,
                 new Rectangle(0, 0, 84, 84),
                 1f
@@ -316,6 +328,69 @@ namespace Smartphone
                 appSetting.draw(b);
                 appCalendar.draw(b);
                 appGame.draw(b);
+                appNotification.draw(b);
+
+                int unreadNpcCount = MessageManager.unreadCounts.Count(pair => pair.Value > 0);
+                if (unreadNpcCount > 0)
+                {
+                    string unreadText = Math.Min(99, unreadNpcCount).ToString();
+                    Vector2 unreadTextSize = Game1.smallFont.MeasureString(unreadText);
+
+                    int badgeWidth = Math.Max(32, (int)unreadTextSize.X + 18);
+                    int badgeHeight = Math.Max(24, (int)unreadTextSize.Y + 6);
+                    int badgeX = appText.bounds.Right - (badgeWidth / 2) - 10;
+                    int badgeY = appText.bounds.Y - (badgeHeight / 2) + 10;
+
+                    IClickableMenu.drawTextureBox(
+                        b,
+                        Game1.menuTexture,
+                        new Rectangle(0, 256, 60, 60),
+                        badgeX,
+                        badgeY,
+                        badgeWidth,
+                        badgeHeight,
+                        new Color(255, 0, 0, 150),
+                        1f,
+                        false
+                    );
+
+                    Vector2 unreadTextPosition = new Vector2(
+                        badgeX + (badgeWidth - unreadTextSize.X) / 2f,
+                        badgeY + (badgeHeight - unreadTextSize.Y) / 2f
+                    );
+                    b.DrawString(Game1.smallFont, unreadText, unreadTextPosition, Color.White);
+                }
+
+                int unreadNotification = NotificationManager.getUnreadNotication();
+                if (unreadNotification > 0)
+                {
+                    string unreadText = unreadNotification > 9 ? "9" : unreadNotification.ToString();
+                    Vector2 unreadTextSize = Game1.smallFont.MeasureString(unreadText);
+
+                    int badgeWidth = Math.Max(32, (int)unreadTextSize.X + 18);
+                    int badgeHeight = Math.Max(24, (int)unreadTextSize.Y + 6);
+                    int badgeX = appNotification.bounds.Right - (badgeWidth / 2) - 10;
+                    int badgeY = appNotification.bounds.Y - (badgeHeight / 2) + 10;
+
+                    IClickableMenu.drawTextureBox(
+                        b,
+                        Game1.menuTexture,
+                        new Rectangle(0, 256, 60, 60),
+                        badgeX,
+                        badgeY,
+                        badgeWidth,
+                        badgeHeight,
+                        new Color(255, 0, 0, 150),
+                        1f,
+                        false
+                    );
+
+                    Vector2 unreadTextPosition = new Vector2(
+                        badgeX + (badgeWidth - unreadTextSize.X) / 2f,
+                        badgeY + (badgeHeight - unreadTextSize.Y) / 2f
+                    );
+                    b.DrawString(Game1.smallFont, unreadText, unreadTextPosition, Color.White);
+                }
 
             }
             else if (currentApp == "appGame")
@@ -864,7 +939,79 @@ namespace Smartphone
 
 
             }
-            
+            else if (currentApp == "appNotification")
+            {
+                b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
+                b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
+                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 190), Color.White);
+                b.Draw(
+                        removeButton.texture,
+                        new Vector2(removeButton.bounds.X, removeButton.bounds.Y),
+                        removeButton.sourceRect,
+                        Color.White * 0.8f,
+                        0f,
+                        Vector2.Zero,
+                        removeButton.scale,
+                        SpriteEffects.None,
+                        1f
+                    );
+                backButton.draw(b);
+
+                b.End();
+                Rectangle chatClipRect = new Rectangle(xPositionOnScreen, yPositionOnScreen + 200, width, 665); // Adjust height as needed
+                Game1.graphics.GraphicsDevice.ScissorRectangle = chatClipRect;
+
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState() { ScissorTestEnable = true });
+
+                // Draw messages within clipped region
+                int messageY = yPositionOnScreen + 200;
+                SpriteFont font = Game1.smallFont;
+
+                // Show newest notifications first. Reverse the list, then skip by offset.
+                foreach (string msg in notificationHistory.AsEnumerable().Reverse().Skip(notificationScrollOffset).ToList())
+                {
+                    List<string> wrappedLines = SplitNotificationIntoLines(msg, font, 485);
+
+                    int lineHeight = (int)font.MeasureString("A").Y + 4;
+                    int bubbleHeight = wrappedLines.Count * lineHeight + 10;
+                    int bubbleWidth = 0;
+
+                    foreach (var line in wrappedLines)
+                        bubbleWidth = Math.Max(bubbleWidth, (int)font.MeasureString(line).X + 20);
+
+                    Rectangle bubbleRect = new Rectangle(xPositionOnScreen + 50, messageY, bubbleWidth, bubbleHeight);
+
+                    IClickableMenu.drawTextureBox(
+                        b,
+                        Game1.menuTexture,
+                        new Rectangle(0, 256, 60, 60), // source rect for 9-slice
+                        bubbleRect.X - 5,
+                        bubbleRect.Y,
+                        bubbleRect.Width + 12,
+                        bubbleRect.Height + 10,
+                        new Color(0, 0, 0, 100),
+                        1f,
+                        false
+                    );
+
+                    int textY = bubbleRect.Y + 15;
+                    foreach (var line in wrappedLines)
+                    {
+                        Vector2 linePos = new Vector2(bubbleRect.X + 10, textY);
+                        b.DrawString(font, line, linePos, Color.White);
+                        textY += lineHeight;
+                    }
+
+                    messageY += bubbleHeight + 20;
+                    
+                }
+
+                // Reset clipping
+                b.End();
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+
+            }
+
 
             // base
             base.draw(b);
@@ -918,7 +1065,7 @@ namespace Smartphone
                 currentMessage = currentSuggestion.Item2.Replace("\n", " ");
                 currentSuggestion = new ("", "");
                 Game1.playSound("smallSelect"); // optional
-                CalculateScrollToBottomOffset();
+                CalculateScrollToBottomOffset(messageHistory);
                 return;
             }
             if(selectedNpc != null && firstMessageBounds.Contains(x, y) && (!ModEntry.npcMessagesToday.ContainsKey(selectedNpc) || ModEntry.npcMessagesToday[selectedNpc].Count == 0))
@@ -971,6 +1118,12 @@ namespace Smartphone
                 currentApp = "appGame";
                 return;
             }
+            else if(appNotification.containsPoint(x, y) && currentApp == null)
+            {
+                OpenNotification();
+                currentApp = "appNotification";
+                return;
+            }
 
 
             if (captureButton.containsPoint(x, y) && currentApp == "appCamera")
@@ -1000,7 +1153,7 @@ namespace Smartphone
                         return;
                     }
                 }
-                else if ( new List<string> { "appCamera", "appPhoto", "appSetting", "appGame" }.Contains(currentApp))
+                else if ( new List<string> { "appCamera", "appPhoto", "appSetting", "appGame", "appNotification" }.Contains(currentApp))
                 {
                     
                     currentApp = null;
@@ -1053,6 +1206,12 @@ namespace Smartphone
                     Game1.playSound("trashcan");
                 }
 
+                return;
+            }
+            else if (removeButton.containsPoint(x, y) && currentApp == "appNotification")
+            {
+                NotificationManager.clearNotification();
+                notificationHistory = NotificationManager.getNoticationList();
                 return;
             }
 
@@ -1266,7 +1425,6 @@ namespace Smartphone
         {
             if (selectedNpc != null && currentApp == "appText")
             {
-                int totalHeight = messageHistory.Count * 60; // approx.
                 if (direction > 0) chatScrollOffset = Math.Max(chatScrollOffset - 1, 0);
                 else chatScrollOffset++;
                 chatScrollOffset = Math.Min(chatScrollOffset, messageHistory.Count - 1);
@@ -1280,6 +1438,14 @@ namespace Smartphone
             {
                 scrollOffset -= direction / 120;
                 scrollOffset = Math.Max(0, Math.Min(scrollOffset, phoneSoundList.Count - maxVisibleNPCs));
+            }
+            else if (currentApp == "appNotification")
+            {
+                if (direction > 0)
+                    notificationScrollOffset = Math.Max(notificationScrollOffset - 1, 0);
+                else
+                    notificationScrollOffset++;
+                notificationScrollOffset = Math.Min(notificationScrollOffset, Math.Max(0, notificationHistory.Count - 1));
             }
         }
 
@@ -1362,7 +1528,7 @@ namespace Smartphone
             messageHistory = MessageManager.GetMessages(selectedNpc);
             string reply = sendTextMessage(selectedNpc, currentMessage);
             currentMessage = "";
-            chatScrollOffset = CalculateScrollToBottomOffset();
+            chatScrollOffset = CalculateScrollToBottomOffset(messageHistory);
         }
 
 
@@ -1474,24 +1640,125 @@ namespace Smartphone
         private List<string> SplitTextIntoLines(string text, SpriteFont font, int maxWidth)
         {
             List<string> lines = new();
-            string[] words = text.Split(' ');
-            string line = "";
+            // Treat caret '^' and newline '\n' as explicit line breaks.
+            string[] explicitLines = text.Split(new[] { '^', '\n' }, StringSplitOptions.None);
 
-            foreach (var word in words)
+            foreach (var explicitLine in explicitLines)
             {
-                string test = string.IsNullOrEmpty(line) ? word : line + " " + word;
-                if (font.MeasureString(test).X > maxWidth)
+                if (explicitLine == "")
                 {
+                    lines.Add("");
+                    continue;
+                }
+
+                string[] words = explicitLine.Split(' ');
+                string line = "";
+
+                foreach (var word in words)
+                {
+                    string test = string.IsNullOrEmpty(line) ? word : line + " " + word;
+                    if (font.MeasureString(test).X > maxWidth)
+                    {
+                        if (!string.IsNullOrEmpty(line))
+                            lines.Add(line);
+
+                        // If single word itself is longer than the max width, split it character-wise.
+                        if (font.MeasureString(word).X > maxWidth)
+                        {
+                            string partial = "";
+                            foreach (char c in word)
+                            {
+                                string testPartial = partial + c;
+                                if (font.MeasureString(testPartial).X > maxWidth)
+                                {
+                                    if (!string.IsNullOrEmpty(partial))
+                                        lines.Add(partial);
+                                    partial = c.ToString();
+                                }
+                                else
+                                {
+                                    partial = testPartial;
+                                }
+                            }
+                            line = partial;
+                        }
+                        else
+                        {
+                            line = word;
+                        }
+                    }
+                    else
+                    {
+                        line = test;
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(line))
                     lines.Add(line);
-                    line = word;
-                }
-                else
-                {
-                    line = test;
-                }
             }
-            if (!string.IsNullOrEmpty(line))
-                lines.Add(line);
+
+            return lines;
+        }
+
+        private List<string> SplitNotificationIntoLines(string text, SpriteFont font, int maxWidth)
+        {
+            List<string> lines = new();
+            // Treat caret '^' and newline '\n' as explicit line breaks.
+            string[] explicitLines = text.Split(new[] { '^', '\n' }, StringSplitOptions.None);
+
+            foreach (var explicitLine in explicitLines)
+            {
+                if (explicitLine == "")
+                {
+                    lines.Add("");
+                    continue;
+                }
+
+                string[] words = explicitLine.Split(' ');
+                string line = "";
+
+                foreach (var word in words)
+                {
+                    string test = string.IsNullOrEmpty(line) ? word : line + " " + word;
+                    if (font.MeasureString(test).X > maxWidth)
+                    {
+                        if (!string.IsNullOrEmpty(line))
+                            lines.Add(line);
+
+                        if (font.MeasureString(word).X > maxWidth)
+                        {
+                            string partial = "";
+                            foreach (char c in word)
+                            {
+                                string testPartial = partial + c;
+                                if (font.MeasureString(testPartial).X > maxWidth)
+                                {
+                                    if (!string.IsNullOrEmpty(partial))
+                                        lines.Add(partial);
+                                    partial = c.ToString();
+                                }
+                                else
+                                {
+                                    partial = testPartial;
+                                }
+                            }
+                            line = partial;
+                        }
+                        else
+                        {
+                            line = word;
+                        }
+                    }
+                    else
+                    {
+                        line = test;
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(line))
+                    lines.Add(line);
+            }
+
             return lines;
         }
 
@@ -1499,11 +1766,19 @@ namespace Smartphone
         {
             selectedNpc = npcName;
             messageHistory = MessageManager.GetMessages(npcName);
-            chatScrollOffset = CalculateScrollToBottomOffset();
+            chatScrollOffset = CalculateScrollToBottomOffset(messageHistory);
         }
-        private int CalculateScrollToBottomOffset()
+
+        public void OpenNotification()
         {
-            return Math.Max(0, messageHistory.Count - 4);
+            NotificationManager.resetUnreadNotication();
+            notificationHistory = NotificationManager.getNoticationList();
+            notificationScrollOffset = 0;
+        }
+
+        private int CalculateScrollToBottomOffset(List<string> msgList)
+        {
+            return Math.Max(0, msgList.Count - 4);
         }
 
 

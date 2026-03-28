@@ -1,0 +1,16 @@
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\Assets\birthday_map.json
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\Assets\npcAge.json
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\Assets\npc_age.json
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\Assets\npc_characteristic.json
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\Assets\npc_portraits.json
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\Assets\OLDbirthday_map.json
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\README.txt
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\Smartphone.deps.json
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\Smartphone.dll
+C:\Users\Ha\Desktop\Texter\obj\Debug\net6.0\Smartphone.csproj.AssemblyReference.cache
+C:\Users\Ha\Desktop\Texter\obj\Debug\net6.0\Smartphone.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Ha\Desktop\Texter\obj\Debug\net6.0\Smartphone.AssemblyInfoInputs.cache
+C:\Users\Ha\Desktop\Texter\obj\Debug\net6.0\Smartphone.AssemblyInfo.cs
+C:\Users\Ha\Desktop\Texter\obj\Debug\net6.0\Smartphone.csproj.CoreCompileInputs.cache
+C:\Users\Ha\Desktop\Texter\obj\Debug\net6.0\Smartphone.sourcelink.json
+C:\Users\Ha\Desktop\Texter\obj\Debug\net6.0\Smartphone.dll
