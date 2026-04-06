@@ -40,6 +40,32 @@ namespace Smartphone
                 allowedValues: new string[] { "Always", "Minimal", "Never" },
                 formatAllowedValue: value => value
             );
+
+            // advance settings
+            configMenu.AddSectionTitle(mod: ModManifest, () => "Advance Settings");
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => "OpenAI API Key",
+                tooltip: () => "You can provide your own key to avoid usage limit and able to customize conversation summary limit below.",
+                getValue: () => Config.OpenAIKey,
+                setValue: value => Config.OpenAIKey = value.Trim()
+            );
+
+            configMenu.AddNumberOption(
+                mod: ModManifest,
+                name: () => "Max summary word count",
+                tooltip: () => "Limit the maximum word count for the conversation summary generated. Only effective if you have provided OpenAI API key.",
+                getValue: () => Config.MaxSummaryWordCount,
+                setValue: value => Config.MaxSummaryWordCount = value
+            );
+
+            configMenu.AddNumberOption(
+                mod: ModManifest,
+                name: () => "Max characteristic character count",
+                tooltip: () => "Max character count for each NPC characteristic. Only effective if you have provided OpenAI API key.",
+                getValue: () => Config.MaxCharacteristicCharacterCount,
+                setValue: value => Config.MaxCharacteristicCharacterCount = value
+            );
         }
 
     }

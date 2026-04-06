@@ -34,6 +34,7 @@ namespace Smartphone
             if (ModEntry.phoneMenu == null)
                 ModEntry.phoneMenu = new PhoneMenu();
 
+            ModEntry.phoneMenu.UpdateNpcList();
             List<string> npcNames = ModEntry.phoneMenu.messageableNpcList
                 .Select(npc => npc.name)
                 .ToList();
@@ -43,27 +44,138 @@ namespace Smartphone
         public void SendSmartphoneMessageFromNPC(string npcName, string message)
         {
             if (Game1.getCharacterFromName(npcName) == null) return;
-            if (ModEntry.phoneMenu == null) return;
-            if (ModEntry.phoneMenu.messageableNpcList.Select(npc => npc.name).ToList().Contains(npcName)) return;
+            if (ModEntry.phoneMenu == null) ModEntry.phoneMenu = new PhoneMenu();
+            ModEntry.phoneMenu.UpdateNpcList();
+            if (!ModEntry.phoneMenu.messageableNpcList.Select(npc => npc.name).ToList().Contains(npcName)) return;
+            ModEntry.phoneMenu.ClosePhoneMenu();
 
             MessageManager.AddMessage(npcName, $"{npcName}: " + message);
-            Game1.addHUDMessage(new HUDMessage($"A new message from {npcName}", HUDMessage.newQuest_type));
-            DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 0);
-            DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 1500);
         }
 
         public void SendSmartphoneMessageFromPlayer(string npcName, string message)
         {
             if (Game1.getCharacterFromName(npcName) == null) return;
-            if (ModEntry.phoneMenu == null) return;
-            if (ModEntry.phoneMenu.messageableNpcList.Select(npc => npc.name).ToList().Contains(npcName)) return;
+            if (ModEntry.phoneMenu == null) ModEntry.phoneMenu = new PhoneMenu();
+            ModEntry.phoneMenu.UpdateNpcList();
+            if (!ModEntry.phoneMenu.messageableNpcList.Select(npc => npc.name).ToList().Contains(npcName)) return;
+            ModEntry.phoneMenu.ClosePhoneMenu();
             MessageManager.AddMessage(npcName, $"PLAYER: {message}");
         }
 
-        public void SendSmartphoneNotification(string message)
+        public void SendSmartphoneNotification(string message, string notificationName = "")
         {
             if (ModEntry.phoneMenu == null) return;
-            NotificationManager.addNotication(message);
+            NotificationManager.addNotification(message, notificationName);
+        }
+
+        public bool RegisterUnlimitedEvent(
+            string ownerModId,
+            string eventType,
+            string displayName,
+            Action<string> triggerEvent,
+            int minimumHeartLevel = 0,
+            string toolDescription = "")
+        {
+            return ModEntry.RegisterUnlimitedEventInternal(
+                ownerModId,
+                eventType,
+                displayName,
+                triggerEvent,
+                minimumHeartLevel,
+                toolDescription);
+        }
+
+        public bool UnregisterUnlimitedEvent(string ownerModId, string eventType)
+        {
+            return ModEntry.UnregisterUnlimitedEventInternal(ownerModId, eventType);
+        }
+
+        public bool RegisterPhoneApp(
+            string ownerModId,
+            string appId,
+            string displayName,
+            Texture2D iconTexture,
+            Action onClick,
+            bool closePhoneOnLaunch = true,
+            int sortOrder = 0,
+            Rectangle? sourceRect = null,
+            Func<bool>? isVisible = null,
+            Func<int>? getBadgeCount = null)
+        {
+            return ModEntry.RegisterPhoneAppInternal(
+                ownerModId,
+                appId,
+                displayName,
+                iconTexture,
+                onClick,
+                closePhoneOnLaunch,
+                sortOrder,
+                sourceRect,
+                isVisible,
+                getBadgeCount);
+        }
+
+        public bool UnregisterPhoneApp(string ownerModId, string appId)
+        {
+            return ModEntry.UnregisterPhoneAppInternal(ownerModId, appId);
+        }
+
+        public bool RegisterPhoneAppGroup(
+            string ownerModId,
+            string groupId,
+            string displayName,
+            Texture2D iconTexture,
+            int sortOrder = 0,
+            Rectangle? sourceRect = null,
+            Func<bool>? isVisible = null,
+            Func<int>? getBadgeCount = null)
+        {
+            return ModEntry.RegisterPhoneAppGroupInternal(
+                ownerModId,
+                groupId,
+                displayName,
+                iconTexture,
+                sortOrder,
+                sourceRect,
+                isVisible,
+                getBadgeCount);
+        }
+
+        public bool UnregisterPhoneAppGroup(string ownerModId, string groupId)
+        {
+            return ModEntry.UnregisterPhoneAppGroupInternal(ownerModId, groupId);
+        }
+
+        public bool RegisterPhoneAppGroupItem(
+            string ownerModId,
+            string groupId,
+            string itemId,
+            string displayName,
+            Texture2D iconTexture,
+            Action onClick,
+            bool closePhoneOnLaunch = true,
+            int sortOrder = 0,
+            Rectangle? sourceRect = null,
+            Func<bool>? isVisible = null,
+            Func<int>? getBadgeCount = null)
+        {
+            return ModEntry.RegisterPhoneAppGroupItemInternal(
+                ownerModId,
+                groupId,
+                itemId,
+                displayName,
+                iconTexture,
+                onClick,
+                closePhoneOnLaunch,
+                sortOrder,
+                sourceRect,
+                isVisible,
+                getBadgeCount);
+        }
+
+        public bool UnregisterPhoneAppGroupItem(string ownerModId, string groupId, string itemId)
+        {
+            return ModEntry.UnregisterPhoneAppGroupItemInternal(ownerModId, groupId, itemId);
         }
 
     }
@@ -97,6 +209,7 @@ namespace Smartphone
 
         public static Dictionary<string, GiftMemory> GiftMemories = new();
         public static List<RecentEvent> RecentEvents = new();
+        public static List<(string NpcName, string EventType, string TimeOfDay)> PendingUnlimitedEvents = new();
 
         public static bool isTodayEventAdded = false;
         public static Dictionary<(string season, int day), List<NPC>> NpcBirthdaysByDate = new();
@@ -205,9 +318,6 @@ namespace Smartphone
                                         parsed = parsed.Split('$')[0].Trim();
 
                                         MessageManager.AddMessage(npcName, $"{npcName}: " + parsed);
-                                        Game1.addHUDMessage(new HUDMessage($"A new message from {npcName}", HUDMessage.newQuest_type));
-                                        DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 0);
-                                        DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 1500);
 
                                         lastTimeReceiveMessage = Game1.timeOfDay;
                                     }
@@ -274,10 +384,6 @@ namespace Smartphone
                                 parsed = parsed.Split('$')[0].Trim();
 
                                 MessageManager.AddMessage(npcName, $"{npcName}: " + parsed);
-
-                                Game1.addHUDMessage(new HUDMessage($"A new message from {npcName}", HUDMessage.newQuest_type));
-                                DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 0);
-                                DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 1500);
                             }
                         }
 

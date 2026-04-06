@@ -35,7 +35,11 @@ namespace Smartphone
     /// <summary>The mod entry point.</summary>
     public partial class ModEntry
     {
-        //
+        private const int PhotoCaptureWidth = 520;
+        private const int PhotoCaptureHeight = 705;
+
+        // Image-tagging state and helpers moved to ImageTagging.cs.
+
         // *************************** ENTRY ***************************
         //
 
@@ -61,7 +65,7 @@ namespace Smartphone
             helper.Events.GameLoop.DayEnding += OnDayEnding;
             helper.Events.GameLoop.TimeChanged += OnTimeChange;
             helper.Events.GameLoop.DayStarted += OnDayStarted;
-            helper.Events.GameLoop.OneSecondUpdateTicked += OneOneSecondUpdateTicked;
+            helper.Events.GameLoop.OneSecondUpdateTicked += OnOneSecondUpdateTicked;
             helper.Events.Display.Rendered += OnRendered;
 
 
@@ -99,7 +103,7 @@ namespace Smartphone
 
         private void OnGameLauched(object sender, StardewModdingAPI.Events.GameLaunchedEventArgs e)
         {
-            this.Monitor.Log("Loading Smartphone", LogLevel.Trace);
+            this.Monitor.Log("Loading Smartphone", LogLevel.Info);
             var api = this.Helper.ModRegistry.GetApi<IContentPatcherAPI>("Pathoschild.ContentPatcher");
 
             ConfigMenu(api, this.ModManifest, Helper);
@@ -108,18 +112,49 @@ namespace Smartphone
 
             if (iUnlimitedEventExpansionApi == null)
             {
-                Monitor.Log("Failed to get iUnlimitedEventExpansionApi API.", LogLevel.Warn);
+                Monitor.Log("UnlimitedEventExpansion is either not installed or failed to load.", LogLevel.Info);
                 return;
             }
 
         }       // **** Config Handle ****
+
+        private bool CanTriggerScheduledUnlimitedEvents()
+        {
+            return iUnlimitedEventExpansionApi == null || !iUnlimitedEventExpansionApi.IsAnEventPending();
+        }
+
+        private static bool TryNormalizeEventTime(string? eventTime, out string normalizedTime)
+        {
+            normalizedTime = string.Empty;
+            if (string.IsNullOrWhiteSpace(eventTime))
+                return false;
+
+            if (!int.TryParse(eventTime.Trim(), out int parsedTime))
+                return false;
+
+            int hour = parsedTime / 100;
+            int minute = parsedTime % 100;
+
+            // Validation: 6am to 11pm (2300)
+            if (hour < 6 || hour > 23 || minute > 59)
+                return false;
+
+            // Round the minutes down to the nearest 10 (e.g., 15 becomes 10)
+            int normalizedMinute = (minute / 10) * 10;
+            
+            // Reconstruct the time (e.g., 600 + 10 = 610)
+            int finalTime = (hour * 100) + normalizedMinute;
+
+            normalizedTime = $"{finalTime:0000}";
+            return true;
+        }
 
 
         private void OnRendered(object sender, RenderedEventArgs e)
         {
             if (!takeScreenshot)
                 return;
-
+            
             takeScreenshot = false;
 
             GraphicsDevice graphics = Game1.graphics.GraphicsDevice;
@@ -139,15 +174,17 @@ namespace Smartphone
             Color[] rawData = new Color[backBufferWidth * backBufferHeight];
             graphics.GetBackBufferData(rawData);
 
-            // Crop region (520x720 from top-left point)
+            // Crop region from the phone camera viewport.
             int cropX = currentMenuX + 40;
             int cropY = currentMenuY + 190;
-            int cropWidth = 520;
-            int cropHeight = 705;
+            int cropWidth = PhotoCaptureWidth;
+            int cropHeight = PhotoCaptureHeight;
 
             // Ensure bounds don't exceed original image size
             cropX = Math.Clamp(cropX, 0, backBufferWidth - cropWidth);
             cropY = Math.Clamp(cropY, 0, backBufferHeight - cropHeight);
+
+            Microsoft.Xna.Framework.Rectangle captureBounds = new Microsoft.Xna.Framework.Rectangle(cropX, cropY, cropWidth, cropHeight);
 
             // Extract pixel data from the cropped region
             Color[] croppedData = new Color[cropWidth * cropHeight];
@@ -162,23 +199,221 @@ namespace Smartphone
             }
 
             // Create cropped texture
-            Texture2D croppedTexture = new Texture2D(graphics, cropWidth, cropHeight);
+            using Texture2D croppedTexture = new Texture2D(graphics, cropWidth, cropHeight);
             croppedTexture.SetData(croppedData);
 
-            // Save cropped image
-            string folderPath = Path.Combine(Helper.DirectoryPath, "userdata", Constants.SaveFolderName, "image");
+            SaveCapturedPhoto(croppedTexture, Game1.currentLocation?.Name, BuildImageTags(captureBounds).ToList());
+        }
+
+
+        private void CaptureNpcPhoto(NPC npc)
+        {
+            if (!Context.IsWorldReady || npc == null || npc.currentLocation == null || Game1.graphics?.GraphicsDevice == null || Game1.game1 == null)
+                return;
+
+            GraphicsDevice graphics = Game1.graphics.GraphicsDevice;
+            GameLocation targetLocation = npc.currentLocation;
+            var renderStateSnapshot = new PhotoRenderStateSnapshot();
+            var captureBounds = new Microsoft.Xna.Framework.Rectangle(0, 0, PhotoCaptureWidth, PhotoCaptureHeight);
+            List<string> tags = new List<string>();
+
+            using RenderTarget2D renderTarget = new RenderTarget2D(graphics, PhotoCaptureWidth, PhotoCaptureHeight);
+
+            try
+            {
+                Game1.currentLocation = targetLocation;
+                Game1.viewport = BuildNpcCaptureViewport(npc, targetLocation);
+                PrepareLocationRenderState(targetLocation);
+
+                graphics.SetRenderTarget(renderTarget);
+                graphics.Clear(Color.Black);
+
+                Game1.game1.DrawWorld(Game1.currentGameTime, renderTarget);
+                tags = BuildImageTags(captureBounds).ToList();
+            }
+            catch (Exception ex)
+            {
+                SMonitor.Log($"Failed to capture off-screen NPC photo for {npc.Name}: {ex}", LogLevel.Error);
+                return;
+            }
+            finally
+            {
+                graphics.SetRenderTarget(null);
+                renderStateSnapshot.Restore();
+            }
+
+            if (!tags.Contains($"has {npc.Name}", StringComparer.OrdinalIgnoreCase))
+                tags.Add($"has {npc.Name}");
+
+            SaveCapturedPhoto(renderTarget, targetLocation.Name, tags);
+        }
+
+        private void SaveCapturedPhoto(Texture2D capturedTexture, string? locationName, IEnumerable<string> tags)
+        {
+            string folderPath = Path.Combine(Helper.DirectoryPath, "userdata", GetCurrentSaveFolderName(), "image");
             Directory.CreateDirectory(folderPath);
 
-            string filename = $"{Game1.currentLocation.Name}-{Game1.currentSeason}-Y{Game1.year}-D{Game1.dayOfMonth:D2}_{Game1.random.Next(10000, 99999)}.png";
+            string resolvedLocationName = string.IsNullOrWhiteSpace(locationName)
+                ? "UnknownLocation"
+                : locationName;
 
+            string filename = $"{resolvedLocationName}-{Game1.currentSeason}-Y{Game1.year}-D{Game1.dayOfMonth:D2}_{Game1.random.Next(10000, 99999)}.png";
             string path = Path.Combine(folderPath, filename);
+
+            using Texture2D opaqueTexture = CreateOpaqueTexture(capturedTexture);
             using FileStream fs = new FileStream(path, FileMode.Create);
-            croppedTexture.SaveAsPng(fs, cropWidth, cropHeight);
+            opaqueTexture.SaveAsPng(fs, opaqueTexture.Width, opaqueTexture.Height);
 
-
+            SetImageTags(filename, (tags ?? Enumerable.Empty<string>()).ToList());
             Game1.addHUDMessage(new HUDMessage("Photo saved!", HUDMessage.newQuest_type));
         }
 
+        private static xTile.Dimensions.Rectangle BuildNpcCaptureViewport(NPC npc, GameLocation location)
+        {
+            Microsoft.Xna.Framework.Rectangle npcBounds = npc.GetBoundingBox();
+            object? map = GetMemberValue(location, "Map", "map");
+
+            int mapWidth = map == null ? -1 : TryReadIntMember(map, "DisplayWidth", "displayWidth");
+            int mapHeight = map == null ? -1 : TryReadIntMember(map, "DisplayHeight", "displayHeight");
+
+            mapWidth = Math.Max(PhotoCaptureWidth, mapWidth);
+            mapHeight = Math.Max(PhotoCaptureHeight, mapHeight);
+
+            int viewX = npcBounds.Center.X - (PhotoCaptureWidth / 2);
+            int viewY = npcBounds.Center.Y - (PhotoCaptureHeight / 2);
+
+            viewX = Math.Clamp(viewX, 0, Math.Max(0, mapWidth - PhotoCaptureWidth));
+            viewY = Math.Clamp(viewY, 0, Math.Max(0, mapHeight - PhotoCaptureHeight));
+
+            return new xTile.Dimensions.Rectangle(viewX, viewY, PhotoCaptureWidth, PhotoCaptureHeight);
+        }
+
+        private sealed class PhotoRenderStateSnapshot
+        {
+            private readonly xTile.Dimensions.Rectangle viewport;
+            private readonly GameLocation currentLocation;
+            private readonly Color ambientLight;
+            private readonly Color outdoorLight;
+            private readonly Dictionary<string, LightSource> lightSources = new Dictionary<string, LightSource>(StringComparer.Ordinal);
+
+            public PhotoRenderStateSnapshot()
+            {
+                viewport = Game1.viewport;
+                currentLocation = Game1.currentLocation;
+                ambientLight = Game1.ambientLight;
+                outdoorLight = Game1.outdoorLight;
+
+                foreach (KeyValuePair<string, LightSource> lightSource in Game1.currentLightSources)
+                    lightSources[lightSource.Key] = lightSource.Value;
+            }
+
+            public void Restore()
+            {
+                Game1.viewport = viewport;
+                Game1.currentLocation = currentLocation;
+                Game1.ambientLight = ambientLight;
+                Game1.outdoorLight = outdoorLight;
+
+                Game1.currentLightSources.Clear();
+                foreach (KeyValuePair<string, LightSource> lightSource in lightSources)
+                    Game1.currentLightSources[lightSource.Key] = lightSource.Value;
+            }
+        }
+
+        private static void PrepareLocationRenderState(GameLocation targetLocation)
+        {
+            Game1.currentLightSources.Clear();
+
+            RefreshAmbientLightForCapture(targetLocation);
+            AddMapLightsForCapture(targetLocation);
+            AddSharedLightsForCapture(targetLocation);
+        }
+
+        private static void RefreshAmbientLightForCapture(GameLocation targetLocation)
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            MethodInfo? updateAmbientLighting = typeof(GameLocation).GetMethod("_updateAmbientLighting", flags);
+            if (updateAmbientLighting != null)
+            {
+                updateAmbientLighting.Invoke(targetLocation, null);
+                return;
+            }
+
+            if (targetLocation.IsOutdoors && !targetLocation.ignoreOutdoorLighting.Value)
+                Game1.ambientLight = targetLocation.IsRainingHere() ? new Color(255, 200, 80) : Color.White;
+        }
+
+        private static void AddMapLightsForCapture(GameLocation targetLocation)
+        {
+            string lightIdPrefix = $"{targetLocation.NameOrUniqueName}_MapLight_";
+            AddMapPropertyLights(targetLocation, lightIdPrefix, "Light", LightSource.LightContext.MapLight);
+
+            if (!Game1.isTimeToTurnOffLighting(targetLocation) && !targetLocation.IsRainingHere())
+            {
+                AddMapPropertyLights(targetLocation, lightIdPrefix, "WindowLight", LightSource.LightContext.WindowLight);
+
+                foreach (Vector2 lightGlow in targetLocation.lightGlows)
+                {
+                    Game1.currentLightSources.Add(new LightSource(
+                        $"{lightIdPrefix}_{lightGlow.X}_{lightGlow.Y}_Glow",
+                        6,
+                        lightGlow,
+                        1f,
+                        LightSource.LightContext.WindowLight,
+                        0L,
+                        targetLocation.NameOrUniqueName));
+                }
+            }
+        }
+
+        private static void AddMapPropertyLights(GameLocation targetLocation, string lightIdPrefix, string propertyName, LightSource.LightContext context)
+        {
+            string[] propertyValues = targetLocation.GetMapPropertySplitBySpaces(propertyName);
+            for (int i = 0; i + 2 < propertyValues.Length; i += 3)
+            {
+                if (!int.TryParse(propertyValues[i], out int tileX)
+                    || !int.TryParse(propertyValues[i + 1], out int tileY)
+                    || !int.TryParse(propertyValues[i + 2], out int textureIndex))
+                {
+                    continue;
+                }
+
+                Vector2 position = new Vector2((tileX * 64) + 32, (tileY * 64) + 32);
+                string suffix = context == LightSource.LightContext.WindowLight ? "_Window" : string.Empty;
+
+                Game1.currentLightSources.Add(new LightSource(
+                    $"{lightIdPrefix}_{tileX}_{tileY}{suffix}",
+                    textureIndex,
+                    position,
+                    1f,
+                    context,
+                    0L,
+                    targetLocation.NameOrUniqueName));
+            }
+        }
+
+        private static void AddSharedLightsForCapture(GameLocation targetLocation)
+        {
+            foreach (KeyValuePair<string, LightSource> sharedLight in targetLocation.sharedLights.Pairs)
+                Game1.currentLightSources[sharedLight.Key] = sharedLight.Value;
+        }
+
+        private static Texture2D CreateOpaqueTexture(Texture2D source)
+        {
+            Color[] rawData = new Color[source.Width * source.Height];
+            source.GetData(rawData);
+
+            for (int i = 0; i < rawData.Length; i++)
+            {
+                Color pixel = rawData[i];
+                if (pixel.A != byte.MaxValue)
+                    rawData[i] = new Color(pixel.R, pixel.G, pixel.B, byte.MaxValue);
+            }
+
+            Texture2D opaqueTexture = new Texture2D(source.GraphicsDevice, source.Width, source.Height);
+            opaqueTexture.SetData(rawData);
+            return opaqueTexture;
+        }
 
         private void OnButtonPressed(object sender, ButtonPressedEventArgs e)
         {
@@ -199,6 +434,7 @@ namespace Smartphone
         {
             MessageManager.SaveData();
             NotificationManager.SaveNoticationData();
+            SaveImageTags();
 
             if (phoneMenu != null)
                 phoneMenu.ClosePhoneMenu();
@@ -207,6 +443,8 @@ namespace Smartphone
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
+            LoadImageTags();
+
             string npc_characteristic = Helper.ModContent.GetInternalAssetName("assets/npc_characteristic.json").BaseName;
             NpcCharacteristics = Helper.ModContent.Load<Dictionary<string, string>>(npc_characteristic);
 
@@ -241,8 +479,11 @@ namespace Smartphone
             npcMessagesToday.Clear();
             FarmCropNames.Clear();
             FarmTreeNames.Clear();
+            PendingUnlimitedEvents.Clear();
+            ResetTriggeredUnlimitedEventTag();
 
             MessageManager.LoadData();
+            ApplySavedPhoneTheme();
             NotificationManager.LoadNoticationData();
             GiftMemories = Helper.Data.ReadJsonFile<Dictionary<string, GiftMemory>>($"./userdata/{Constants.SaveFolderName}/GiftMemoryData")
                    ?? new Dictionary<string, GiftMemory>();
@@ -269,6 +510,18 @@ namespace Smartphone
 
             // send conversationSummary to iModApi
             iUnlimitedEventExpansionApi.SendNpcConversationSummary(npcConversationSummary);
+        }
+
+        private void ApplySavedPhoneTheme()
+        {
+            string resolvedThemeName = AssetHelper.ResolvePhoneThemeName(MessageManager.currentPhoneTheme);
+            MessageManager.currentPhoneTheme = resolvedThemeName;
+
+            AssetHelper.SetCurrentPhoneTheme(resolvedThemeName);
+            Textures.LoadTextures();
+
+            if (phoneMenu != null)
+                phoneMenu.ReloadThemeTextures();
         }
 
         private void OnDayEnding(object sender, DayEndingEventArgs e)
@@ -323,39 +576,74 @@ namespace Smartphone
 
         private void OnTimeChange(object sender, TimeChangedEventArgs e)
         {
+            CaptureNpcPhoto(Game1.getCharacterFromName("Abigail"));
+
 
             if (Game1.timeOfDay < 2300)
                 CheckSendNewMessage();
 
-            if (pendingInitNotification
-                && Game1.timeOfDay > 600
-                && Game1.player.CanMove
-                && !(Game1.player.isRidingHorse()
-                    || Game1.currentLocation == null
-                    || Game1.eventUp
-                    || Game1.isFestival()
-                    || Game1.IsFading()
-                    || Game1.activeClickableMenu != null
-                    || Game1.dialogueUp
-                    || Game1.player.UsingTool))
+            if (Config.OpenAIKey!= "" && e.NewTime >= 700 && e.NewTime % 100 == 0 && chatModel != "gpt-5.4-nano")
+            {
+                Task.Run(async () => 
+                {
+                    var (premium, regular) = await GetOpenAIUsage();
+                    if (regular > 10000000)
+                    {
+                        chatModel = "gpt-5.4-nano";
+                        summaryModel = "gpt-5.4-nano";
+                    }
+                });
+            }
+
+            if (pendingInitNotification && isPlayerFree())
             {
                 Game1.drawLetterMessage("=== Smartphone ===^^It looks like this your first time here, or you have recently updated the mod and ]] LOST YOUR DATA [[^^" +
                     "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in        $$/Mods/Smartphone/Userdata$$ folder.^    ]] YOU MUST COPY IT WHEN UPDATE THE MOD [[^^" +
                         "Thanks for trying out the mod, HaPyke +++");
 
-                NotificationManager.addNotication("=== Smartphone ===^^It looks like this your first time here, or you have recently updated the mod and LOST YOUR DATA^^" +
+                NotificationManager.addNotification("=== Smartphone ===^^It looks like this your first time here, or you have recently updated the mod and LOST YOUR DATA^^" +
                     "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in /Mods/Smartphone/Userdata folder. YOU MUST COPY IT WHEN UPDATE THE MOD^^" +
                         "Thanks for trying out the mod, HaPyke");
 
                 pendingInitNotification = false;
             }
+
+            if (PendingUnlimitedEvents.Count > 0 && isPlayerFree() && e.NewTime < 2500 && CanTriggerScheduledUnlimitedEvents())
+            {
+                foreach (var scheduledEvent in PendingUnlimitedEvents.ToList())
+                {
+                    if (!int.TryParse(scheduledEvent.TimeOfDay, out int eventTime))
+                    {
+                        PendingUnlimitedEvents.Remove(scheduledEvent);
+                        continue;
+                    }
+
+                    if (e.NewTime >= eventTime)
+                    {
+                        bool eventTriggered = TryTriggerRegisteredUnlimitedEvent(scheduledEvent.EventType, scheduledEvent.NpcName);
+                        if (!eventTriggered)
+                        {
+                            SMonitor.Log(
+                                $"Unable to trigger event '{scheduledEvent.EventType}' for '{scheduledEvent.NpcName}'.",
+                                LogLevel.Warn);
+                        }
+                        else
+                        {
+                            RememberTriggeredUnlimitedEvent(scheduledEvent.EventType, scheduledEvent.NpcName);
+                        }
+
+                        PendingUnlimitedEvents.Remove(scheduledEvent);
+                        break;
+                    }
+                }
+            }
         }
 
-        private void OneOneSecondUpdateTicked(object sender, OneSecondUpdateTickedEventArgs e)
+        private void OnOneSecondUpdateTicked(object sender, OneSecondUpdateTickedEventArgs e)
         {
             if (!Context.IsWorldReady) return;
 
-            if (e.IsMultipleOf(120))
+            if (e.IsMultipleOf(6000))
                 CheckCurrentEvent();
 
         }
@@ -369,12 +657,15 @@ namespace Smartphone
             var random = Game1.random;
             if (npc is null)
             {
-                return "error";
+                return "SYSTEM: ---Got an error---";
             }
 
             if (true)
             {
                 var key = k1 + k2 + k3;
+
+                if (Config.OpenAIKey != "")
+                    key = Config.OpenAIKey;
 
                 var user = text;
                 var system = "";
@@ -390,7 +681,7 @@ namespace Smartphone
                     httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
                     var requestBody = new Dictionary<string, object>
                     {
-                        { "model", "gpt-5.4-mini" },
+                        { "model", chatModel },
                         { "input", new object[]
                             {
                                 new
@@ -436,12 +727,13 @@ namespace Smartphone
                         JArray toolCalls = GetResponseFunctionCalls(json);
                         responseMessage = GetResponseOutputText(json);
 
-                        //SMonitor.Log(system, LogLevel.Error);
-                        //SMonitor.Log("-----", LogLevel.Error);
-                        //SMonitor.Log(user, LogLevel.Error);
-                        //SMonitor.Log("-----", LogLevel.Error);
-                        //SMonitor.Log(responseMessage, LogLevel.Error);
-                        //SMonitor.Log("\n\n", LogLevel.Error);
+                        SMonitor.Log("-----", LogLevel.Error);
+                        SMonitor.Log(system, LogLevel.Error);
+                        SMonitor.Log("-----", LogLevel.Error);
+                        SMonitor.Log(user, LogLevel.Error);
+                        SMonitor.Log("-----", LogLevel.Error);
+                        SMonitor.Log(responseMessage, LogLevel.Error);
+                        SMonitor.Log("\n\n", LogLevel.Error);
 
 
                         if (toolCalls.Count > 0)
@@ -451,19 +743,43 @@ namespace Smartphone
                                 string functionName = call["name"]?.ToString() ?? string.Empty;
                                 string argumentsJson = call["arguments"]?.ToString() ?? "{}";
 
-                                if (functionName == "Dinner_Event")
+
+                                if (functionName == "Schedule_Event")
                                 {
+                                    var args = JObject.Parse(argumentsJson);
+                                    var eventNpcName = args["npc"]?.ToString();
+                                    var eventType = args["event_type"]?.ToString();
+                                    var eventTime = args["time_of_day"]?.ToString();
+                                    var textResponse = args["npc_response"]?.ToString() ?? $"I will see you at {eventTime}.";
+
+                                    if (string.IsNullOrWhiteSpace(eventNpcName)
+                                        || string.IsNullOrWhiteSpace(eventType)
+                                        || !TryNormalizeEventTime(eventTime, out string normalizedEventTime))
+                                    {
+                                        continue;
+                                    }
+
+                                    if (!TryGetRegisteredUnlimitedEvent(eventType, out var registeredEvent) || registeredEvent == null)
+                                    {
+                                        SMonitor.Log($"Schedule_Event ignored because event type '{eventType}' is not registered.", LogLevel.Warn);
+                                        continue;
+                                    }
 
                                     if (phoneMenu != null)
                                         phoneMenu.ClosePhoneMenu();
+
                                     Game1.activeClickableMenu = new ConfirmationDialog(
-                                        $"You are going for dinner with {npc.Name}",
+                                        $"Schedule {registeredEvent.DisplayName} event with {npc.Name} at {normalizedEventTime}?",
                                         onConfirm: (Farmer who) =>
                                         {
+                                            var pendingEvent = (eventNpcName.Trim(), registeredEvent.EventType, normalizedEventTime);
+                                            if (!PendingUnlimitedEvents.Contains(pendingEvent))
+                                            {
+                                                PendingUnlimitedEvents.Add(pendingEvent);
+                                            }
+
                                             Game1.activeClickableMenu = null;
-                                            var args = JObject.Parse(argumentsJson);
-                                            iUnlimitedEventExpansionApi.TriggerDinnerEvent(args["npc"]?.ToString() ?? npc.Name);
-                                            MessageManager.AddMessage(npcName, $"{npcName}: Yes. That sounds wonderfull.");
+                                            MessageManager.AddMessage(npcName, $"{npcName}: {textResponse}");
 
                                         },
                                         onCancel: (Farmer who) =>
@@ -472,83 +788,22 @@ namespace Smartphone
                                         }
                                     );
                                 }
-                                else if (functionName == "NPC_Birthday_Event")
+                                else if (functionName == "Send_Gift")
                                 {
+                                    var args = JObject.Parse(argumentsJson);
+                                    string itemId = args["itemId"]?.ToString() ?? string.Empty;
+
+                                    if (!string.IsNullOrEmpty(itemId))
+                                        sendPlayerGift(itemId, npcName);
+
                                     if (phoneMenu != null)
                                         phoneMenu.ClosePhoneMenu();
-                                    Game1.activeClickableMenu = new ConfirmationDialog(
-                                        $"You are going to celebrate {npc.Name}'s birthday",
-                                        onConfirm: (Farmer who) =>
-                                        {
-                                            Game1.activeClickableMenu = null;
-                                            var args = JObject.Parse(argumentsJson);
-                                            iUnlimitedEventExpansionApi.TriggerNpcBirthdayEvent(args["npc"]?.ToString() ?? npc.Name);
-                                            MessageManager.AddMessage(npcName, $"{npcName}: Thank you so much!");
-
-                                        },
-                                        onCancel: (Farmer who) =>
-                                        {
-                                            Game1.activeClickableMenu = null;
-                                        }
-                                    );
                                 }
-                                else if (functionName == "Picnic_Event")
-                                {
-                                    if (phoneMenu != null)
-                                        phoneMenu.ClosePhoneMenu();
-                                    Game1.activeClickableMenu = new ConfirmationDialog(
-                                        $"You are going for a picnic with {npc.Name}",
-                                        onConfirm: (Farmer who) =>
-                                        {
-                                            Game1.activeClickableMenu = null;
-                                            var args = JObject.Parse(argumentsJson);
-                                            iUnlimitedEventExpansionApi.TriggerPicnicEvent(args["npc"]?.ToString() ?? npc.Name);
-                                            MessageManager.AddMessage(npcName, $"{npcName}: Yes. That sounds wonderfull.");
-
-                                        },
-                                        onCancel: (Farmer who) =>
-                                        {
-                                            Game1.activeClickableMenu = null;
-                                        }
-                                    );
-                                }
-                                else if (functionName == "Campfire_Event")
-                                {
-                                    if (phoneMenu != null)
-                                        phoneMenu.ClosePhoneMenu();
-                                    Game1.activeClickableMenu = new ConfirmationDialog(
-                                        $"You are going for a campfire night with {npc.Name}",
-                                        onConfirm: (Farmer who) =>
-                                        {
-                                            Game1.activeClickableMenu = null;
-                                            var args = JObject.Parse(argumentsJson);
-                                            iUnlimitedEventExpansionApi.TriggerCampingEvent(args["npc"]?.ToString() ?? npc.Name);
-                                            MessageManager.AddMessage(npcName, $"{npcName}: Yes. That sounds wonderfull.");
-
-                                        },
-                                        onCancel: (Farmer who) =>
-                                        {
-                                            Game1.activeClickableMenu = null;
-                                        }
-                                    );
-                                }
-                                if (phoneMenu != null)
-                                    phoneMenu.ClosePhoneMenu();
                             }
                         }
 
-
-
-
                         if (responseMessage.StartsWith($"{npc.Name}:"))
                             responseMessage = responseMessage.Substring(npc.Name.Length + 1).TrimStart();
-
-
-
-
-                        Game1.addHUDMessage(new HUDMessage($"A new message from {npcName}", HUDMessage.newQuest_type));
-                        DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 0);
-
                         return responseMessage;
                     }
                     else
@@ -573,7 +828,7 @@ namespace Smartphone
                         }
 
                         SMonitor.Log($"Unable to receive AI content. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
-                        return "an error";
+                        return "SYSTEM: ---Got an error---";
                     }
                 }
             }
@@ -670,44 +925,60 @@ namespace Smartphone
                 if (npcConversationSummary.ContainsKey(npc.Name))
                     summary = npcConversationSummary[npc.Name];
 
+                var maxCharacteristicCharacterCount = 1300;
+
+                if (Config.OpenAIKey != "" && Config.MaxCharacteristicCharacterCount != 0)
+                    maxCharacteristicCharacterCount = Config.MaxCharacteristicCharacterCount;
+
                 var npcCharacteristic = $" {npc.Name} is {npcAge}, {npcManner}, and is {npcSocial}";
+
                 if (NpcCharacteristics.ContainsKey(npc.Name))
                 {
                     npcCharacteristic = NpcCharacteristics[npc.Name];
-                    var words = npcCharacteristic.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
-                    if (words.Length > 150)
+                    if (npcCharacteristic.Length > maxCharacteristicCharacterCount)
                     {
-                        npcCharacteristic = string.Join(" ", words.Take(150));
+                        npcCharacteristic = npcCharacteristic.Substring(0, maxCharacteristicCharacterCount);
                     }
                 }
+
                 if (type == "response")
                 {
-                    var systemMessage = $@"You are an AI assistant in game Stardew Valley. You will act as NPC {npc.Name}, texting with the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult, is {relation} to {npc.Name}).
-                        First, base on the user message and the **current** conversation (not the summary), decide:
-                        • If the conversation is pointing directly toward an action that matches a listed function, then reply with **only** the function call.
-                        • Otherwise, answer as {npc.Name} in ≤40 words, matching their tone, characteristic and current relationship with PLAYER: {npcCharacteristic} 
+                    var systemMessage = $@"You are an AI roleplaying as NPC {npc.Name} in Stardew Valley, texting the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult).
+                        Current relationship with player: {relation}.
+                        Personality: {npcCharacteristic}
 
-                        This is the conversation you need to reply too: 
-                            {combined}
-                        Other context you may rely on:
-                            – Relationship summary: {summary}
-                            – World context: {data}
+                        WORLD CONTEXT:
+                        {data}
+                        Conversation Summary: {summary}
 
-                        Remember: output EITHER a function call OR plain text, never both. Read the conversation carefully to decide if it match a function.
-                    ";
+                        Current conversation:
+                        {combined}
+
+                        YOUR DIRECTIVES:
+                        1. Reply naturally as {npc.Name} in =40 words, matching their tone and relationship with the player.
+                        2. SLICE OF LIFE: Whenever natural, invent small, mundane details happening or happened around you. It can be anything that related to the context of the game.
+                        3. EVENT NEGOTIATION: If the player mentions hanging out event (picnic, dinner, campfire, birthday, ...), confirm Player to specify or you suggest a Time of Day for the event that is between now and before 11:00 PM. 
+                        4. TRIGGERING TOOLS: Once an activity AND a time are specified and agreed, call the appropriate function.
+                        5. SENDING GIFTS: If you want to surprise the player with an item or the PLAYER specify request a gift, call the Send_Mail_Gift tool and text them that you are sending something via the mail.";
 
                     return systemMessage;
                 }
                 else
                 {
-                    var systemMessage = $"You are an AI assistant specialized in generating conversation dialogue for NPC in game Stardew Valley." +
-                            $" You will consider yourself as NPC {npc.Name}, send a text message to Player {Game1.player.Name} ({Game1.player.Gender}, teen/young adult) a message to start a new conversation or to share something.\n" +
-                            $" Currently, {Game1.player.Name} is {relation} to {npc.Name}.\n" +
-                            $" {npcCharacteristic} " +
-                            " \nBe creative with the topic, and keep it within the context of the game. Limit to under 40 words." +
-                            " \nThis is the summary of the conversation that they exchanged: " + summary +
-                            " \nThere is some other contexts that you may choose to use:\n" + data;
+                    var systemMessage = $@"You are an AI roleplaying as NPC {npc.Name} in Stardew Valley. Send a spontaneous text message to the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult) to start a new conversation.
+                        Relationship: {relation}.
+                        Personality: {npcCharacteristic}
+
+                        WORLD CONTEXT:
+                        {data}
+                        Relationship Summary: {summary}
+
+                        YOUR DIRECTIVES:
+                        1. Keep the text under 40 words. Be creative, in-character, and match your relationship level.
+                        2. SLICE OF LIFE: Use your current location, the time ({timeFormatted}), and the weather to mention something mundane or interesting happening right now (e.g., ""The wind is howling outside my house,"" or ""I'm incredibly bored at the shop today"").
+                        3. DO NOT act like an AI assistant. Act exactly like a real person sending a casual text.
+                        4. SENDING GIFTS: If you want to surprise the player with an item, call the Send_Gift tool and text them that you are sending something via the mail.";
 
                     return systemMessage;
                 }
@@ -736,23 +1007,27 @@ namespace Smartphone
 
 
                 var key = k1 + k2 + k3;
+                var maxAiSummaryLength = 350;
+                if (Config.OpenAIKey != "" && Config.MaxSummaryWordCount != 0)
+                {
+                    maxAiSummaryLength = Config.MaxSummaryWordCount;
+                    key = Config.OpenAIKey;
+                }
 
                 var system = $"You are the memory manager for the NPC {npcName} in Stardew Valley. "
                 + "Your job is to read the previous memory summary and today's new conversation with the PLAYER, and summarize them into an updated memory bank. "
                 + "Focus on retaining factual lore such as the player's preferences, recent gifts, important life events, current quests or goals, and most important the current emotional standing and relationship between the NPC and the PLAYER. "
-                + "Keep the summary under 350 words. Remove outdated pleasantries, trivial daily greetings, or resolved minor topics, and just like human, some memory could be faded. " 
+                + $"Keep the summary under {maxAiSummaryLength} words. Remove outdated pleasantries, trivial daily greetings, or resolved minor topics, and just like human, some memory could be faded. "
                 + "Be concise, do not include header, irelevant or no value information.";
 
                 var user = $"Update the memory summary for {npcName} based on today's conversation.\n\n"
                     + "PREVIOUS SUMMARY:\n" + summary + "\n"
-                    + "TODAY'S NEW CONVERSATION:\n" + messageList
-                    + "";
+                    + "TODAY'S NEW CONVERSATION:\n" + messageList;
 
 
 
 
                 var model = summaryModel;
-                string responseMessage = "";
                 using (var httpClient = new HttpClient())
                 {
                     httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
@@ -790,7 +1065,7 @@ namespace Smartphone
                         var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
 
                         JObject json = JObject.Parse(jsonResponse);
-                        responseMessage = GetResponseOutputText(json);
+                        var responseMessage = GetResponseOutputText(json);
 
                         //Game1.chatBox.addErrorMessage(jsonResponse.ToString());
 
@@ -827,7 +1102,7 @@ namespace Smartphone
                         }
 
                         SMonitor.Log($"Unable to receive AI content. {errorMessage}\n\n", LogLevel.Error);
-                        return "a error";
+                        return "SYSTEM: ---Got an error---";
                     }
                 }
             }
@@ -835,88 +1110,127 @@ namespace Smartphone
 
         public static object[] GetToolList(NPC npc)
         {
-
             int heartLevel = 0;
             if (Game1.player.friendshipData.ContainsKey(npc.Name)) heartLevel = (int)Game1.player.friendshipData[npc.Name].Points / 250;
 
             var functionList = new List<object>();
 
-            if (heartLevel >= 2)
+
+            if (heartLevel >= 3)
             {
-                functionList.Add(
-                    new
+                List<Item> cookingItems = new();
+                HashSet<string> universalHates = new HashSet<string>();
+                HashSet<string> universalDislikes = new HashSet<string>();
+
+                foreach (var entry in Game1.NPCGiftTastes)
+                {
+                    if (entry.Key == "Universal_Hate")
                     {
-                        type = "function",
-                        name = "NPC_Birthday_Event",
-                        description = "Use this function when PLAYER want to hold an event to celebrate NPC's birthday.",
-                        parameters = new
-                        {
-                            type = "object",
-                            properties = new
-                            {
-                                npc = new { type = "string", description = "Name of the NPC" }
-                            },
-                            required = new[] { "npc" },
-                            additionalProperties = false
-                        },
-                        strict = true
+                        foreach (string id in entry.Value.Split(' '))
+                            universalHates.Add(id);
                     }
-                );
+                    else if (entry.Key == "Universal_Dislike")
+                    {
+                        foreach (string id in entry.Value.Split(' '))
+                            universalDislikes.Add(id);
+                    }
+                }
+
+                foreach (var pair in Game1.objectData)
+                {
+                    var baseData = pair.Value;
+                    string baseId = pair.Key;
+
+
+                    if ((baseData.Category == -26 || baseData.Category == -7) && baseData.Price >= 150 && baseData.Price <= 1000
+                        && !baseData.Name.Contains("Pickled") && !baseData.Name.Contains("Elixir") && !baseData.Name.Contains("Roe") && !baseData.Name.Contains("Mayonnaise") && !baseData.Name.Contains("Smoked") && !baseData.Name.Contains("Oil")
+                        && !baseData.Name.Contains("Jelly") && !baseData.Name.Contains("Honey") && !baseData.Name.Contains("Wine") && !baseData.Name.Contains("Dried") && !baseData.Name.Contains("Juice")
+                        && !universalHates.Contains(baseId) && !universalDislikes.Contains(baseId))
+                    {
+                        var item = new StardewValley.Object(baseId, 1);
+                        cookingItems.Add(item);
+                    }
+
+                }
+                Item randomItem = null;
+                Random rng = new Random();
+
+                if (cookingItems.Count > 0)
+                {
+                    int index = rng.Next(cookingItems.Count);
+                    randomItem = cookingItems[index];
+                }
                 functionList.Add(
                     new
                     {
                         type = "function",
-                        name = "Campfire_Event",
-                        description = "Use this function when PLAYER and NPC is planning to go for campfire together.",
+                        name = "Send_Gift",
+                        description = $"Trigger this when you want to send a gift of {randomItem?.Name} to the player.",
                         parameters = new
                         {
                             type = "object",
                             properties = new
                             {
-                                npc = new { type = "string", description = "Name of the NPC" }
+                                npc = new { type = "string", description = "Name of the NPC" },
+                                itemId = new
+                                {
+                                    type = "string",
+                                    description = "Qualified Item ID of the gift",
+                                    @enum = new[] { randomItem?.QualifiedItemId }
+            }
                             },
-                            required = new[] { "npc" },
+                            required = new[] { "npc", "itemId" },
                             additionalProperties = false
                         },
                         strict = true
                     }
                 );
             }
-            if (heartLevel >= 4)
+
+
+
+            var registeredEvents = GetRegisteredUnlimitedEventsForHeartLevel(heartLevel);
+
+            if (registeredEvents.Count > 0)
             {
+                var allowedEvents = registeredEvents
+                    .Select(evt => evt.EventType)
+                    .ToArray();
+                var readableEventNames = string.Join(", ", registeredEvents.Select(evt => evt.DisplayName));
+                var extraToolDescriptions = string.Join(
+                    " ",
+                    registeredEvents
+                        .Select(evt => evt.ToolDescription)
+                        .Where(text => !string.IsNullOrWhiteSpace(text))
+                        .Distinct(StringComparer.OrdinalIgnoreCase));
+
+                string scheduleToolDescription = "Trigger ONLY when you and the PLAYER have agreed to hang out today for one of the available event types AND a time between now and 11:00 PM is specified.";
+                scheduleToolDescription += $" Available event types: {readableEventNames}.";
+                if (!string.IsNullOrWhiteSpace(extraToolDescriptions))
+                    scheduleToolDescription += $" {extraToolDescriptions}";
+
                 functionList.Add(
                     new
                     {
                         type = "function",
-                        name = "Picnic_Event",
-                        description = "Use this function when PLAYER and NPC is planning to go for a picnic together.",
+                        name = "Schedule_Event",
+                        description = scheduleToolDescription,
                         parameters = new
                         {
                             type = "object",
                             properties = new
                             {
-                                npc = new { type = "string", description = "Name of the NPC" }
+                                npc = new { type = "string", description = "Name of the NPC" },
+                                event_type = new
+                                {
+                                    type = "string",
+                                    description = "The specific type of event you both agreed to.",
+                                    @enum = allowedEvents.ToArray()
+                                },
+                                time_of_day = new { type = "string", description = "The agreed time in HHMM format (e.g., '0900', '1730', '2150')" },
+                                npc_response = new { type = "string", description = "A message from NPC to invite or confirm the event" }
                             },
-                            required = new[] { "npc" },
-                            additionalProperties = false
-                        },
-                        strict = true
-                    }
-                );
-                functionList.Add(
-                    new
-                    {
-                        type = "function",
-                        name = "Dinner_Event",
-                        description = "Use this function when PLAYER and NPC is planning to have dinner together.",
-                        parameters = new
-                        {
-                            type = "object",
-                            properties = new
-                            {
-                                npc = new { type = "string", description = "Name of the NPC" }
-                            },
-                            required = new[] { "npc" },
+                            required = new[] { "npc", "event_type", "time_of_day", "npc_response" },
                             additionalProperties = false
                         },
                         strict = true
@@ -947,7 +1261,7 @@ namespace Smartphone
             var output = responseJson?["output"] as JArray;
             if (output != null)
             {
-                foreach (var item in output)
+                foreach (var item in output.Reverse())
                 {
                     if (item?["type"]?.ToString() != "message")
                         continue;
@@ -973,11 +1287,11 @@ namespace Smartphone
         }
 
 
-        public static async Task GetOpenAIUsage()
+        public static async Task<(int, int)> GetOpenAIUsage()
         {
             SMonitor.Log("Checking OpenAI usage...", LogLevel.Error);
             List<string> premiumModels = new List<string> { "gpt-5.4", "gpt-5.2", "gpt-5.1", "gpt-5.1-codex", "gpt-5", "gpt-5-codex", "gpt-5-chat-latest", "gpt-4.1", "gpt-4o", "o1", "o3" };
-            List<string> regularModels = new List<string> { "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.1-codex-mini", "gpt-5-mini", "gpt-5-nano", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini", 
+            List<string> regularModels = new List<string> { "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.1-codex-mini", "gpt-5-mini", "gpt-5-nano", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini",
                                                             "o1-mini", "o3-mini", "o4-mini", "codex-mini-latest" };
             string admin_key = xk1 + xk2 + xk3;
             string usageUrl = "https://api.openai.com/v1/organization/usage/completions";
@@ -1009,7 +1323,7 @@ namespace Smartphone
                     {
                         string error = await response.Content.ReadAsStringAsync();
                         SMonitor.Log($"Error: {response.StatusCode} - {error}", LogLevel.Error);
-                        return;
+                        return (-1, -1);
                     }
 
                     string jsonResponse = await response.Content.ReadAsStringAsync();
@@ -1050,17 +1364,16 @@ namespace Smartphone
                 }
                 while (hasMore && !string.IsNullOrWhiteSpace(nextPage));
 
-                SMonitor.Log($"OpenAI usage window (UTC): {utcStartOfToday:yyyy-MM-dd HH:mm:ss} -> {utcNow:yyyy-MM-dd HH:mm:ss}", LogLevel.Info);
+                //SMonitor.Log($"OpenAI usage window (UTC): {utcStartOfToday:yyyy-MM-dd HH:mm:ss} -> {utcNow:yyyy-MM-dd HH:mm:ss}", LogLevel.Info);
                 if (perModelTotals.Count == 0)
                 {
-                    SMonitor.Log("No usage records found for the current UTC day.", LogLevel.Info);
-                    return;
+                    return (-1, -1);
                 }
 
-                foreach (var item in perModelTotals.OrderByDescending(x => x.Value.Input + x.Value.Output))
-                {
-                    SMonitor.Log($"Model: {item.Key} | Input: {item.Value.Input} | Output: {item.Value.Output}", LogLevel.Info);
-                }
+                //foreach (var item in perModelTotals.OrderByDescending(x => x.Value.Input + x.Value.Output))
+                //{
+                //    SMonitor.Log($"Model: {item.Key} | Input: {item.Value.Input} | Output: {item.Value.Output}", LogLevel.Info);
+                //}
 
                 // Aggregate totals for premium and regular model groups
                 long premiumInputTotal = 0, premiumOutputTotal = 0;
@@ -1094,15 +1407,79 @@ namespace Smartphone
                     }
                 }
 
-                SMonitor.Log($"Premium Models Total | Input: {premiumInputTotal} | Output: {premiumOutputTotal}", LogLevel.Info);
-                SMonitor.Log($"Regular Models Total | Input: {regularInputTotal} | Output: {regularOutputTotal}", LogLevel.Info);
+                //SMonitor.Log($"Premium Models Total | Input: {premiumInputTotal} | Output: {premiumOutputTotal}", LogLevel.Info);
+                //SMonitor.Log($"Regular Models Total | Input: {regularInputTotal} | Output: {regularOutputTotal}", LogLevel.Info);
+
+                return ((int)(premiumInputTotal + premiumOutputTotal), (int)(regularInputTotal + regularOutputTotal));
             }
             catch (Exception ex)
             {
                 SMonitor.Log($"Request failed: {ex.Message}", LogLevel.Error);
+                return (-1, -1);
             }
         }
-        
 
+        private bool isPlayerFree()
+        {
+            return Game1.timeOfDay > 600
+            && Game1.player.CanMove
+            && !(Game1.player.isRidingHorse()
+                || Game1.currentLocation == null
+                || Game1.eventUp
+                || Game1.isFestival()
+                || Game1.IsFading()
+                || Game1.activeClickableMenu != null
+                || Game1.dialogueUp
+                || Game1.player.UsingTool);
+        }
+
+
+        private static void sendPlayerGift(string qualifiedItemId, string npcName)
+        {
+            FarmHouse home = Utility.getHomeOfFarmer(Game1.player);
+            var baseTile = home.getEntryLocation();
+
+            // Try to find nearest valid placement tile
+            Vector2? placeTile = null;
+            for (int radius = 2; radius <= 10 && placeTile == null; radius++)
+            {
+                for (int dx = -radius; dx <= radius; dx++)
+                {
+                    for (int dy = -radius; dy <= radius; dy++)
+                    {
+                        Vector2 check = new Vector2(baseTile.X + dx, baseTile.Y + dy);
+                        if (home.isTileOnMap(check) && home.isTilePlaceable(check) && home.isTileLocationOpen(check)
+                            && !home.objects.ContainsKey(check))
+                        {
+                            placeTile = check;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (placeTile == null)
+            {
+                return;
+            }
+
+            // Collect items
+            List<Item> allItems = new List<Item>();
+            var item = new StardewValley.Object(qualifiedItemId, 1);
+
+            for (var i = 0; i < Game1.random.Next(1, 4); i++)
+                allItems.Add(item);
+
+            if (allItems.Count == 0)
+                return;
+
+            // Create and place the giftbox
+            Chest giftbox = new Chest(allItems, placeTile.Value, giftbox: true, giftboxIndex: 0, giftboxIsStarterGift: false);
+            home.objects[placeTile.Value] = giftbox;
+
+            MessageManager.AddMessage(npcName, $"{npcName}: Supprise!!! I just send you a gift of {item.Name}!");
+
+
+        }
     }
 }

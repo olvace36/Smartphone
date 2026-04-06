@@ -14,6 +14,8 @@ namespace Smartphone
         public static List<string> favouriteNpc = new(); // List of favourite NPCs
         public static string currentPhoneSound = "getNewSpecialItem";
         public static string currentPhoneBackground = "";
+        public static string currentPhoneTextColor = "Black";
+        public static string currentPhoneTheme = AssetHelper.DefaultPhoneThemeName;
 
         private static IModHelper Helper => ModEntry.SHelper;
 
@@ -70,6 +72,10 @@ namespace Smartphone
             {
                 PhoneMenu.messageHistory = GetMessages(PhoneMenu.selectedNpc);
             }
+            
+            Game1.addHUDMessage(new HUDMessage($"A new message from {npc}", HUDMessage.newQuest_type));
+            DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 0);
+            DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 1500);
         }
 
 
@@ -134,6 +140,8 @@ namespace Smartphone
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/favouriteNpc", favouriteNpc);
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPhoneSound", currentPhoneSound);
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPhoneBackground", currentPhoneBackground);
+            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPhoneTextColor", currentPhoneTextColor);
+            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPhoneTheme", currentPhoneTheme);
         }
 
         public static void LoadData()
@@ -150,6 +158,10 @@ namespace Smartphone
                         ?? "getNewSpecialItem";
             currentPhoneBackground = Helper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/currentPhoneBackground")
                         ?? "";
+            currentPhoneTextColor = Helper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/currentPhoneTextColor")
+                        ?? "Black";
+            currentPhoneTheme = Helper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/currentPhoneTheme")
+                        ?? AssetHelper.DefaultPhoneThemeName;
 
         }
 

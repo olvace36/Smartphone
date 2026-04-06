@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using StardewModdingAPI;
 
 namespace Smartphone
 {
@@ -27,23 +28,49 @@ namespace Smartphone
 
         public static void LoadTextures()
         {
-            PhoneBackground = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.PhoneBackground));
-            PhoneEmpty = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.PhoneEmpty));
-            Background = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.Background));
+            try
+            {
+                LoadTexturesFromThemeFolder(AssetHelper.GetPhoneThemeFolderPath());
+            }
+            catch (Exception ex)
+            {
+                ModEntry.SMonitor?.Log(
+                    $"Failed to load phone theme '{AssetHelper.CurrentPhoneThemeName}', falling back to '{AssetHelper.DefaultPhoneThemeName}'. {ex.Message}",
+                    LogLevel.Warn);
 
-            AppText = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.AppText));
-            AppCamera = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.AppCamera));
-            AppPhoto = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.AppPhoto));
-            AppSetting = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.AppSetting));
-            AppGame = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.AppGame));
-            AppNotification = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.AppNotification));
+                AssetHelper.SetCurrentPhoneTheme(AssetHelper.DefaultPhoneThemeName);
 
-            GameDarts = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.GameDarts));
-            GameCart = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.GameCart));
-            GameCrane = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.GameCrane));
-            GameJack = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.GameJack));
-            GamePirate = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.GamePirate));
-            GameSpin = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(AssetHelper.GetBarAssetsFolderPath(), AssetHelper.ImagesConstants.GameSpin));
+                try
+                {
+                    LoadTexturesFromThemeFolder(AssetHelper.GetPhoneThemeFolderPath());
+                }
+                catch (Exception fallbackEx)
+                {
+                    ModEntry.SMonitor?.Log($"Failed to load fallback phone theme assets: {fallbackEx}", LogLevel.Error);
+                    throw;
+                }
+            }
+        }
+
+        private static void LoadTexturesFromThemeFolder(string themeFolderPath)
+        {
+            PhoneBackground = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.PhoneBackground));
+            PhoneEmpty = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.PhoneEmpty));
+            Background = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.Background));
+
+            AppText = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppText));
+            AppCamera = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppCamera));
+            AppPhoto = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppPhoto));
+            AppSetting = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppSetting));
+            AppGame = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppGame));
+            AppNotification = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppNotification));
+
+            GameDarts = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameDarts));
+            GameCart = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameCart));
+            GameCrane = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameCrane));
+            GameJack = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameJack));
+            GamePirate = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GamePirate));
+            GameSpin = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameSpin));
         }
     }
 }
