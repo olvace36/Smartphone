@@ -11,10 +11,6 @@
     {  
       "UniqueID": "Pathoschild.ContentPatcher",
       "IsRequired": true
-    },
-    {  
-      "UniqueID": "d5a1lamdtd.UnlimitedEventExpansion",
-      "IsRequired": true
     }
   ]
 }

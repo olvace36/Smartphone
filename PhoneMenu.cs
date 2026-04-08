@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics.Metrics;
-using System.Reflection;
 using System.Xml.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -13,7 +12,7 @@ using StardewValley.Menus;
 
 namespace Smartphone
 {
-    public class PhoneMenu : IClickableMenu
+    public partial class PhoneMenu : IClickableMenu
     {
         private sealed class HomeAppEntry
         {
@@ -42,6 +41,7 @@ namespace Smartphone
         private Texture2D textureAppCamera = Textures.AppCamera;
         private Texture2D textureAppText = Textures.AppText;
         private Texture2D textureAppPhoto = Textures.AppPhoto;
+        private Texture2D textureAppSocial = Textures.AppSocial;
         private Texture2D textureAppSetting = Textures.AppSetting;
         private Texture2D textureAppGame = Textures.AppGame;
         private Texture2D textureAppNotification = Textures.AppNotification;
@@ -57,7 +57,7 @@ namespace Smartphone
         private int scrollOffset = 0;
         private int maxVisibleNPCs = 7;
         int visibleSlots = 7;
-        int spacing = 80;
+        int spacing = 95;
 
         public static string selectedNpc = null;
         private string currentMessage = "";
@@ -65,15 +65,19 @@ namespace Smartphone
         private float chatScrollOffset = 0f;
         private float chatScrollTarget = 0f;
         public static List<string> notificationHistory = new();
-        private int notificationScrollOffset = 0;
+        private float notificationScrollOffset = 0f;
+        private float notificationScrollTarget = 0f;
         int maxBubbleWidth = 400;
 
-        private const int ChatViewportYOffset = 200;
-        private const int ChatViewportHeight = 600;
+        private const int ChatViewportYOffset = 125;
+        private const int ChatViewportHeight = 715;
         private const float ChatScrollPixelsPerWheelNotch = 48f;
         private const float ChatScrollLerpSpeed = 16f;
+        private const int NotificationViewportYOffset = 126;
+        private const int NotificationViewportHeight = 800;
 
         private Dictionary<string, ClickableTextureComponent> favourityNpcButton = new();
+        private readonly Dictionary<string, Rectangle> socialProfileNpcButtonBounds = new(StringComparer.OrdinalIgnoreCase);
         private List<string> phoneSoundList = new();
         private Dictionary<string, ClickableTextureComponent> phoneSoundButton = new();
         private List<string> phoneTextColorList = new();
@@ -92,14 +96,20 @@ namespace Smartphone
         private ClickableTextureComponent photoNextButton;
         private ClickableTextureComponent photoPreviousButton;
         private ClickableTextureComponent heartButton;
+        private Rectangle photoAvatarButtonBounds = Rectangle.Empty;
+        private Rectangle cameraZoomOutButtonBounds = Rectangle.Empty;
+        private Rectangle cameraZoomInButtonBounds = Rectangle.Empty;
+        private Rectangle cameraRotateButtonBounds = Rectangle.Empty;
+        private Rectangle cameraSquareButtonBounds = Rectangle.Empty;
 
         // apps
-        public static string currentApp = null;
+        public static string? currentApp = null;
 
         private const string BuiltinAppNotificationId = "builtin:notification";
         private const string BuiltinAppTextId = "builtin:text";
         private const string BuiltinAppCameraId = "builtin:camera";
         private const string BuiltinAppPhotoId = "builtin:photo";
+        private const string BuiltinAppSocialId = "builtin:social";
         private const string BuiltinAppSettingId = "builtin:setting";
         private const string BuiltinAppCalendarId = "builtin:calendar";
         private const string BuiltinAppGameId = "builtin:game";
@@ -112,10 +122,10 @@ namespace Smartphone
         private const string SettingMenuOptionSound = "sound";
         private const string SettingMenuOptionTheme = "theme";
 
-        private const int HomeAppsPerPage = 16;
+        private const int HomeAppsPerPage = 20;
         private const int HomeAppsColumns = 4;
         private const int HomeAppStartX = 80;
-        private const int HomeAppStartY = 250;
+        private const int HomeAppStartY = 176;
         private const int HomeAppSpacingX = 120;
         private const int HomeAppSpacingY = 120;
         private const int AppLabelTrailingSpaces = 5;
@@ -127,6 +137,10 @@ namespace Smartphone
         private const int ExternalGroupStartY = 250;
         private const int ExternalGroupSpacingX = 120;
         private const int ExternalGroupSpacingY = 120;
+
+        private const float CameraZoomStep = 0.05f;
+        private const float CameraZoomMin = 1f;
+        private const float CameraZoomMax = 2f;
 
         private readonly Dictionary<string, Rectangle> homeAppClickBounds = new();
         private Rectangle homeAppPrevPageBounds = Rectangle.Empty;
@@ -148,10 +162,12 @@ namespace Smartphone
         private ClickableTextureComponent gameSpin;
 
 
-        private string captureFolderPath = Path.Combine(ModEntry.Instance.Helper.DirectoryPath, "userdata", Constants.SaveFolderName, "image");
+        private string userCaptureFolderPath = Path.Combine(ModEntry.Instance.Helper.DirectoryPath, "userdata", Constants.SaveFolderName, "player_photo");
+        private string npcCaptureFolderPath = Path.Combine(ModEntry.Instance.Helper.DirectoryPath, "userdata", Constants.SaveFolderName, "npc_photo");
         private List<string> capturedImages;
         private int currentImageIndex = -1;
         private Texture2D currentDisplayedImage = null;
+        private bool currentDisplayedImageIsSquare = false;
         private Texture2D phoneBackgroundImage = null;
 
 
@@ -257,20 +273,20 @@ namespace Smartphone
         public override void draw(SpriteBatch b)
         {
             okButton = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 490, this.yPositionOnScreen + 820, 64, 64),
+                new Rectangle(this.xPositionOnScreen + 490, this.yPositionOnScreen + 850, 64, 64),
                 Game1.mouseCursors,
                 new Rectangle(128, 256, 64, 64),
                 1f);
             removeButton = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 300, this.yPositionOnScreen + 125, 32, 26 * 2),
+                new Rectangle(this.xPositionOnScreen + 335, this.yPositionOnScreen + 66, 32, 26 * 2),
                 Game1.mouseCursors,
                 new Rectangle(564, 102, 16, 26),
-            2f);
+                1.7f);
             captureButton = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 130, this.yPositionOnScreen + 117, 100, 40),
+                new Rectangle(this.xPositionOnScreen + 130, this.yPositionOnScreen + 65, 100, 40),
                 Game1.mouseCursors2,
                 new Rectangle(72, 32, 18, 15),
-                4f);
+                3.25f);
 
             photoNextButton = new ClickableTextureComponent(
                 new Rectangle(this.xPositionOnScreen + 500, this.yPositionOnScreen + 500, 64, 64),
@@ -325,20 +341,25 @@ namespace Smartphone
 
             // global
             backButton = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 40, this.yPositionOnScreen + 115, 64, 64),
+                new Rectangle(this.xPositionOnScreen + 40, this.yPositionOnScreen + 59, 64, 64),
                 Game1.mouseCursors,
                 Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 44),
-                1f);
+                0.95f);
+
+            cameraZoomOutButtonBounds = Rectangle.Empty;
+            cameraZoomInButtonBounds = Rectangle.Empty;
+            cameraRotateButtonBounds = Rectangle.Empty;
+            cameraSquareButtonBounds = Rectangle.Empty;
 
 
             if (currentApp == null)
             {
                 b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
                 b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
-                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 190), Color.White);
+                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
                 if (phoneBackgroundImage != null)
                 {
-                    Vector2 imagePosition = new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 190);
+                    Vector2 imagePosition = new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116);
                     b.Draw(phoneBackgroundImage, imagePosition, Color.White * 0.8f);
                 }
 
@@ -349,7 +370,7 @@ namespace Smartphone
             {
                 b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
                 b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
-                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 190), Color.White);
+                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
                 backButton.draw(b);
 
                 gameCart.draw(b);
@@ -363,7 +384,7 @@ namespace Smartphone
             {
                 b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
                 b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
-                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 190), Color.White);
+                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
                 backButton.draw(b);
 
                 string title = string.IsNullOrWhiteSpace(currentExternalGroupName)
@@ -375,29 +396,125 @@ namespace Smartphone
             }
             else if (currentApp == "appCamera")
             {
-                Rectangle phoneRect = new Rectangle(xPositionOnScreen + 40, yPositionOnScreen + 190, 520, 705);
+                Rectangle phoneRect = ModEntry.GetPhoneCameraPreviewBounds(xPositionOnScreen, yPositionOnScreen);
+                Rectangle captureRect = ModEntry.GetPlayerPhotoCaptureBounds(xPositionOnScreen, yPositionOnScreen);
 
-                b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, phoneRect.Top), Color.Black * 0.4f);
-                b.Draw(Game1.staminaRect, new Rectangle(0, phoneRect.Bottom, Game1.viewport.Width, Game1.viewport.Height - phoneRect.Bottom), Color.Black * 0.4f);
-                b.Draw(Game1.staminaRect, new Rectangle(0, phoneRect.Top, phoneRect.Left, phoneRect.Height), Color.Black * 0.4f);
-                b.Draw(Game1.staminaRect, new Rectangle(phoneRect.Right, phoneRect.Top, Game1.viewport.Width - phoneRect.Right, phoneRect.Height), Color.Black * 0.4f);
+                Rectangle zoomOutDrawBounds = new Rectangle(xPositionOnScreen + 255, yPositionOnScreen + 65, 45, 45);
+                Rectangle zoomInDrawBounds = new Rectangle(xPositionOnScreen + 305, yPositionOnScreen + 65, 45, 45);
+                Rectangle rotateDrawBounds = new Rectangle(xPositionOnScreen + 355, yPositionOnScreen + 65, 95, 45);
+                Rectangle squareDrawBounds = new Rectangle(xPositionOnScreen + 455, yPositionOnScreen + 65, 95, 45);
 
+                if (ModEntry.cameraLandscapeMode)
+                {
+                    cameraZoomOutButtonBounds = GetLandscapeRotatedBounds(zoomOutDrawBounds);
+                    cameraZoomInButtonBounds = GetLandscapeRotatedBounds(zoomInDrawBounds);
+                    cameraRotateButtonBounds = GetLandscapeRotatedBounds(rotateDrawBounds);
+                    cameraSquareButtonBounds = GetLandscapeRotatedBounds(squareDrawBounds);
+                }
+                else
+                {
+                    cameraZoomOutButtonBounds = zoomOutDrawBounds;
+                    cameraZoomInButtonBounds = zoomInDrawBounds;
+                    cameraRotateButtonBounds = rotateDrawBounds;
+                    cameraSquareButtonBounds = squareDrawBounds;
+                }
 
-                b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
-                captureButton.draw(b);
-                backButton.draw(b);
+                int viewportWidth = Game1.viewport.Width;
+                int viewportHeight = Game1.viewport.Height;
+
+                int topShadeHeight = Math.Max(0, phoneRect.Top);
+                int bottomShadeY = Math.Clamp(phoneRect.Bottom, 0, viewportHeight);
+                int bottomShadeHeight = Math.Max(0, viewportHeight - bottomShadeY);
+                int leftShadeWidth = Math.Max(0, phoneRect.Left);
+                int rightShadeX = Math.Clamp(phoneRect.Right, 0, viewportWidth);
+                int rightShadeWidth = Math.Max(0, viewportWidth - rightShadeX);
+                int centerBandY = Math.Clamp(phoneRect.Top, 0, viewportHeight);
+                int centerBandBottom = Math.Clamp(phoneRect.Bottom, 0, viewportHeight);
+                int centerBandHeight = Math.Max(0, centerBandBottom - centerBandY);
+
+                if (topShadeHeight > 0)
+                    b.Draw(Game1.staminaRect, new Rectangle(0, 0, viewportWidth, topShadeHeight), Color.Black * 0.4f);
+                if (bottomShadeHeight > 0)
+                    b.Draw(Game1.staminaRect, new Rectangle(0, bottomShadeY, viewportWidth, bottomShadeHeight), Color.Black * 0.4f);
+                if (leftShadeWidth > 0 && centerBandHeight > 0)
+                    b.Draw(Game1.staminaRect, new Rectangle(0, centerBandY, leftShadeWidth, centerBandHeight), Color.Black * 0.4f);
+                if (rightShadeWidth > 0 && centerBandHeight > 0)
+                    b.Draw(Game1.staminaRect, new Rectangle(rightShadeX, centerBandY, rightShadeWidth, centerBandHeight), Color.Black * 0.4f);
+
+                Rectangle topShade = Rectangle.Intersect(
+                    new Rectangle(phoneRect.X, phoneRect.Y, phoneRect.Width, Math.Max(0, captureRect.Y - phoneRect.Y)),
+                    phoneRect);
+                Rectangle bottomShade = Rectangle.Intersect(
+                    new Rectangle(phoneRect.X, captureRect.Bottom, phoneRect.Width, Math.Max(0, phoneRect.Bottom - captureRect.Bottom)),
+                    phoneRect);
+                Rectangle leftCaptureShade = Rectangle.Intersect(
+                    new Rectangle(phoneRect.X, captureRect.Y, Math.Max(0, captureRect.X - phoneRect.X), captureRect.Height),
+                    phoneRect);
+                Rectangle rightCaptureShade = Rectangle.Intersect(
+                    new Rectangle(captureRect.Right, captureRect.Y, Math.Max(0, phoneRect.Right - captureRect.Right), captureRect.Height),
+                    phoneRect);
+
+                if (topShade.Width > 0 && topShade.Height > 0)
+                    b.Draw(Game1.staminaRect, topShade, Color.Black * 0.35f);
+                if (bottomShade.Width > 0 && bottomShade.Height > 0)
+                    b.Draw(Game1.staminaRect, bottomShade, Color.Black * 0.35f);
+                if (leftCaptureShade.Width > 0 && leftCaptureShade.Height > 0)
+                    b.Draw(Game1.staminaRect, leftCaptureShade, Color.Black * 0.35f);
+                if (rightCaptureShade.Width > 0 && rightCaptureShade.Height > 0)
+                    b.Draw(Game1.staminaRect, rightCaptureShade, Color.Black * 0.35f);
+
+                if (ModEntry.cameraLandscapeMode)
+                {
+                    Matrix landscapeTransform = CreateCameraLandscapeRotationMatrix();
+
+                    b.End();
+                    b.Begin(
+                        SpriteSortMode.Deferred,
+                        BlendState.AlphaBlend,
+                        SamplerState.PointClamp,
+                        null,
+                        null,
+                        null,
+                        landscapeTransform);
+
+                    b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
+                    captureButton.draw(b);
+                    backButton.draw(b);
+
+                    DrawCameraControlButton(b, zoomOutDrawBounds, "-", false);
+                    DrawCameraControlButton(b, zoomInDrawBounds, "+", false);
+                    DrawCameraControlButton(b, rotateDrawBounds, "LAND", ModEntry.cameraLandscapeMode);
+                    DrawCameraControlButton(b, squareDrawBounds, "SQR", ModEntry.cameraSquareMode);
+
+                    b.End();
+                    b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+                }
+                else
+                {
+                    b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
+                    captureButton.draw(b);
+                    backButton.draw(b);
+
+                    DrawCameraControlButton(b, cameraZoomOutButtonBounds, "-", false);
+                    DrawCameraControlButton(b, cameraZoomInButtonBounds, "+", false);
+                    DrawCameraControlButton(b, cameraRotateButtonBounds, "LAND", ModEntry.cameraLandscapeMode);
+                    DrawCameraControlButton(b, cameraSquareButtonBounds, "SQR", ModEntry.cameraSquareMode);
+                }
+
+                DrawCaptureOutline(b, captureRect, new Color(255, 255, 255, 220));
             }
             else if (currentApp == "appPhoto")
             {
                 b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
                 b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
-                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 190), Color.White);
+                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
                 backButton.draw(b);
-                okButton.draw(b);
+                photoAvatarButtonBounds = Rectangle.Empty;
+                //okButton.draw(b);
 
                 if (currentDisplayedImage != null)
                 {
-                    Vector2 imagePosition = new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 190);
+                    Vector2 imagePosition = new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116);
                     b.Draw(currentDisplayedImage, imagePosition, Color.White);
 
                     b.Draw(
@@ -430,7 +547,7 @@ namespace Smartphone
 
                         heartButton = new ClickableTextureComponent(
                         name: capturedImages[currentImageIndex],
-                        bounds: new Rectangle(xPositionOnScreen + 500, yPositionOnScreen + 210, 35, 35),
+                        bounds: new Rectangle(xPositionOnScreen + 500, yPositionOnScreen + 136, 35, 35),
                         label: null,
                         hoverText: "",
                         texture: Game1.mouseCursors,
@@ -438,6 +555,30 @@ namespace Smartphone
                             scale: 5f
                         );
                         heartButton.draw(b);
+
+                        if (currentDisplayedImageIsSquare)
+                        {
+                            bool avatarSelected = IsSameFilePath(MessageManager.currentPlayerAvatar, capturedImages[currentImageIndex]);
+                            photoAvatarButtonBounds = new Rectangle(xPositionOnScreen + 390, yPositionOnScreen + 126, 102, 42);
+
+                            IClickableMenu.drawTextureBox(
+                                b,
+                                Game1.menuTexture,
+                                new Rectangle(0, 256, 60, 60),
+                                photoAvatarButtonBounds.X,
+                                photoAvatarButtonBounds.Y,
+                                photoAvatarButtonBounds.Width,
+                                photoAvatarButtonBounds.Height,
+                                avatarSelected ? new Color(200, 240, 200, 230) : new Color(255, 255, 255, 230),
+                                1f,
+                                false);
+
+                            b.DrawString(
+                                Game1.smallFont,
+                                "Avatar",
+                                new Vector2(photoAvatarButtonBounds.X + 12, photoAvatarButtonBounds.Y + 10),
+                                Color.Black);
+                        }
                     }
                 }
 
@@ -451,14 +592,15 @@ namespace Smartphone
             {
                 b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
                 b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
-                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 190), Color.White);
+                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
                 backButton.draw(b);
 
 
                 if (selectedNpc == null)
                 {
                     favourityNpcButton.Clear();
-                    int yStart = yPositionOnScreen + 220;
+                    socialProfileNpcButtonBounds.Clear();
+                    int yStart = yPositionOnScreen + 150;
                     for (int i = 0; i < visibleSlots; i++)
                     {
                         int index = i + scrollOffset;
@@ -471,7 +613,7 @@ namespace Smartphone
 
                         // === Draw scaled background box behind portrait ===
                         int portraitSize = 56; // Target display size
-                        float scale = portraitSize / 64f * 1.4f; // Your texture is 64x64
+                        float scale = portraitSize / 64f * 1.5f; // Your texture is 64x64
 
                         Vector2 boxPosition = new Vector2(xPositionOnScreen + 100, y);
 
@@ -542,7 +684,7 @@ namespace Smartphone
                         // === Draw NPC portrait ===
                         if (realNpc.Portrait != null)
                         {
-                            Rectangle portraitRect = new Rectangle((int)boxPosition.X + 9, (int)boxPosition.Y + 10, 60, 60);
+                            Rectangle portraitRect = new Rectangle((int)boxPosition.X + 9, (int)boxPosition.Y + 10, 67, 67);
                             Rectangle sourceRect = new Rectangle(0, 0, 64, 64);
                             b.Draw(realNpc.Portrait, portraitRect, sourceRect, Color.White);
                         }
@@ -559,7 +701,7 @@ namespace Smartphone
 
                         heartButton = new ClickableTextureComponent(
                         name: npc.name,
-                        bounds: new Rectangle(nameX + 310, y + 20, 35, 35),
+                        bounds: new Rectangle(nameX + 280, y + 20, 35, 35),
                             label: null,
                             hoverText: "",
                         texture: Game1.mouseCursors,
@@ -570,11 +712,15 @@ namespace Smartphone
                         favourityNpcButton[npc.name] = heartButton;
                         heartButton.draw(b);
 
+                        Rectangle profileButtonBounds = new Rectangle(nameX + 330, y + 20, 35, 35);
+                        socialProfileNpcButtonBounds[npc.name] = profileButtonBounds;
+                        DrawOpenSocialProfileButton(b, profileButtonBounds);
+
                     }
 
                     // Draw input box
                     int inputX = xPositionOnScreen + 100;
-                    int inputY = yPositionOnScreen + 820;
+                    int inputY = yPositionOnScreen + 835;
                     int inputWidth = 400;
 
                     int fontHeight = (int)Game1.smallFont.MeasureString("A").Y;
@@ -602,7 +748,7 @@ namespace Smartphone
                 }
                 else
                 {
-                    b.DrawString(Game1.dialogueFont, $"{selectedNpc}", new Vector2(xPositionOnScreen + 105, yPositionOnScreen + 125), Color.Black);
+                    b.DrawString(Game1.dialogueFont, $"{selectedNpc}", new Vector2(xPositionOnScreen + 105, yPositionOnScreen + 65), Color.Black);
 
                     backButton.draw(b);
                     b.Draw(
@@ -687,12 +833,12 @@ namespace Smartphone
                     b.End();
                     b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
 
-                    if (ModEntry.npcMessagesToday.ContainsKey(selectedNpc) && ModEntry.npcMessagesToday[selectedNpc].Count > 0)
+                    if (selectedNpc != null && ModEntry.npcMessagesToday.ContainsKey(selectedNpc) && ModEntry.npcMessagesToday[selectedNpc].Count > 0)
                     {
                         okButton.draw(b);
                         // Draw input box
                         int inputX = xPositionOnScreen + 50;
-                        int inputY = yPositionOnScreen + 820;
+                        int inputY = yPositionOnScreen + 850;
                         int inputWidth = 430;
 
                         int fontHeight = (int)Game1.smallFont.MeasureString("A").Y;
@@ -724,7 +870,7 @@ namespace Smartphone
                         float maxWidth = Game1.smallFont.MeasureString(firstMessage).X + 20f;
                         int lineHeight = (int)(Game1.smallFont.MeasureString("A").Y + 20);
 
-                        Vector2 position = new Vector2(xPositionOnScreen + 300 - (maxWidth + 20) / 2, yPositionOnScreen + 820);
+                        Vector2 position = new Vector2(xPositionOnScreen + 300 - (maxWidth + 20) / 2, yPositionOnScreen + 850);
                         firstMessageBounds = new Rectangle(
                             (int)position.X,
                             (int)position.Y,
@@ -847,6 +993,10 @@ namespace Smartphone
                     }
                 }
             }
+            else if (currentApp == SocialAppState)
+            {
+                DrawSocialApp(b);
+            }
             else if (currentApp == "appSetting")
             {
                 DrawSettingMenu(b);
@@ -855,7 +1005,7 @@ namespace Smartphone
             {
                 b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
                 b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
-                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 190), Color.White);
+                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
                 b.Draw(
                         removeButton.texture,
                         new Vector2(removeButton.bounds.X, removeButton.bounds.Y),
@@ -870,17 +1020,21 @@ namespace Smartphone
                 backButton.draw(b);
 
                 b.End();
-                Rectangle chatClipRect = new Rectangle(xPositionOnScreen, yPositionOnScreen + 200, width, 665); // Adjust height as needed
-                Game1.graphics.GraphicsDevice.ScissorRectangle = chatClipRect;
+                Rectangle notificationClipRect = new Rectangle(xPositionOnScreen, yPositionOnScreen + NotificationViewportYOffset, width, NotificationViewportHeight);
+                Game1.graphics.GraphicsDevice.ScissorRectangle = notificationClipRect;
 
                 b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState() { ScissorTestEnable = true });
 
                 // Draw messages within clipped region
-                int messageY = yPositionOnScreen + 200;
+                List<string> notificationMessages = notificationHistory.ToList();
+                notificationMessages.Reverse();
+                ClampNotificationScroll(notificationMessages);
+
+                int messageY = yPositionOnScreen + NotificationViewportYOffset - (int)MathF.Floor(notificationScrollOffset);
                 SpriteFont font = Game1.smallFont;
 
-                // Show newest notifications first. Reverse the list, then skip by offset.
-                foreach (string msg in notificationHistory.AsEnumerable().Reverse().Skip(notificationScrollOffset).ToList())
+                // Show newest notifications first and animate their pixel offset.
+                foreach (string msg in notificationMessages)
                 {
                     List<string> wrappedLines = SplitNotificationIntoLines(msg, font, 485);
 
@@ -915,7 +1069,6 @@ namespace Smartphone
                     }
 
                     messageY += bubbleHeight + 20;
-                    
                 }
 
                 // Reset clipping
@@ -950,9 +1103,7 @@ namespace Smartphone
             {
                 xPositionOnScreen = Game1.getMouseX() - dragOffsetX;
                 yPositionOnScreen = Game1.getMouseY() - dragOffsetY;
-
-                xPositionOnScreen = Math.Max(0, Math.Min(xPositionOnScreen, Game1.uiViewport.Width - width));
-                yPositionOnScreen = Math.Max(0, Math.Min(yPositionOnScreen, Game1.uiViewport.Height - height));
+                ClampPhoneMenuToViewport();
             }
 
             ModEntry.currentMenuX = xPositionOnScreen;
@@ -969,6 +1120,55 @@ namespace Smartphone
                 if (Math.Abs(chatScrollOffset - chatScrollTarget) <= 0.5f)
                     chatScrollOffset = chatScrollTarget;
             }
+            else if (currentApp == SocialAppState)
+            {
+                float lerpAmount = (float)(time.ElapsedGameTime.TotalSeconds * SocialScrollLerpSpeed);
+                lerpAmount = Math.Clamp(lerpAmount, 0f, 1f);
+
+                if (socialCreateMenuOpen)
+                {
+                    // create menu has no scrollable viewport
+                }
+                else if (socialProfileMenuOpen)
+                {
+                    ClampSocialProfileScroll();
+                    socialProfileScrollOffset = MathHelper.Lerp(socialProfileScrollOffset, socialProfileScrollTarget, lerpAmount);
+
+                    if (Math.Abs(socialProfileScrollOffset - socialProfileScrollTarget) <= 0.5f)
+                        socialProfileScrollOffset = socialProfileScrollTarget;
+                }
+                else if (string.IsNullOrWhiteSpace(selectedSocialPostId))
+                {
+                    ClampSocialFeedScroll(StardewConnectManager.GetPostsSnapshot());
+                    socialFeedScrollOffset = MathHelper.Lerp(socialFeedScrollOffset, socialFeedScrollTarget, lerpAmount);
+
+                    if (Math.Abs(socialFeedScrollOffset - socialFeedScrollTarget) <= 0.5f)
+                        socialFeedScrollOffset = socialFeedScrollTarget;
+                }
+                else
+                {
+                    StardewConnectPost? selectedPost = StardewConnectManager.GetPost(selectedSocialPostId);
+                    if (selectedPost != null)
+                    {
+                        ClampSocialDetailScroll(selectedPost);
+                        socialDetailScrollOffset = MathHelper.Lerp(socialDetailScrollOffset, socialDetailScrollTarget, lerpAmount);
+
+                        if (Math.Abs(socialDetailScrollOffset - socialDetailScrollTarget) <= 0.5f)
+                            socialDetailScrollOffset = socialDetailScrollTarget;
+                    }
+                }
+            }
+            else if (currentApp == "appNotification")
+            {
+                float lerpAmount = (float)(time.ElapsedGameTime.TotalSeconds * ChatScrollLerpSpeed);
+                lerpAmount = Math.Clamp(lerpAmount, 0f, 1f);
+
+                ClampNotificationScroll();
+                notificationScrollOffset = MathHelper.Lerp(notificationScrollOffset, notificationScrollTarget, lerpAmount);
+
+                if (Math.Abs(notificationScrollOffset - notificationScrollTarget) <= 0.5f)
+                    notificationScrollOffset = notificationScrollTarget;
+            }
 
 
         }
@@ -976,7 +1176,7 @@ namespace Smartphone
         public override void leftClickHeld(int x, int y)
         {
             base.leftClickHeld(x, y);
-            if (new Rectangle(xPositionOnScreen, yPositionOnScreen, width, height).Contains(x, y))
+            if (GetActivePhoneDragBounds().Contains(x, y))
             {
                 isDragging = true;
                 dragOffsetX = x - xPositionOnScreen;
@@ -999,7 +1199,7 @@ namespace Smartphone
             if(selectedNpc != null && firstMessageBounds.Contains(x, y) && (!ModEntry.npcMessagesToday.ContainsKey(selectedNpc) || ModEntry.npcMessagesToday[selectedNpc].Count == 0))
             {
                 string firstMessage = Game1.timeOfDay < 1200 ? $"Good morning {selectedNpc}" : Game1.timeOfDay < 1800 ? $"Good afternoon {selectedNpc}" : $"Good evening {selectedNpc}";
-                MessageManager.AddMessage(selectedNpc, $"PLAYER: {firstMessage}");
+                MessageManager.AddMessage(selectedNpc, $"PLAYER: {firstMessage}", isFromPlayer: true);
                 ModEntry.FirstDailyText(selectedNpc, firstMessage);
                 messageHistory = MessageManager.GetMessages(selectedNpc);
                 SnapChatScrollToBottom();
@@ -1044,15 +1244,47 @@ namespace Smartphone
                 }
             }
 
+            if (currentApp == SocialAppState && HandleSocialLeftClick(x, y))
+                return;
 
 
-            if (captureButton.containsPoint(x, y) && currentApp == "appCamera")
+
+            if (currentApp == "appCamera")
+            {
+                if (cameraZoomOutButtonBounds.Contains(x, y))
+                {
+                    AdjustCameraZoom(-CameraZoomStep);
+                    return;
+                }
+
+                if (cameraZoomInButtonBounds.Contains(x, y))
+                {
+                    AdjustCameraZoom(CameraZoomStep);
+                    return;
+                }
+
+                if (cameraRotateButtonBounds.Contains(x, y))
+                {
+                    ModEntry.cameraLandscapeMode = !ModEntry.cameraLandscapeMode;
+                    Game1.playSound("smallSelect");
+                    return;
+                }
+
+                if (cameraSquareButtonBounds.Contains(x, y))
+                {
+                    ModEntry.cameraSquareMode = !ModEntry.cameraSquareMode;
+                    Game1.playSound("smallSelect");
+                    return;
+                }
+            }
+
+            if (currentApp == "appCamera" && IsCameraCaptureButtonPressed(x, y))
             {
                 ModEntry.takeScreenshot = true;
                 return;
             }
 
-            if (backButton.containsPoint(x, y))
+            if (IsBackButtonPressed(x, y))
             {
                 if (currentApp == "appText")
                 {
@@ -1085,6 +1317,11 @@ namespace Smartphone
                     currentApp = null;
                     return;
                 }
+                else if (currentApp == SocialAppState)
+                {
+                    HandleSocialBackNavigation();
+                    return;
+                }
                 else if ( new List<string> { "appCamera", "appPhoto", "appGame", "appNotification", ExternalGroupAppState }.Contains(currentApp))
                 {
                     if (currentApp == ExternalGroupAppState)
@@ -1109,6 +1346,7 @@ namespace Smartphone
                     string fileToDelete = capturedImages[currentImageIndex];
                     string imageName = Path.GetFileName(fileToDelete);
                     bool deletedBackgroundImage = IsSameFilePath(MessageManager.currentPhoneBackground, fileToDelete);
+                    bool deletedAvatarImage = IsSameFilePath(MessageManager.currentPlayerAvatar, fileToDelete);
 
                     // Remove file from disk
                     try
@@ -1128,6 +1366,7 @@ namespace Smartphone
                     if (capturedImages.Count == 0)
                     {
                         currentDisplayedImage = null;
+                        currentDisplayedImageIsSquare = false;
                         currentImageIndex = -1;
                     }
                     else if (currentImageIndex > 0)
@@ -1144,6 +1383,9 @@ namespace Smartphone
                     if (deletedBackgroundImage)
                         ResetPhoneBackgroundToDefault();
 
+                    if (deletedAvatarImage)
+                        MessageManager.currentPlayerAvatar = "";
+
                     Game1.playSound("trashcan");
                 }
 
@@ -1153,6 +1395,8 @@ namespace Smartphone
             {
                 NotificationManager.clearNotification();
                 notificationHistory = NotificationManager.getNoticationList();
+                notificationScrollOffset = 0f;
+                notificationScrollTarget = 0f;
                 return;
             }
 
@@ -1192,6 +1436,22 @@ namespace Smartphone
                 else
                     ApplyPhoneBackground(heartButton.name);
 
+                return;
+            }
+            else if (currentApp == "appPhoto"
+                && currentDisplayedImage != null
+                && currentDisplayedImageIsSquare
+                && currentImageIndex >= 0
+                && currentImageIndex < capturedImages.Count
+                && photoAvatarButtonBounds.Contains(x, y))
+            {
+                string currentImagePath = capturedImages[currentImageIndex];
+                if (IsSameFilePath(MessageManager.currentPlayerAvatar, currentImagePath))
+                    MessageManager.currentPlayerAvatar = "";
+                else
+                    MessageManager.currentPlayerAvatar = currentImagePath;
+
+                Game1.playSound("smallSelect");
                 return;
             }
 
@@ -1265,10 +1525,23 @@ namespace Smartphone
                             MessageManager.favouriteNpc.Add(button.name);
 
                         DelayedAction.functionAfterDelay(UpdateNpcList, 200);
+                        Game1.playSound("smallSelect");
+                        return;
                     }
                 }
 
-                int yStart = yPositionOnScreen + 220;
+                foreach (KeyValuePair<string, Rectangle> profileButton in socialProfileNpcButtonBounds)
+                {
+                    if (!profileButton.Value.Contains(x, y))
+                        continue;
+
+                    OpenSocialApp();
+                    OpenSocialProfile(profileButton.Key, actorIsPlayer: false);
+                    Game1.playSound("smallSelect");
+                    return;
+                }
+
+                int yStart = yPositionOnScreen + 150;
 
                 for (int i = 0; i < visibleSlots; i++)
                 {
@@ -1414,6 +1687,10 @@ namespace Smartphone
                 scrollOffset -= direction / 120;
                 scrollOffset = Math.Max(0, Math.Min(scrollOffset, messageableNpcList.Count - maxVisibleNPCs));
             }
+            else if (currentApp == SocialAppState)
+            {
+                HandleSocialScroll(direction);
+            }
             else if (currentApp == null)
             {
                 if (TryChangeHomeAppPage(direction > 0 ? -1 : 1))
@@ -1439,11 +1716,13 @@ namespace Smartphone
             }
             else if (currentApp == "appNotification")
             {
-                if (direction > 0)
-                    notificationScrollOffset = Math.Max(notificationScrollOffset - 1, 0);
-                else
-                    notificationScrollOffset++;
-                notificationScrollOffset = Math.Min(notificationScrollOffset, Math.Max(0, notificationHistory.Count - 1));
+                float wheelSteps = direction / 120f;
+                float maxScroll = CalculateNotificationScrollToBottomOffset(notificationHistory);
+                notificationScrollTarget = Math.Clamp(
+                    notificationScrollTarget - wheelSteps * ChatScrollPixelsPerWheelNotch,
+                    0f,
+                    maxScroll);
+                notificationScrollOffset = Math.Clamp(notificationScrollOffset, 0f, maxScroll);
             }
         }
 
@@ -1462,6 +1741,12 @@ namespace Smartphone
                 
                 if (currentApp != null)
                 {
+                    if (currentApp == SocialAppState)
+                    {
+                        HandleSocialBackNavigation();
+                        return;
+                    }
+
                     if (currentApp == "appSetting" && currentSettingMenuState != SettingMenuMainState)
                     {
                         currentSettingMenuState = SettingMenuMainState;
@@ -1479,6 +1764,11 @@ namespace Smartphone
                 currentMessage = "";
                 exitThisMenu();
                 return;
+            }
+            else if (currentApp == SocialAppState)
+            {
+                if (HandleSocialTyping(key))
+                    return;
             }
             else if (selectedNpc == null && currentApp == "appText")
             {
@@ -1532,7 +1822,7 @@ namespace Smartphone
                 currentSuggestion = new("", "");
 
 
-            MessageManager.AddMessage(selectedNpc, $"PLAYER: {currentMessage}");
+            MessageManager.AddMessage(selectedNpc, $"PLAYER: {currentMessage}", isFromPlayer: true);
             messageHistory = MessageManager.GetMessages(selectedNpc);
             string reply = sendTextMessage(selectedNpc, currentMessage);
             currentMessage = "";
@@ -1781,14 +2071,15 @@ namespace Smartphone
         {
             NotificationManager.resetUnreadNotication();
             notificationHistory = NotificationManager.getNoticationList();
-            notificationScrollOffset = 0;
+            notificationScrollOffset = 0f;
+            notificationScrollTarget = 0f;
         }
 
         private void DrawSettingMenu(SpriteBatch b)
         {
             b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
             b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
-            b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 190), Color.White);
+            b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
             backButton.draw(b);
 
             string title = currentSettingMenuState switch
@@ -1799,7 +2090,7 @@ namespace Smartphone
                 _ => "Settings"
             };
 
-            b.DrawString(Game1.dialogueFont, title, new Vector2(xPositionOnScreen + 105, yPositionOnScreen + 125), Color.Black);
+            b.DrawString(Game1.dialogueFont, title, new Vector2(xPositionOnScreen + 105, yPositionOnScreen + 67), Color.Black);
 
             if (currentSettingMenuState == SettingMenuSoundState)
             {
@@ -1873,7 +2164,7 @@ namespace Smartphone
             settingOptionBounds.Clear();
             scrollOffset = Math.Max(0, Math.Min(scrollOffset, Math.Max(0, phoneSoundList.Count - maxVisibleNPCs)));
 
-            int yStart = yPositionOnScreen + 220;
+            int yStart = yPositionOnScreen + 150;
             for (int i = 0; i < visibleSlots; i++)
             {
                 int index = i + scrollOffset;
@@ -1913,7 +2204,7 @@ namespace Smartphone
             settingOptionBounds.Clear();
             scrollOffset = Math.Max(0, Math.Min(scrollOffset, Math.Max(0, phoneTextColorList.Count - maxVisibleNPCs)));
 
-            int yStart = yPositionOnScreen + 220;
+            int yStart = yPositionOnScreen + 150;
             for (int i = 0; i < visibleSlots; i++)
             {
                 int index = i + scrollOffset;
@@ -1961,7 +2252,7 @@ namespace Smartphone
             RefreshPhoneThemeList();
             scrollOffset = Math.Max(0, Math.Min(scrollOffset, Math.Max(0, phoneThemeList.Count - maxVisibleNPCs)));
 
-            int yStart = yPositionOnScreen + 220;
+            int yStart = yPositionOnScreen + 150;
             for (int i = 0; i < visibleSlots; i++)
             {
                 int index = i + scrollOffset;
@@ -2017,6 +2308,7 @@ namespace Smartphone
             textureAppCamera = Textures.AppCamera;
             textureAppText = Textures.AppText;
             textureAppPhoto = Textures.AppPhoto;
+            textureAppSocial = Textures.AppSocial;
             textureAppSetting = Textures.AppSetting;
             textureAppGame = Textures.AppGame;
             textureAppNotification = Textures.AppNotification;
@@ -2060,6 +2352,7 @@ namespace Smartphone
         private void ResetPhoneBackgroundToDefault()
         {
             MessageManager.currentPhoneBackground = "";
+            phoneBackgroundImage?.Dispose();
             phoneBackgroundImage = null;
         }
 
@@ -2080,8 +2373,9 @@ namespace Smartphone
             try
             {
                 using (FileStream stream = new FileStream(imagePath, FileMode.Open))
+                using (Texture2D fullImage = Texture2D.FromStream(Game1.graphics.GraphicsDevice, stream))
                 {
-                    Texture2D fullImage = Texture2D.FromStream(Game1.graphics.GraphicsDevice, stream);
+                    phoneBackgroundImage?.Dispose();
                     phoneBackgroundImage = CropTexture(fullImage);
                 }
 
@@ -2154,14 +2448,18 @@ namespace Smartphone
         {
             if (index < 0 || index >= capturedImages.Count)
             {
+                currentDisplayedImage?.Dispose();
                 currentDisplayedImage = null;
+                currentDisplayedImageIsSquare = false;
                 return;
             }
 
             using (FileStream stream = new FileStream(capturedImages[index], FileMode.Open))
+            using (Texture2D sourceImage = Texture2D.FromStream(Game1.graphics.GraphicsDevice, stream))
             {
-                currentDisplayedImage = Texture2D.FromStream(Game1.graphics.GraphicsDevice, stream);
-                currentDisplayedImage = CropTexture(currentDisplayedImage);
+                currentDisplayedImage?.Dispose();
+                currentDisplayedImage = CropTexture(sourceImage);
+                currentDisplayedImageIsSquare = sourceImage.Width == sourceImage.Height;
             }
         }
 
@@ -2191,15 +2489,53 @@ namespace Smartphone
                 messageableNpcList.Add(new ClickableComponent(new Rectangle(0, 0, 0, 0), villagers[i].Name));
             }
         }
-        private Texture2D CropTexture(Texture2D source, int x = 0, int y = 0, int width = 520, int height = 705)
+        private Texture2D CropTexture(Texture2D source, int x = 0, int y = 0, int width = 520, int height = 810)
         {
-            Color[] data = new Color[width * height];
-            source.GetData(0, new Rectangle(x, y, width, height), data, 0, data.Length);
+            int targetWidth = Math.Max(1, width);
+            int targetHeight = Math.Max(1, height);
 
-            Texture2D cropped = new Texture2D(Game1.graphics.GraphicsDevice, width, height);
-            cropped.SetData(data);
+            int sourceX = Math.Clamp(x, 0, Math.Max(0, source.Width - 1));
+            int sourceY = Math.Clamp(y, 0, Math.Max(0, source.Height - 1));
+            int sourceWidth = Math.Max(1, Math.Min(width, source.Width - sourceX));
+            int sourceHeight = Math.Max(1, Math.Min(height, source.Height - sourceY));
 
-            return cropped;
+            // For the phone gallery/background path, fit the full image inside the viewport
+            // so portrait, landscape, and square photos all load safely.
+            if (x == 0 && y == 0 && width == 520 && height == 810)
+            {
+                sourceX = 0;
+                sourceY = 0;
+                sourceWidth = source.Width;
+                sourceHeight = source.Height;
+            }
+
+            Color[] sourceData = new Color[source.Width * source.Height];
+            source.GetData(sourceData);
+
+            Color[] targetData = new Color[targetWidth * targetHeight];
+
+            float scale = Math.Min(targetWidth / (float)sourceWidth, targetHeight / (float)sourceHeight);
+            int drawWidth = Math.Max(1, (int)Math.Round(sourceWidth * scale));
+            int drawHeight = Math.Max(1, (int)Math.Round(sourceHeight * scale));
+            int drawOffsetX = (targetWidth - drawWidth) / 2;
+            int drawOffsetY = (targetHeight - drawHeight) / 2;
+
+            for (int drawY = 0; drawY < drawHeight; drawY++)
+            {
+                int srcY = sourceY + Math.Min(sourceHeight - 1, (int)(drawY * (sourceHeight / (float)drawHeight)));
+                int dstY = drawOffsetY + drawY;
+
+                for (int drawX = 0; drawX < drawWidth; drawX++)
+                {
+                    int srcX = sourceX + Math.Min(sourceWidth - 1, (int)(drawX * (sourceWidth / (float)drawWidth)));
+                    int dstX = drawOffsetX + drawX;
+                    targetData[dstY * targetWidth + dstX] = sourceData[srcY * source.Width + srcX];
+                }
+            }
+
+            Texture2D fittedTexture = new Texture2D(Game1.graphics.GraphicsDevice, targetWidth, targetHeight);
+            fittedTexture.SetData(targetData);
+            return fittedTexture;
         }
 
         private List<HomeAppEntry> BuildHomeAppsSnapshot()
@@ -2238,6 +2574,14 @@ namespace Smartphone
                 },
                 new HomeAppEntry
                 {
+                    Id = BuiltinAppSocialId,
+                    DisplayName = "StardewConnect",
+                    IconTexture = textureAppSocial,
+                    SourceRect = new Rectangle(0, 0, 84, 84),
+                    GetBadgeCount = () => GetTotalSocialNotificationCount()
+                },
+                new HomeAppEntry
+                {
                     Id = BuiltinAppSettingId,
                     DisplayName = "Settings",
                     IconTexture = textureAppSetting,
@@ -2272,6 +2616,47 @@ namespace Smartphone
             }
 
             return apps;
+        }
+
+        private int CalculateNotificationContentHeight(List<string> msgList)
+        {
+            if (msgList == null || msgList.Count == 0)
+                return 0;
+
+            List<string> snapshot = msgList.ToList();
+            if (snapshot.Count == 0)
+                return 0;
+
+            SpriteFont font = Game1.smallFont;
+            int lineHeight = (int)font.MeasureString("A").Y + 4;
+            int totalHeight = 0;
+
+            foreach (string msg in snapshot)
+            {
+                List<string> wrappedLines = SplitNotificationIntoLines(msg, font, 485);
+                int bubbleHeight = Math.Max(1, wrappedLines.Count) * lineHeight + 10;
+                totalHeight += bubbleHeight + 20;
+            }
+
+            return totalHeight;
+        }
+
+        private float CalculateNotificationScrollToBottomOffset(List<string> msgList)
+        {
+            int contentHeight = CalculateNotificationContentHeight(msgList);
+            return Math.Max(0f, contentHeight - NotificationViewportHeight);
+        }
+
+        private void ClampNotificationScroll()
+        {
+            ClampNotificationScroll(notificationHistory);
+        }
+
+        private void ClampNotificationScroll(List<string> msgList)
+        {
+            float maxScroll = CalculateNotificationScrollToBottomOffset(msgList);
+            notificationScrollTarget = Math.Clamp(notificationScrollTarget, 0f, maxScroll);
+            notificationScrollOffset = Math.Clamp(notificationScrollOffset, 0f, maxScroll);
         }
 
         private void DrawHomeApps(SpriteBatch b)
@@ -2407,6 +2792,10 @@ namespace Smartphone
                     OpenPhotoApp();
                     return true;
 
+                case BuiltinAppSocialId:
+                    OpenSocialApp();
+                    return true;
+
                 case BuiltinAppSettingId:
                     currentSettingMenuState = SettingMenuMainState;
                     scrollOffset = 0;
@@ -2439,8 +2828,8 @@ namespace Smartphone
         {
             ApplyPhoneBackground(MessageManager.currentPhoneBackground);
 
-            capturedImages = Directory.Exists(captureFolderPath)
-                ? Directory.GetFiles(captureFolderPath, "*.png")
+            capturedImages = Directory.Exists(userCaptureFolderPath)
+                ? Directory.GetFiles(userCaptureFolderPath, "*.png")
                     .OrderByDescending(f => File.GetCreationTime(f))
                     .ToList()
                 : new List<string>();
@@ -2454,9 +2843,182 @@ namespace Smartphone
             }
             else
             {
+                currentDisplayedImage?.Dispose();
                 currentDisplayedImage = null;
+                currentDisplayedImageIsSquare = false;
                 currentImageIndex = -1;
             }
+        }
+
+        private void AdjustCameraZoom(float delta)
+        {
+            float currentZoom = ModEntry.cameraZoomFactor;
+            float targetZoom = Math.Clamp(currentZoom + delta, CameraZoomMin, CameraZoomMax);
+            targetZoom = (float)Math.Round(targetZoom / CameraZoomStep) * CameraZoomStep;
+            targetZoom = Math.Clamp(targetZoom, CameraZoomMin, CameraZoomMax);
+
+            if (Math.Abs(targetZoom - currentZoom) <= 0.0001f)
+            {
+                Game1.playSound("cancel");
+                return;
+            }
+
+            ModEntry.cameraZoomFactor = targetZoom;
+            Game1.playSound("drumkit6");
+        }
+
+        private Matrix CreateCameraLandscapeRotationMatrix()
+        {
+            Point pivot = GetCameraLandscapeRotationPivot();
+            return Matrix.CreateTranslation(-pivot.X, -pivot.Y, 0f)
+                * Matrix.CreateRotationZ(-MathHelper.PiOver2)
+                * Matrix.CreateTranslation(pivot.X, pivot.Y, 0f);
+        }
+
+        private Point GetCameraLandscapeRotationPivot()
+        {
+            Rectangle cameraViewport = ModEntry.GetPhoneCameraViewportBounds(xPositionOnScreen, yPositionOnScreen);
+            return cameraViewport.Center;
+        }
+
+        private static Point RotatePointClockwise90(Point point, Point pivot)
+        {
+            int deltaX = point.X - pivot.X;
+            int deltaY = point.Y - pivot.Y;
+            return new Point(pivot.X + deltaY, pivot.Y - deltaX);
+        }
+
+        private Rectangle GetLandscapeRotatedBounds(Rectangle bounds)
+        {
+            if (!ModEntry.cameraLandscapeMode)
+                return bounds;
+
+            Point pivot = GetCameraLandscapeRotationPivot();
+
+            Point topLeft = RotatePointClockwise90(new Point(bounds.Left, bounds.Top), pivot);
+            Point topRight = RotatePointClockwise90(new Point(bounds.Right - 1, bounds.Top), pivot);
+            Point bottomLeft = RotatePointClockwise90(new Point(bounds.Left, bounds.Bottom - 1), pivot);
+            Point bottomRight = RotatePointClockwise90(new Point(bounds.Right - 1, bounds.Bottom - 1), pivot);
+
+            int minX = Math.Min(Math.Min(topLeft.X, topRight.X), Math.Min(bottomLeft.X, bottomRight.X));
+            int maxX = Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomLeft.X, bottomRight.X));
+            int minY = Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomLeft.Y, bottomRight.Y));
+            int maxY = Math.Max(Math.Max(topLeft.Y, topRight.Y), Math.Max(bottomLeft.Y, bottomRight.Y));
+
+            return new Rectangle(minX, minY, (maxX - minX) + 1, (maxY - minY) + 1);
+        }
+
+        private Rectangle GetActivePhoneDragBounds()
+        {
+            Rectangle defaultBounds = new Rectangle(xPositionOnScreen, yPositionOnScreen, width, height);
+
+            if (currentApp == "appCamera" && ModEntry.cameraLandscapeMode)
+                return GetLandscapeRotatedBounds(defaultBounds);
+
+            return defaultBounds;
+        }
+
+        private void ClampPhoneMenuToViewport()
+        {
+            Rectangle activeBounds = GetActivePhoneDragBounds();
+
+            int leftOffset = activeBounds.Left - xPositionOnScreen;
+            int rightOffset = activeBounds.Right - xPositionOnScreen;
+            int topOffset = activeBounds.Top - yPositionOnScreen;
+            int bottomOffset = activeBounds.Bottom - yPositionOnScreen;
+
+            int minX = -leftOffset;
+            int maxX = Game1.uiViewport.Width - rightOffset;
+            int minY = -topOffset;
+            int maxY = Game1.uiViewport.Height - bottomOffset;
+
+            xPositionOnScreen = minX > maxX
+                ? (minX + maxX) / 2
+                : Math.Clamp(xPositionOnScreen, minX, maxX);
+
+            yPositionOnScreen = minY > maxY
+                ? (minY + maxY) / 2
+                : Math.Clamp(yPositionOnScreen, minY, maxY);
+        }
+
+        private bool IsCameraCaptureButtonPressed(int x, int y)
+        {
+            Rectangle hitBounds = GetLandscapeRotatedBounds(captureButton.bounds);
+            return hitBounds.Contains(x, y);
+        }
+
+        private bool IsBackButtonPressed(int x, int y)
+        {
+            if (backButton.containsPoint(x, y))
+                return true;
+
+            if (currentApp == "appCamera" && ModEntry.cameraLandscapeMode)
+                return GetLandscapeRotatedBounds(backButton.bounds).Contains(x, y);
+
+            return false;
+        }
+
+        private void DrawCameraControlButton(SpriteBatch b, Rectangle bounds, string label, bool active)
+        {
+            Color boxColor = active
+                ? new Color(160, 220, 255, 230)
+                : new Color(255, 255, 255, 220);
+
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.menuTexture,
+                new Rectangle(0, 256, 60, 60),
+                bounds.X,
+                bounds.Y,
+                bounds.Width,
+                bounds.Height,
+                boxColor,
+                1f,
+                false);
+
+            Vector2 textSize = Game1.smallFont.MeasureString(label);
+            Vector2 textPosition = new Vector2(
+                bounds.X + ((bounds.Width - textSize.X) / 2f),
+                bounds.Y + ((bounds.Height - textSize.Y) / 2f) + 5f);
+
+            b.DrawString(Game1.smallFont, label, textPosition, Color.Black);
+        }
+
+        private void DrawCaptureOutline(SpriteBatch b, Rectangle bounds, Color color)
+        {
+            if (bounds.Width <= 1 || bounds.Height <= 1)
+                return;
+
+            b.Draw(Game1.staminaRect, new Rectangle(bounds.X, bounds.Y, bounds.Width, 2), color);
+            b.Draw(Game1.staminaRect, new Rectangle(bounds.X, bounds.Bottom - 2, bounds.Width, 2), color);
+            b.Draw(Game1.staminaRect, new Rectangle(bounds.X, bounds.Y, 2, bounds.Height), color);
+            b.Draw(Game1.staminaRect, new Rectangle(bounds.Right - 2, bounds.Y, 2, bounds.Height), color);
+        }
+
+        private void DrawOpenSocialProfileButton(SpriteBatch b, Rectangle bounds)
+        {
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.mouseCursors,
+                new Rectangle(80, 0, 13, 13),
+                bounds.X - 3,
+                bounds.Y,
+                bounds.Width,
+                bounds.Height,
+                new Color(255, 255, 255, 220),
+                3f,
+                false);
+
+            Color iconColor = new Color(35, 35, 35);
+
+            Rectangle lensBounds = new Rectangle(bounds.X + 8, bounds.Y + 7, 14, 14);
+            // b.Draw(Game1.staminaRect, new Rectangle(lensBounds.X, lensBounds.Y, lensBounds.Width, 2), iconColor);
+            // b.Draw(Game1.staminaRect, new Rectangle(lensBounds.X, lensBounds.Bottom - 2, lensBounds.Width, 2), iconColor);
+            // b.Draw(Game1.staminaRect, new Rectangle(lensBounds.X, lensBounds.Y, 2, lensBounds.Height), iconColor);
+            // b.Draw(Game1.staminaRect, new Rectangle(lensBounds.Right - 2, lensBounds.Y, 2, lensBounds.Height), iconColor);
+
+            // b.Draw(Game1.staminaRect, new Rectangle(lensBounds.Right - 1, lensBounds.Bottom - 1, 7, 2), iconColor);
+            // b.Draw(Game1.staminaRect, new Rectangle(lensBounds.Right + 4, lensBounds.Bottom - 1, 2, 6), iconColor);
         }
 
         private void DrawAppIcon(SpriteBatch b, Texture2D texture, Rectangle bounds, Rectangle? sourceRect)
@@ -2673,7 +3235,11 @@ namespace Smartphone
                 if (currentApp == ExternalGroupAppState)
                     ClearCurrentExternalGroup();
 
-                currentApp = null;
+                if (currentApp == SocialAppState)
+                    CloseSocialApp();
+
+                if (currentApp != null)
+                    currentApp = null;
             }
 
             currentMessage = "";

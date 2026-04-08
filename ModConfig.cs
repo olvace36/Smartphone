@@ -13,5 +13,7 @@ namespace Smartphone
         public string OpenAIKey { get; set; } = "";
         public int MaxSummaryWordCount { get; set; } = 350;
         public int MaxCharacteristicCharacterCount { get; set; } = 1300;
+        public int MaxStardewConnectPosts { get; set; } = 100;
+        public bool ShowSocialImageTags { get; set; } = true;
     }
 }

@@ -14,6 +14,7 @@ namespace Smartphone
         public static List<string> favouriteNpc = new(); // List of favourite NPCs
         public static string currentPhoneSound = "getNewSpecialItem";
         public static string currentPhoneBackground = "";
+        public static string currentPlayerAvatar = "";
         public static string currentPhoneTextColor = "Black";
         public static string currentPhoneTheme = AssetHelper.DefaultPhoneThemeName;
 
@@ -26,7 +27,7 @@ namespace Smartphone
 
             if (npcMessages.ContainsKey(npc) && ModEntry.npcMessagesToday.ContainsKey(npc))
             {
-                return npcMessages[npc].Concat(ModEntry.npcMessagesToday[npc]).ToList(); 
+                return npcMessages[npc].Concat(ModEntry.npcMessagesToday[npc]).ToList();
             }
             return npcMessages[npc];
         }
@@ -41,7 +42,7 @@ namespace Smartphone
                 unreadCounts[npc] = newCount;
         }
 
-        public static void AddMessage(string npc, string message, bool addCount = true)
+        public static void AddMessage(string npc, string message, bool addCount = true, bool isFromPlayer = false)
         {
             if (!npcMessages.ContainsKey(npc))
                 npcMessages[npc] = new List<string>();
@@ -72,10 +73,13 @@ namespace Smartphone
             {
                 PhoneMenu.messageHistory = GetMessages(PhoneMenu.selectedNpc);
             }
-            
-            Game1.addHUDMessage(new HUDMessage($"A new message from {npc}", HUDMessage.newQuest_type));
-            DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 0);
-            DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 1500);
+
+            if (!isFromPlayer)
+            {
+                Game1.addHUDMessage(new HUDMessage($"A new message from {npc}", HUDMessage.newQuest_type));
+                DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 0);
+                DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 1500);
+            }
         }
 
 
@@ -140,6 +144,7 @@ namespace Smartphone
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/favouriteNpc", favouriteNpc);
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPhoneSound", currentPhoneSound);
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPhoneBackground", currentPhoneBackground);
+            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPlayerAvatar", currentPlayerAvatar);
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPhoneTextColor", currentPhoneTextColor);
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPhoneTheme", currentPhoneTheme);
         }
@@ -157,6 +162,8 @@ namespace Smartphone
             currentPhoneSound = Helper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/currentPhoneSound")
                         ?? "getNewSpecialItem";
             currentPhoneBackground = Helper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/currentPhoneBackground")
+                        ?? "";
+            currentPlayerAvatar = Helper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/currentPlayerAvatar")
                         ?? "";
             currentPhoneTextColor = Helper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/currentPhoneTextColor")
                         ?? "Black";

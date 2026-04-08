@@ -66,6 +66,22 @@ namespace Smartphone
                 getValue: () => Config.MaxCharacteristicCharacterCount,
                 setValue: value => Config.MaxCharacteristicCharacterCount = value
             );
+
+            configMenu.AddNumberOption(
+                mod: ModManifest,
+                name: () => "StardewConnect max posts",
+                tooltip: () => "Maximum number of StardewConnect posts to keep when the day saves. Older posts are removed first.",
+                getValue: () => Config.MaxStardewConnectPosts,
+                setValue: value => Config.MaxStardewConnectPosts = Math.Clamp(value, 10, 500)
+            );
+
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Show StardewConnect image tags",
+                tooltip: () => "Show the saved image tag text above attached images in StardewConnect posts.",
+                getValue: () => Config.ShowSocialImageTags,
+                setValue: value => Config.ShowSocialImageTags = value
+            );
         }
 
     }

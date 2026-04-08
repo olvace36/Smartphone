@@ -32,3 +32,24 @@ C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\Default\phone.png
 C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\Default\phone_background.png
 C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\Default\phone_empty.png
 C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\Assets\npc_characteristic - Copy.json
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\Default\appSocial.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\Default\phone_backgroundOLD.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\Default\phone_emptyOLD.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\appCamera.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\appGame.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\appNotification.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\appPhoto.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\appSetting.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\appSocial.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\appText.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\background.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\gameCart.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\gameCrane.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\gameDarts.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\gameJack.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\gamePirate.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\gameSpin.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\gameTarget.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\phone.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\phone_background.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\phone_empty.png

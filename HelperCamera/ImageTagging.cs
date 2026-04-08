@@ -15,7 +15,8 @@ namespace Smartphone
         private const int MaxCropTagsPerImage = 20;
         private const int MaxFruitTreeTagsPerImage = 10;
         private const int MaxAnimalTagsPerImage = 10;
-        private const string PlayerTag = "has Player";
+        private const int MaxForageTagsPerImage = 10;
+        private const string PlayerTag = "Player";
         private const int BuildingFrontTilesLeftRight = 2;
         private const int BuildingFrontTilesUp = 3;
         private const int BuildingFrontTilesDown = 1;
@@ -35,9 +36,14 @@ namespace Smartphone
                 : Constants.SaveFolderName;
         }
 
-        private static string GetImageFolderPath()
+        private static IEnumerable<string> GetImageFolderPaths()
         {
-            return Path.Combine(SHelper.DirectoryPath, "userdata", GetCurrentSaveFolderName(), "image");
+            string saveRoot = Path.Combine(SHelper.DirectoryPath, "userdata", GetCurrentSaveFolderName());
+
+            // Keep legacy folder support while also scanning active player/npc photo folders.
+            yield return Path.Combine(saveRoot, "player_photo");
+            yield return Path.Combine(saveRoot, "npc_photo");
+            yield return Path.Combine(saveRoot, "image");
         }
 
         public static void LoadImageTags()
@@ -91,13 +97,19 @@ namespace Smartphone
             if (ImageTags.Count == 0)
                 return;
 
-            var existingImageNames = Directory.Exists(GetImageFolderPath())
-                ? Directory.GetFiles(GetImageFolderPath(), "*.png")
-                    .Select(Path.GetFileName)
-                    .Where(name => !string.IsNullOrWhiteSpace(name))
-                    .Select(name => name!)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase)
-                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var existingImageNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string folderPath in GetImageFolderPaths())
+            {
+                if (!Directory.Exists(folderPath))
+                    continue;
+
+                foreach (string imagePath in Directory.GetFiles(folderPath, "*.png"))
+                {
+                    string? imageName = Path.GetFileName(imagePath);
+                    if (!string.IsNullOrWhiteSpace(imageName))
+                        existingImageNames.Add(imageName);
+                }
+            }
 
             bool hasChanges = false;
 
@@ -126,6 +138,7 @@ namespace Smartphone
             AddCurrentEventTags(tags);
             AddCharacterTags(tags, captureBounds);
             AddCropAndFruitTreeTags(tags, captureBounds);
+            AddForageTags(tags, captureBounds);
             AddFarmAnimalTags(tags, captureBounds);
             AddHeldFishTag(tags);
 
@@ -150,7 +163,7 @@ namespace Smartphone
                         continue;
 
                     if (IsCharacterInsideCapture(npc, captureBounds))
-                        tags.Add($"has {npc.Name}");
+                        tags.Add($"{npc.Name}");
                 }
             }
         }
@@ -283,6 +296,142 @@ namespace Smartphone
                 if (fruitTreeGroup.Value.Count >= 6 && tags.Add($"{NormalizeFruitTreeOrchardName(fruitTreeGroup.Key)} orchard"))
                     fruitTreeTagCount++;
             }
+        }
+
+        private static void AddForageTags(HashSet<string> tags, Rectangle captureBounds)
+        {
+            GameLocation? currentLocation = Game1.currentLocation;
+            if (currentLocation == null)
+                return;
+
+            AddForageObjectTags(tags, captureBounds, currentLocation);
+        }
+
+        private static void AddForageObjectTags(HashSet<string> tags, Rectangle captureBounds, GameLocation currentLocation)
+        {
+            var locationObjectsByTile = new Dictionary<Vector2, StardewValley.Object>();
+            AppendLocationObjectsFromUnknownCollection(GetMemberValue(currentLocation, "objects", "Objects"), locationObjectsByTile);
+            if (locationObjectsByTile.Count == 0)
+                return;
+
+            var forageCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var locationObjectPair in locationObjectsByTile)
+            {
+                Vector2 tile = locationObjectPair.Key;
+                StardewValley.Object locationObject = locationObjectPair.Value;
+
+                if (!IsTileAreaInsideCapture(tile, captureBounds, 0, 0, 64, 64))
+                    continue;
+
+                if (!IsForageObject(locationObject, currentLocation))
+                    continue;
+
+                string forageName = locationObject.DisplayName?.Trim().ToLowerInvariant() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(forageName))
+                    forageName = locationObject.Name?.Trim().ToLowerInvariant() ?? string.Empty;
+
+                if (string.IsNullOrWhiteSpace(forageName))
+                    continue;
+
+                if (forageCounts.TryGetValue(forageName, out int count))
+                    forageCounts[forageName] = count + 1;
+                else
+                    forageCounts[forageName] = 1;
+            }
+
+            List<string> forageNames = forageCounts
+                .OrderByDescending(entry => entry.Value)
+                .ThenBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+                .Take(MaxForageTagsPerImage)
+                .Select(entry => entry.Key)
+                .ToList();
+
+            if (forageNames.Count > 0)
+                tags.Add($"forageable: {string.Join(", ", forageNames)}");
+        }
+
+        private static bool IsForageObject(StardewValley.Object locationObject, GameLocation currentLocation)
+        {
+            if (TryInvokeBooleanMember(locationObject, "isForage"))
+                return true;
+
+            if (TryInvokeBooleanMethod(locationObject, "isForage", out bool methodResult, currentLocation) && methodResult)
+                return true;
+
+            if (!TryReadBooleanMemberValue(locationObject, out bool isSpawnedObject, "isSpawnedObject", "IsSpawnedObject") || !isSpawnedObject)
+                return false;
+
+            if (TryReadBooleanMemberValue(locationObject, out bool canBeGrabbed, "canBeGrabbed", "CanBeGrabbed") && !canBeGrabbed)
+                return false;
+
+            string objectName = locationObject.Name?.Trim() ?? string.Empty;
+            return !string.Equals(objectName, "Artifact Spot", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void AppendLocationObjectsFromUnknownCollection(object? collection, Dictionary<Vector2, StardewValley.Object> objectsByTile)
+        {
+            if (collection == null)
+                return;
+
+            if (collection is IEnumerable enumerable)
+                AppendLocationObjectsFromEnumerable(enumerable, objectsByTile);
+
+            if (GetMemberValue(collection, "Pairs", "pairs") is IEnumerable pairs)
+                AppendLocationObjectsFromEnumerable(pairs, objectsByTile);
+
+            if (GetMemberValue(collection, "Entries", "entries") is IEnumerable entries)
+                AppendLocationObjectsFromEnumerable(entries, objectsByTile);
+        }
+
+        private static void AppendLocationObjectsFromEnumerable(IEnumerable entries, Dictionary<Vector2, StardewValley.Object> objectsByTile)
+        {
+            foreach (object? entry in entries)
+            {
+                if (TryExtractLocationObjectEntry(entry, out Vector2 tile, out StardewValley.Object locationObject))
+                    objectsByTile[tile] = locationObject;
+            }
+        }
+
+        private static bool TryExtractLocationObjectEntry(object? entry, out Vector2 tile, out StardewValley.Object locationObject)
+        {
+            tile = Vector2.Zero;
+            locationObject = null!;
+
+            if (entry == null)
+                return false;
+
+            object? key;
+            object? value;
+
+            if (entry is DictionaryEntry dictionaryEntry)
+            {
+                key = dictionaryEntry.Key;
+                value = dictionaryEntry.Value;
+            }
+            else
+            {
+                Type entryType = entry.GetType();
+                PropertyInfo? keyProperty = entryType.GetProperty("Key");
+                PropertyInfo? valueProperty = entryType.GetProperty("Value");
+                if (keyProperty == null || valueProperty == null)
+                    return false;
+
+                key = keyProperty.GetValue(entry);
+                value = valueProperty.GetValue(entry);
+            }
+
+            if (!TryExtractVector2FromUnknownValue(key, out tile))
+                return false;
+
+            StardewValley.Object? extractedObject = value as StardewValley.Object;
+            if (extractedObject == null && value != null)
+                extractedObject = GetMemberValue(value, "Value") as StardewValley.Object;
+
+            if (extractedObject == null)
+                return false;
+
+            locationObject = extractedObject;
+            return true;
         }
 
         private sealed class CropTagGroup
@@ -678,7 +827,42 @@ namespace Smartphone
                 return methodResult;
 
             object? value = GetMemberValue(source, memberName);
-            return value is bool boolValue && boolValue;
+            return TryExtractBooleanFromUnknownValue(value, out bool extracted) && extracted;
+        }
+
+        private static bool TryInvokeBooleanMethod(object source, string methodName, out bool result, params object[] arguments)
+        {
+            result = false;
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase;
+
+            Type[] argumentTypes = arguments.Select(argument => argument?.GetType() ?? typeof(object)).ToArray();
+            MethodInfo? method = source.GetType().GetMethod(methodName, flags, Type.DefaultBinder, argumentTypes, null);
+            if (method == null || method.ReturnType != typeof(bool))
+                return false;
+
+            if (method.Invoke(source, arguments) is bool methodResult)
+            {
+                result = methodResult;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryReadBooleanMemberValue(object source, out bool value, params string[] memberNames)
+        {
+            foreach (string memberName in memberNames)
+            {
+                object? rawValue = GetMemberValue(source, memberName);
+                if (TryExtractBooleanFromUnknownValue(rawValue, out bool extracted))
+                {
+                    value = extracted;
+                    return true;
+                }
+            }
+
+            value = false;
+            return false;
         }
 
         private static int TryReadIntMember(object source, params string[] memberNames)
@@ -766,6 +950,115 @@ namespace Smartphone
             }
 
             return -1;
+        }
+
+        private static bool TryExtractBooleanFromUnknownValue(object? value, out bool extracted)
+        {
+            extracted = false;
+            if (value == null)
+                return false;
+
+            if (value is bool boolValue)
+            {
+                extracted = boolValue;
+                return true;
+            }
+
+            if (value is int intValue)
+            {
+                extracted = intValue != 0;
+                return true;
+            }
+
+            if (value is long longValue)
+            {
+                extracted = longValue != 0;
+                return true;
+            }
+
+            if (value is string textValue && bool.TryParse(textValue, out bool parsedTextValue))
+            {
+                extracted = parsedTextValue;
+                return true;
+            }
+
+            object? nestedValue = GetMemberValue(value, "Value");
+            if (nestedValue != null && !ReferenceEquals(nestedValue, value))
+                return TryExtractBooleanFromUnknownValue(nestedValue, out extracted);
+
+            return false;
+        }
+
+        private static bool TryExtractVector2FromUnknownValue(object? value, out Vector2 vector)
+        {
+            vector = Vector2.Zero;
+            if (value == null)
+                return false;
+
+            if (value is Vector2 directVector)
+            {
+                vector = directVector;
+                return true;
+            }
+
+            object? nestedValue = GetMemberValue(value, "Value");
+            if (nestedValue is Vector2 nestedVector)
+            {
+                vector = nestedVector;
+                return true;
+            }
+
+            if (TryExtractFloatFromUnknownValue(GetMemberValue(value, "X", "x"), out float x)
+                && TryExtractFloatFromUnknownValue(GetMemberValue(value, "Y", "y"), out float y))
+            {
+                vector = new Vector2(x, y);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryExtractFloatFromUnknownValue(object? value, out float extracted)
+        {
+            extracted = 0f;
+            if (value == null)
+                return false;
+
+            if (value is float floatValue)
+            {
+                extracted = floatValue;
+                return true;
+            }
+
+            if (value is double doubleValue)
+            {
+                extracted = (float)doubleValue;
+                return true;
+            }
+
+            if (value is int intValue)
+            {
+                extracted = intValue;
+                return true;
+            }
+
+            if (value is long longValue)
+            {
+                extracted = longValue;
+                return true;
+            }
+
+            if (value is string textValue && float.TryParse(textValue, out float parsedTextValue))
+            {
+                extracted = parsedTextValue;
+                return true;
+            }
+
+            object? nestedValue = GetMemberValue(value, "Value");
+            if (nestedValue != null && !ReferenceEquals(nestedValue, value))
+                return TryExtractFloatFromUnknownValue(nestedValue, out extracted);
+
+            return false;
         }
 
         private static string ExtractStringFromUnknownValue(object? value)

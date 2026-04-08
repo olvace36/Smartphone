@@ -59,13 +59,43 @@ namespace Smartphone
             ModEntry.phoneMenu.UpdateNpcList();
             if (!ModEntry.phoneMenu.messageableNpcList.Select(npc => npc.name).ToList().Contains(npcName)) return;
             ModEntry.phoneMenu.ClosePhoneMenu();
-            MessageManager.AddMessage(npcName, $"PLAYER: {message}");
+            MessageManager.AddMessage(npcName, $"PLAYER: {message}", isFromPlayer: true);
         }
 
         public void SendSmartphoneNotification(string message, string notificationName = "")
         {
             if (ModEntry.phoneMenu == null) return;
             NotificationManager.addNotification(message, notificationName);
+        }
+
+        public string? CreateStardewConnectPostFromPlayer(string postText, string attachedImageFile = "")
+        {
+            return StardewConnectManager.AddPlayerPost(postText, attachedImageFile);
+        }
+
+        public string? CreateStardewConnectPostFromPlayerWithImages(string postText, IEnumerable<string>? attachedImageFiles = null)
+        {
+            return StardewConnectManager.AddPlayerPostWithAttachments(postText, attachedImageFiles);
+        }
+
+        public string? CreateStardewConnectPostFromNpc(string npcName, string postText, string attachedImageFile = "")
+        {
+            return StardewConnectManager.AddNpcPost(npcName, postText, attachedImageFile);
+        }
+
+        public bool AddStardewConnectCommentFromPlayer(string postId, string commentText)
+        {
+            return StardewConnectManager.AddPlayerComment(postId, commentText);
+        }
+
+        public bool AddStardewConnectCommentFromNpc(string postId, string npcName, string commentText)
+        {
+            return StardewConnectManager.AddNpcComment(postId, npcName, commentText);
+        }
+
+        public bool SetStardewConnectPostLiked(string postId, string actorName, bool liked)
+        {
+            return StardewConnectManager.SetPostLike(postId, actorName, liked);
         }
 
         public bool RegisterUnlimitedEvent(
@@ -204,6 +234,9 @@ namespace Smartphone
         public static bool takeScreenshot = false;
         public static int currentMenuX;
         public static int currentMenuY;
+        public static bool cameraLandscapeMode = false;
+        public static bool cameraSquareMode = false;
+        public static float cameraZoomFactor = 1f;
 
         public static bool pendingInitNotification = false;
 
@@ -226,17 +259,6 @@ namespace Smartphone
 
         public static Dictionary<string, List<string>> npcAges;
         public static Dictionary<string, string> npcToAgeGroup;
-
-        public static string k1 = "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";
-        public static string k2 = "";
-        public static string k3 = "";
-
-        public static string xk1 = "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";
-        public static string xk2 = "";
-        public static string xk3 = "";
-
-        public static string summaryModel = "gpt-5.4-mini";
-        public static string chatModel = "gpt-5.4-mini";
 
         public static PhoneMenu phoneMenu;
 

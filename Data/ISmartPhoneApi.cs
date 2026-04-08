@@ -39,6 +39,57 @@ namespace Smartphone
         void SendSmartphoneNotification(string message, string notificationName = "");
 
         /// <summary>
+        /// Creates a StardewConnect post authored by the player.
+        /// </summary>
+        /// <param name="postText">Post content. Can be empty if an image is attached.</param>
+        /// <param name="attachedImageFile">Optional image file name from the player's smartphone photo folder.</param>
+        /// <returns>The new post ID if created; otherwise null.</returns>
+        string? CreateStardewConnectPostFromPlayer(string postText, string attachedImageFile = "");
+
+        /// <summary>
+        /// Creates a StardewConnect post authored by the player with up to three attached images.
+        /// </summary>
+        /// <param name="postText">Post content. Can be empty if at least one image is attached.</param>
+        /// <param name="attachedImageFiles">Optional image file names from the player's smartphone photo folder.</param>
+        /// <returns>The new post ID if created; otherwise null.</returns>
+        string? CreateStardewConnectPostFromPlayerWithImages(string postText, IEnumerable<string>? attachedImageFiles = null);
+
+        /// <summary>
+        /// Creates a StardewConnect post authored by an NPC.
+        /// </summary>
+        /// <param name="npcName">NPC name.</param>
+        /// <param name="postText">Post content. Can be empty if an image is attached.</param>
+        /// <param name="attachedImageFile">Optional image file name from the NPC smartphone photo folder.</param>
+        /// <returns>The new post ID if created; otherwise null.</returns>
+        string? CreateStardewConnectPostFromNpc(string npcName, string postText, string attachedImageFile = "");
+
+        /// <summary>
+        /// Adds a player-authored comment to a StardewConnect post.
+        /// </summary>
+        /// <param name="postId">Target post ID.</param>
+        /// <param name="commentText">Comment content.</param>
+        /// <returns>True if comment was added.</returns>
+        bool AddStardewConnectCommentFromPlayer(string postId, string commentText);
+
+        /// <summary>
+        /// Adds an NPC-authored comment to a StardewConnect post.
+        /// </summary>
+        /// <param name="postId">Target post ID.</param>
+        /// <param name="npcName">NPC name.</param>
+        /// <param name="commentText">Comment content.</param>
+        /// <returns>True if comment was added.</returns>
+        bool AddStardewConnectCommentFromNpc(string postId, string npcName, string commentText);
+
+        /// <summary>
+        /// Sets whether an actor likes a StardewConnect post.
+        /// </summary>
+        /// <param name="postId">Target post ID.</param>
+        /// <param name="actorName">Actor name (player or NPC).</param>
+        /// <param name="liked">True to like, false to unlike.</param>
+        /// <returns>True if operation succeeded.</returns>
+        bool SetStardewConnectPostLiked(string postId, string actorName, bool liked);
+
+        /// <summary>
         /// Registers or updates an event type that can be suggested by AI chat and scheduled through Smartphone.
         /// The <paramref name="eventType"/> value is used as the tool enum value, so keep it stable.
         /// </summary>

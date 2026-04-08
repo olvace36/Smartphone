@@ -1,23 +1,15 @@
-    
 {
   "0+":[
     "Acorn","Bliss","Jas","Keahi","Kiwi","Louie","Nadaline","Peaches","Pipo","RelicSpirit","Torts","TreehouseGirl","Trinnie","Undreya","Vincent","Yuuma"
   ],
   "16+":[
-    "Aideen","Abigail","Alex","Alissa","Ariah","Blair","Claire","Corine","Elliott","Emily","Faye","Flor",
-    "Haley","Harvey","Ian","Irene","Jeric","June","Kenneth","Kiarra","Leah","Maddie","Martin","Maru",
-    "Olivia","Paula","Penny","Philip","Sam","Sandy","Sean","Sebastian","Shane","Shiro","Sophia","Victor","Wizard","Ysabelle","Zayne"
+    "Aideen","Abigail","Alex","Alissa","Ariah","Blair","Claire","Corine","Elliott","Emily","Faye","Flor", "Haley","Harvey","Ian","Irene","Jeric","June","Kenneth","Kiarra","Leah","Maddie","Martin","Maru","Olivia","Paula","Penny","Philip","Sam","Sandy","Sean","Sebastian","Shane","Shiro","Sophia","Victor","Wizard","Ysabelle","Zayne"
   ],
-  "41+":[
-    "Aguar","Alesia","Althea","Andy","Anton","Belinda","Bert","Birdie","Bouncer","Brianna","Brock","Bryle",
-    "Camilla","Carbon Ghost","Carmen","Caroline","Cassandra","Clint","Cordelia","Daia","Demetrius","Drake","Dust Spirit","Dwarf",
-    "Edmund","Emin","Evelyn","Ezekiel","Freddie","Freya","Gale","George","Gertrude","Green Slime",
-    "Gunther","GuntherSilvian","Gus","HankSVE","Helen","Henchman","HighlandsDwarf","Iridium Golem","Isaac",
-    "Jadu","Jio","Jodi","Jolyne","Kimpoi","Krobus","Lava Lurk","Lenny","Lewis","Linus","Lola","Lorenzo","Lorraine",
-    "Maive","Malaya","Marlon","MarlonFay","Marnie","Metal Head","Mister Qi","MorrisTod","Mummy","Naomi",
-    "Olga","Pam","Pepper Rex","Pierre","Pika","Raeriyala","Richard","Robin","Rock Crab","Royal Serpent",
-    "Sari","Sawyer","ScarlettFake","Serpent","Shadow Brute","Shadow Shaman","Shadow Sniper","Shanice",
-    "Skeleton","Sludge","Sonny","Squid Kid","Stone Golem","Susan","Treyvon","Truffle Crab","Wilderness Golem","Willy","Zachary"
+  "36+": [
+    "Aguar", "Alesia", "Althea", "Andy", "Anton", "Belinda", "Bert", "Bouncer", "Brianna", "Brock", "Bryle", "Camilla", "Carbon Ghost", "Carmen", "Caroline", "Cassandra", "Clint", "Cordelia", "Daia", "Demetrius", "Drake", "Dust Spirit", "Dwarf", "Edmund", "Emin", "Freya", "Gale", "Gertrude", "Green Slime", "Gunther", "GuntherSilvian", "Gus", "HankSVE", "Henchman", "HighlandsDwarf", "Iridium Golem", "Isaac", "Jadu", "Jio", "Jodi", "Jolyne", "Kimpoi", "Krobus", "Lava Lurk", "Lorenzo", "Lorraine", "Malaya", "Marnie", "Metal Head", "Mister Qi", "MorrisTod", "Mummy", "Naomi", "Olga", "Pam", "Pepper Rex", "Pierre", "Pika", "Raeriyala", "Robin", "Rock Crab", "Royal Serpent", "Sari", "Sawyer", "ScarlettFake", "Serpent", "Shadow Brute", "Shadow Shaman", "Shadow Sniper", "Shanice", "Skeleton", "Sludge", "Sonny", "Squid Kid", "Stone Golem", "Treyvon", "Truffle Crab", "Wilderness Golem", "Zachary"
+  ],
+  "55+": [
+    "Birdie", "Evelyn", "Ezekiel", "Freddie", "George", "Helen", "Lenny", "Lewis", "Linus", "Lola", "Maive", "Marlon", "MarlonFay", "Richard", "Susan", "Willy"
   ]
 }
 

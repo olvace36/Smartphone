@@ -89,6 +89,7 @@ public class AssetHelper
         public const string AppText = "appText.png";
         public const string AppCamera = "appCamera.png";
         public const string AppPhoto = "appPhoto.png";
+        public const string AppSocial = "appSocial.png";
         public const string AppSetting = "appSetting.png";
         public const string AppGame = "appGame.png";
         public const string AppNotification = "appNotification.png";

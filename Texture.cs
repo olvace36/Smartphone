@@ -14,6 +14,7 @@ namespace Smartphone
         public static Texture2D AppText;
         public static Texture2D AppCamera;
         public static Texture2D AppPhoto;
+        public static Texture2D AppSocial;
         public static Texture2D AppSetting;
         public static Texture2D AppGame;
         public static Texture2D AppNotification;
@@ -64,6 +65,9 @@ namespace Smartphone
             AppSetting = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppSetting));
             AppGame = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppGame));
             AppNotification = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppNotification));
+            AppSocial = TryLoadTextureOrFallback(
+                Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppSocial),
+                Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppNotification));
 
             GameDarts = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameDarts));
             GameCart = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameCart));
@@ -71,6 +75,21 @@ namespace Smartphone
             GameJack = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameJack));
             GamePirate = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GamePirate));
             GameSpin = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameSpin));
+        }
+
+        private static Texture2D TryLoadTextureOrFallback(string primaryAssetPath, string fallbackAssetPath)
+        {
+            try
+            {
+                return ModEntry.Instance.Helper.ModContent.Load<Texture2D>(primaryAssetPath);
+            }
+            catch (Exception ex)
+            {
+                ModEntry.SMonitor?.Log(
+                    $"Unable to load optional theme texture '{primaryAssetPath}'. Falling back to '{fallbackAssetPath}'. {ex.Message}",
+                    LogLevel.Trace);
+                return ModEntry.Instance.Helper.ModContent.Load<Texture2D>(fallbackAssetPath);
+            }
         }
     }
 }
