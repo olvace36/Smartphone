@@ -187,6 +187,27 @@ namespace Smartphone
             return SaveCapturedPhoto(renderTarget, targetLocation.Name, tags, false);
         }
 
+        public static List<string> CaptureNpcPhotosForMessage(string npcName, int count = 1)
+        {
+            var photos = new List<string>();
+            if (string.IsNullOrWhiteSpace(npcName))
+                return photos;
+
+            NPC? npc = Game1.getCharacterFromName(npcName);
+            if (npc == null)
+                return photos;
+
+            int safeCount = Math.Clamp(count, 1, 5);
+            for (int i = 0; i < safeCount; i++)
+            {
+                string photoPath = CaptureNpcPhoto(npc);
+                if (!string.IsNullOrWhiteSpace(photoPath))
+                    photos.Add(photoPath);
+            }
+
+            return photos;
+        }
+
         private static void RecoverWorldDrawStateAfterCaptureFailure()
         {
             try
@@ -281,9 +302,85 @@ namespace Smartphone
             opaqueTexture.SaveAsPng(fs, opaqueTexture.Width, opaqueTexture.Height);
 
             SetImageTags(filename, (tags ?? Enumerable.Empty<string>()).ToList());
+            EnforcePhotoRetention(folderPath, GetPhotoRetentionLimit(isPlayerPhoto), path);
             if (isPlayerPhoto)
                 Game1.addHUDMessage(new HUDMessage("Photo saved!", HUDMessage.newQuest_type));
             return path;
+        }
+
+        private static int GetPhotoRetentionLimit(bool isPlayerPhoto)
+        {
+            int configuredLimit = isPlayerPhoto
+                ? Config?.PlayerMaxPhoto ?? 100
+                : Config?.NpcMaxPhoto ?? 200;
+
+            return Math.Clamp(configuredLimit, 1, 500);
+        }
+
+        private static void EnforcePhotoRetention(string folderPath, int maxPhotos, string keepPhotoPath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+                    return;
+
+                int safeLimit = Math.Clamp(maxPhotos, 1, 500);
+                string[] photoPaths = Directory.GetFiles(folderPath, "*.png");
+                if (photoPaths.Length <= safeLimit)
+                    return;
+
+                int overflow = photoPaths.Length - safeLimit;
+                var deletedPhotoNames = new List<string>();
+
+                foreach (string photoPath in photoPaths
+                             .OrderBy(path => File.GetLastWriteTimeUtc(path))
+                             .ThenBy(path => path, StringComparer.OrdinalIgnoreCase))
+                {
+                    if (deletedPhotoNames.Count >= overflow)
+                        break;
+
+                    if (!string.IsNullOrWhiteSpace(keepPhotoPath)
+                        && string.Equals(photoPath, keepPhotoPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        File.Delete(photoPath);
+                        string? deletedPhotoName = Path.GetFileName(photoPath);
+                        if (!string.IsNullOrWhiteSpace(deletedPhotoName))
+                            deletedPhotoNames.Add(deletedPhotoName);
+                    }
+                    catch (Exception ex)
+                    {
+                        SMonitor.Log($"Failed to delete old photo '{photoPath}': {ex}", LogLevel.Warn);
+                    }
+                }
+
+                RemoveImageTagsForDeletedPhotos(deletedPhotoNames);
+            }
+            catch (Exception ex)
+            {
+                SMonitor.Log($"Failed to enforce photo retention for '{folderPath}': {ex}", LogLevel.Warn);
+            }
+        }
+
+        private static void RemoveImageTagsForDeletedPhotos(IEnumerable<string> deletedPhotoNames)
+        {
+            bool hasChanges = false;
+
+            foreach (string photoName in deletedPhotoNames ?? Enumerable.Empty<string>())
+            {
+                if (string.IsNullOrWhiteSpace(photoName))
+                    continue;
+
+                if (ImageTags.Remove(photoName))
+                    hasChanges = true;
+            }
+
+            if (hasChanges)
+                SaveImageTags();
         }
 
         private static xTile.Dimensions.Rectangle BuildNpcCaptureViewport(NPC npc, GameLocation location, int captureWidth, int captureHeight)

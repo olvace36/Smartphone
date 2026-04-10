@@ -48,6 +48,9 @@ namespace Smartphone
         private const int SocialNotificationCardWidth = 500;
         private const int SocialNotificationCardSpacing = 12;
         private const int SocialNotificationPreviewWordCount = 4;
+        private const int SocialRenderOverscan = 120;
+        private const int SocialCardHeightCacheLimit = 4096;
+        private const int SocialNotificationHeightCacheLimit = 1024;
 
         private enum SocialCardRenderContext
         {
@@ -122,7 +125,13 @@ namespace Smartphone
         private string selectedSocialProfileActorName = "";
         private bool selectedSocialProfileActorIsPlayer = true;
         private string socialPostDraft = "";
+        private int socialPostDraftCursorIndex = 0;
+        private int socialPostDraftSelectionAnchorIndex = 0;
+        private readonly List<TextEditSnapshot> socialPostDraftUndoHistory = new();
         private string socialCommentDraft = "";
+        private int socialCommentDraftCursorIndex = 0;
+        private int socialCommentDraftSelectionAnchorIndex = 0;
+        private readonly List<TextEditSnapshot> socialCommentDraftUndoHistory = new();
         private bool socialCreateMenuOpen = false;
         private bool socialProfileMenuOpen = false;
         private bool socialNotificationMenuOpen = false;
@@ -143,6 +152,9 @@ namespace Smartphone
         private float socialProfileScrollTarget = 0f;
         private float socialDetailScrollOffset = 0f;
         private float socialDetailScrollTarget = 0f;
+
+        private readonly Dictionary<string, int> socialCardHeightCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> socialNotificationCardHeightCache = new(StringComparer.OrdinalIgnoreCase);
 
         private Rectangle SocialContentViewportRect => new Rectangle(xPositionOnScreen + 40, yPositionOnScreen + SocialViewportYOffset, 520, SocialViewportHeight);
 
@@ -196,7 +208,7 @@ namespace Smartphone
             if (!string.IsNullOrWhiteSpace(selectedSocialPostId))
             {
                 selectedSocialPostId = "";
-                socialCommentDraft = "";
+                ResetEditableTextFieldState(EditableTextFieldKind.SocialComment);
                 socialDetailImageIndex = 0;
 
                 if (socialDetailReturnToProfile && !string.IsNullOrWhiteSpace(socialDetailReturnProfileActorName))
@@ -237,6 +249,8 @@ namespace Smartphone
         {
             if (currentApp != SocialAppState)
                 return;
+
+            InvalidateSocialLayoutCaches();
 
             if (socialCreateMenuOpen)
                 EnsureCreateImageCandidatesLoaded();
@@ -306,17 +320,20 @@ namespace Smartphone
 
         private void OpenSocialApp()
         {
+            InvalidateSocialLayoutCaches();
+
             selectedSocialPostId = "";
             selectedSocialProfileActorName = "";
             selectedSocialProfileActorIsPlayer = true;
-            socialCommentDraft = "";
+            ResetEditableTextFieldState(EditableTextFieldKind.SocialComment);
             socialCreateMenuOpen = false;
             socialProfileMenuOpen = false;
             socialNotificationMenuOpen = false;
             socialDetailReturnToProfile = false;
             socialDetailReturnProfileActorName = "";
             socialDetailReturnProfileActorIsPlayer = false;
-            socialPostDraft = "";
+            ResetEditableTextFieldState(EditableTextFieldKind.SocialPost);
+            ResetEditableTextFieldState(EditableTextFieldKind.SocialComment);
             socialCreateSelectedImages.Clear();
             socialCreateCandidateImages.Clear();
             socialCreateCandidateImageIndex = -1;
@@ -333,11 +350,13 @@ namespace Smartphone
 
         private void ResetSocialState()
         {
+            InvalidateSocialLayoutCaches();
+
             selectedSocialPostId = "";
             selectedSocialProfileActorName = "";
             selectedSocialProfileActorIsPlayer = true;
-            socialPostDraft = "";
-            socialCommentDraft = "";
+            ResetEditableTextFieldState(EditableTextFieldKind.SocialPost);
+            ResetEditableTextFieldState(EditableTextFieldKind.SocialComment);
             socialCreateMenuOpen = false;
             socialProfileMenuOpen = false;
             socialNotificationMenuOpen = false;
@@ -394,6 +413,20 @@ namespace Smartphone
             socialDetailLikeBounds = Rectangle.Empty;
             socialDetailImagePrevBounds = Rectangle.Empty;
             socialDetailImageNextBounds = Rectangle.Empty;
+        }
+
+        private void InvalidateSocialLayoutCaches()
+        {
+            socialCardHeightCache.Clear();
+            socialNotificationCardHeightCache.Clear();
+        }
+
+        private static string BuildSocialCardHeightCacheKey(StardewConnectPost post, bool includeAllComments, int selectedAttachmentIndex)
+        {
+            string postId = post?.Id ?? "";
+            int safeAttachmentIndex = Math.Max(0, selectedAttachmentIndex);
+            bool showTags = ModEntry.Config?.ShowSocialImageTags ?? true;
+            return $"{postId}|{(includeAllComments ? "all" : "preview")}|{safeAttachmentIndex}|{showTags}";
         }
 
         private int GetTotalSocialNotificationCount()
@@ -874,7 +907,6 @@ namespace Smartphone
             List<StardewConnectPost> posts = StardewConnectManager.GetPostsSnapshot();
             PruneDismissedSocialNotifications(posts);
             RefreshSocialNotifiedPostIds(posts);
-            ClampSocialFeedScroll(posts);
 
             b.End();
 
@@ -884,6 +916,8 @@ namespace Smartphone
             b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState() { ScissorTestEnable = true });
 
             int y = yPositionOnScreen + SocialViewportYOffset + SocialPostTopPadding - (int)MathF.Floor(socialFeedScrollOffset);
+            int drawMinY = clipRect.Top - SocialRenderOverscan;
+            int drawMaxY = clipRect.Bottom + SocialRenderOverscan;
             if (posts.Count == 0)
             {
                 b.DrawString(Game1.smallFont, "No post yet.", new Vector2(xPositionOnScreen + 60, yPositionOnScreen + 245), Color.Black);
@@ -893,7 +927,21 @@ namespace Smartphone
                 foreach (StardewConnectPost post in posts)
                 {
                     int selectedAttachmentIndex = GetFeedPostImageIndex(post);
-                    int postHeight = DrawSocialPostCard(
+                    int postHeight = MeasureSocialPostCardHeight(
+                        post,
+                        includeAllComments: false,
+                        selectedAttachmentIndex: selectedAttachmentIndex);
+
+                    if (y + postHeight < drawMinY)
+                    {
+                        y += postHeight + SocialPostSpacing;
+                        continue;
+                    }
+
+                    if (y > drawMaxY)
+                        break;
+
+                    DrawSocialPostCard(
                         b,
                         post,
                         xPositionOnScreen + SocialPostCardX,
@@ -1017,7 +1065,6 @@ namespace Smartphone
             List<StardewConnectPost> posts = StardewConnectManager.GetPostsSnapshot();
             PruneDismissedSocialNotifications(posts);
             List<SocialNotificationEntry> notifications = RefreshSocialNotifiedPostIds(posts);
-            ClampSocialNotificationScroll(notifications);
 
             b.End();
 
@@ -1029,6 +1076,8 @@ namespace Smartphone
             int cardX = xPositionOnScreen + SocialPostCardX;
             int cursorY = yPositionOnScreen + SocialViewportYOffset + SocialPostTopPadding - (int)MathF.Floor(socialNotificationScrollOffset);
             int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
+            int drawMinY = clipRect.Top - SocialRenderOverscan;
+            int drawMaxY = clipRect.Bottom + SocialRenderOverscan;
 
             if (notifications.Count == 0)
             {
@@ -1038,14 +1087,24 @@ namespace Smartphone
             {
                 foreach (SocialNotificationEntry entry in notifications)
                 {
+                    int cardHeight = MeasureSocialNotificationCardHeight(entry);
+
+                    if (cursorY + cardHeight < drawMinY)
+                    {
+                        cursorY += cardHeight + SocialNotificationCardSpacing;
+                        continue;
+                    }
+
+                    if (cursorY > drawMaxY)
+                        break;
+
                     List<string> lines = SplitTextIntoLines(
                         entry.Message,
                         Game1.smallFont,
                         SocialNotificationCardWidth - (SocialNotificationCardPadding * 2));
                     if (lines.Count == 0)
-                        lines.Add("");
+                        lines = new List<string> { "" };
 
-                    int cardHeight = (lines.Count * lineHeight) + (SocialNotificationCardVerticalPadding * 2);
                     Rectangle cardBounds = new Rectangle(cardX, cursorY, SocialNotificationCardWidth, cardHeight);
 
                     IClickableMenu.drawTextureBox(
@@ -1116,7 +1175,6 @@ namespace Smartphone
             socialNotificationClearAllBounds = Rectangle.Empty;
 
             RefreshSocialNotifiedPostIds(StardewConnectManager.GetPostsSnapshot());
-            ClampSocialDetailScroll(selectedPost);
 
             int attachmentCount = StardewConnectManager.GetAttachmentCount(selectedPost);
             socialDetailImageIndex = attachmentCount <= 0
@@ -1157,8 +1215,7 @@ namespace Smartphone
                 1f,
                 false);
 
-            string visibleText = GetTailTextToFit(socialCommentDraft, Game1.smallFont, inputBounds.Width - 30);
-            b.DrawString(Game1.smallFont, visibleText, new Vector2(inputBounds.X + 15, inputBounds.Y + 20), Color.Black);
+            DrawEditableTextInput(b, inputBounds, socialCommentDraft, socialCommentDraftCursorIndex, socialCommentDraftSelectionAnchorIndex);
 
             socialDetailCommentSendBounds = okButton.bounds;
             okButton.draw(b);
@@ -1344,8 +1401,7 @@ namespace Smartphone
                 1f,
                 false);
 
-            string visibleText = GetTailTextToFit(socialPostDraft, Game1.smallFont, inputWidth - 30);
-            b.DrawString(Game1.smallFont, visibleText, new Vector2(inputX + 15, inputY + 20), Color.Black);
+            DrawEditableTextInput(b, new Rectangle(inputX, inputY, inputWidth, inputHeight), socialPostDraft, socialPostDraftCursorIndex, socialPostDraftSelectionAnchorIndex);
 
 
             var socialOkButton = new ClickableTextureComponent(
@@ -1401,7 +1457,6 @@ namespace Smartphone
 
             List<StardewConnectPost> profilePosts = GetSelectedProfilePosts();
             RefreshSocialNotifiedPostIds(StardewConnectManager.GetPostsSnapshot());
-            ClampSocialProfileScroll(profilePosts);
 
             StardewConnectProfileStats stats = StardewConnectManager.GetProfileStatsSnapshot(
                 selectedSocialProfileActorName,
@@ -1427,6 +1482,8 @@ namespace Smartphone
             int cardX = xPositionOnScreen + SocialPostCardX;
             int cardWidth = SocialPostCardWidth;
             int cursorY = yPositionOnScreen + SocialViewportYOffset + SocialPostTopPadding - (int)MathF.Floor(socialProfileScrollOffset);
+            int drawMinY = clipRect.Top - SocialRenderOverscan;
+            int drawMaxY = clipRect.Bottom + SocialRenderOverscan;
 
             Rectangle headerBounds = new Rectangle(cardX, cursorY, cardWidth, SocialProfileAvatarHeight + 30);
             IClickableMenu.drawTextureBox(
@@ -1567,7 +1624,21 @@ namespace Smartphone
                 foreach (StardewConnectPost post in profilePosts)
                 {
                     int selectedAttachmentIndex = GetFeedPostImageIndex(post);
-                    int postHeight = DrawSocialPostCard(
+                    int postHeight = MeasureSocialPostCardHeight(
+                        post,
+                        includeAllComments: false,
+                        selectedAttachmentIndex: selectedAttachmentIndex);
+
+                    if (cursorY + postHeight < drawMinY)
+                    {
+                        cursorY += postHeight + SocialPostSpacing;
+                        continue;
+                    }
+
+                    if (cursorY > drawMaxY)
+                        break;
+
+                    DrawSocialPostCard(
                         b,
                         post,
                         cardX,
@@ -1824,14 +1895,13 @@ namespace Smartphone
 
             cursorY += comments.Count > 0 ? 44 : 34;
 
-            IEnumerable<StardewConnectComment> commentsToDraw = includeAllComments
-                ? (IEnumerable<StardewConnectComment>)comments
-                : comments.Skip(Math.Max(0, comments.Count - SocialCommentPreviewCount));
+            int minCommentIndex = includeAllComments
+                ? 0
+                : Math.Max(0, comments.Count - SocialCommentPreviewCount);
 
-            commentsToDraw = System.Linq.Enumerable.Reverse(commentsToDraw);
-
-            foreach (StardewConnectComment comment in commentsToDraw)
+            for (int i = comments.Count - 1; i >= minCommentIndex; i--)
             {
+                StardewConnectComment comment = comments[i];
                 int commentHeight = DrawSocialCommentBlock(b, comment, cardX + 15, cursorY, SocialPostTextMaxWidth - 20, context);
                 cursorY += commentHeight;
             }
@@ -1927,6 +1997,10 @@ namespace Smartphone
 
         private int MeasureSocialPostCardHeight(StardewConnectPost post, bool includeAllComments, int selectedAttachmentIndex)
         {
+            string cacheKey = BuildSocialCardHeightCacheKey(post, includeAllComments, selectedAttachmentIndex);
+            if (socialCardHeightCache.TryGetValue(cacheKey, out int cachedHeight))
+                return cachedHeight;
+
             int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
             int height = 15 + SocialActorIconSize + 10;
 
@@ -1945,16 +2019,25 @@ namespace Smartphone
             List<StardewConnectComment> comments = post.Comments ?? new List<StardewConnectComment>();
             height += comments.Count > 0 ? 44 : 34;
 
-            IEnumerable<StardewConnectComment> commentsToMeasure = includeAllComments
-                ? (IEnumerable<StardewConnectComment>)comments
-                : comments.Skip(Math.Max(0, comments.Count - SocialCommentPreviewCount));
+            int minCommentIndex = includeAllComments
+                ? 0
+                : Math.Max(0, comments.Count - SocialCommentPreviewCount);
 
-            commentsToMeasure = System.Linq.Enumerable.Reverse(commentsToMeasure);
-
-            foreach (StardewConnectComment comment in commentsToMeasure)
+            for (int i = comments.Count - 1; i >= minCommentIndex; i--)
+            {
+                StardewConnectComment comment = comments[i];
                 height += MeasureSocialCommentHeight(comment, SocialPostTextMaxWidth - 20);
 
-            return height + 10;
+            }
+
+            int measuredHeight = height + 10;
+
+            if (socialCardHeightCache.Count >= SocialCardHeightCacheLimit)
+                socialCardHeightCache.Clear();
+
+            socialCardHeightCache[cacheKey] = measuredHeight;
+
+            return measuredHeight;
         }
 
         private int MeasureSocialCommentHeight(StardewConnectComment comment, int maxTextWidth)
@@ -2801,55 +2884,13 @@ namespace Smartphone
         {
             if (socialCreateMenuOpen)
             {
-                if (key == Keys.Back)
-                {
-                    if (socialPostDraft.Length > 0)
-                        socialPostDraft = socialPostDraft[..^1];
-
-                    return true;
-                }
-
-                if (key == Keys.Enter)
-                {
-                    TryCreatePlayerSocialPost();
-                    return true;
-                }
-
-                bool shiftPressedCreate = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
-                char cCreate = GetCharFromKey(key, shiftPressedCreate);
-                if (cCreate == '\0')
-                    return false;
-
-                Game1.playSound("coin");
-                socialPostDraft += cCreate;
-                return true;
+                return HandleSocialPostInputKey(key, isRepeat: false);
             }
 
             if (string.IsNullOrWhiteSpace(selectedSocialPostId))
                 return false;
 
-            if (key == Keys.Back)
-            {
-                if (socialCommentDraft.Length > 0)
-                    socialCommentDraft = socialCommentDraft[..^1];
-
-                return true;
-            }
-
-            if (key == Keys.Enter)
-            {
-                TryCreatePlayerSocialComment();
-                return true;
-            }
-
-            bool shiftPressed = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
-            char c = GetCharFromKey(key, shiftPressed);
-            if (c == '\0')
-                return false;
-
-            Game1.playSound("coin");
-            socialCommentDraft += c;
-            return true;
+            return HandleSocialCommentInputKey(key, isRepeat: false);
         }
 
         private bool TryCreatePlayerSocialPost()
@@ -2872,7 +2913,7 @@ namespace Smartphone
             if (!created)
                 return false;
 
-            socialCommentDraft = "";
+            ResetEditableTextFieldState(EditableTextFieldKind.SocialComment);
 
             StardewConnectPost? selectedPost = StardewConnectManager.GetPost(selectedSocialPostId);
             if (selectedPost != null)
@@ -2895,7 +2936,7 @@ namespace Smartphone
                 return false;
 
             selectedSocialPostId = "";
-            socialCommentDraft = "";
+            ResetEditableTextFieldState(EditableTextFieldKind.SocialComment);
             socialDetailImageIndex = 0;
             socialDetailScrollOffset = 0f;
             socialDetailScrollTarget = 0f;
@@ -2937,7 +2978,7 @@ namespace Smartphone
             selectedSocialPostId = postId;
             socialProfileMenuOpen = false;
             socialNotificationMenuOpen = false;
-            socialCommentDraft = "";
+            ResetEditableTextFieldState(EditableTextFieldKind.SocialComment);
             socialDetailImageIndex = 0;
             socialDetailScrollOffset = 0f;
             socialDetailScrollTarget = 0f;
@@ -2958,7 +2999,7 @@ namespace Smartphone
                 return;
 
             selectedSocialPostId = "";
-            socialCommentDraft = "";
+            ResetEditableTextFieldState(EditableTextFieldKind.SocialComment);
             socialCreateMenuOpen = false;
             socialNotificationMenuOpen = false;
             socialProfileMenuOpen = true;
@@ -2980,7 +3021,7 @@ namespace Smartphone
             socialNotificationMenuOpen = false;
             socialProfileMenuOpen = false;
             selectedSocialPostId = "";
-            socialCommentDraft = "";
+            ResetEditableTextFieldState(EditableTextFieldKind.SocialComment);
             socialDetailReturnToProfile = false;
             socialDetailReturnProfileActorName = "";
             socialDetailReturnProfileActorIsPlayer = false;
@@ -2993,7 +3034,7 @@ namespace Smartphone
 
             if (clearDraft)
             {
-                socialPostDraft = "";
+                ResetEditableTextFieldState(EditableTextFieldKind.SocialPost);
                 socialCreateSelectedImages.Clear();
             }
 
@@ -3011,7 +3052,7 @@ namespace Smartphone
             socialProfileMenuOpen = false;
             socialNotificationMenuOpen = true;
             selectedSocialPostId = "";
-            socialCommentDraft = "";
+            ResetEditableTextFieldState(EditableTextFieldKind.SocialComment);
             socialDetailReturnToProfile = false;
             socialDetailReturnProfileActorName = "";
             socialDetailReturnProfileActorIsPlayer = false;
@@ -3382,6 +3423,10 @@ namespace Smartphone
 
         private int MeasureSocialNotificationCardHeight(SocialNotificationEntry entry)
         {
+            string cacheKey = $"{entry?.Key}|{entry?.Message}";
+            if (socialNotificationCardHeightCache.TryGetValue(cacheKey, out int cachedHeight))
+                return cachedHeight;
+
             List<string> lines = SplitTextIntoLines(
                 entry?.Message ?? "",
                 Game1.smallFont,
@@ -3391,7 +3436,13 @@ namespace Smartphone
                 lines.Add("");
 
             int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
-            return (lines.Count * lineHeight) + (SocialNotificationCardVerticalPadding * 2);
+            int measuredHeight = (lines.Count * lineHeight) + (SocialNotificationCardVerticalPadding * 2);
+
+            if (socialNotificationCardHeightCache.Count >= SocialNotificationHeightCacheLimit)
+                socialNotificationCardHeightCache.Clear();
+
+            socialNotificationCardHeightCache[cacheKey] = measuredHeight;
+            return measuredHeight;
         }
 
         private float CalculateSocialNotificationMaxScroll(List<SocialNotificationEntry> notifications)
@@ -3452,6 +3503,120 @@ namespace Smartphone
                 visible = visible.Substring(1);
 
             return visible;
+        }
+
+        private bool HandleSocialPostInputKey(Keys key, bool isRepeat)
+        {
+            bool handled = TryApplyEditableTextKeyToField(
+                EditableTextFieldKind.SocialPost,
+                key,
+                allowEnter: true,
+                allowPaste: !isRepeat,
+                out bool textChanged,
+                out bool submitted);
+
+            if (!handled)
+                return false;
+
+            if (textChanged && ShouldPlayTypingSound(key, allowPaste: !isRepeat))
+                Game1.playSound("coin");
+
+            if (submitted)
+                TryCreatePlayerSocialPost();
+
+            if (!isRepeat)
+            {
+                if (IsRepeatableTextInputKey(key))
+                    BeginTextInputRepeat(EditableTextFieldKind.SocialPost, key);
+                else
+                    ResetTextInputRepeatState();
+            }
+
+            return true;
+        }
+
+        private bool HandleSocialCommentInputKey(Keys key, bool isRepeat)
+        {
+            bool handled = TryApplyEditableTextKeyToField(
+                EditableTextFieldKind.SocialComment,
+                key,
+                allowEnter: true,
+                allowPaste: !isRepeat,
+                out bool textChanged,
+                out bool submitted);
+
+            if (!handled)
+                return false;
+
+            if (textChanged && ShouldPlayTypingSound(key, allowPaste: !isRepeat))
+                Game1.playSound("coin");
+
+            if (submitted)
+                TryCreatePlayerSocialComment();
+
+            if (!isRepeat)
+            {
+                if (IsRepeatableTextInputKey(key))
+                    BeginTextInputRepeat(EditableTextFieldKind.SocialComment, key);
+                else
+                    ResetTextInputRepeatState();
+            }
+
+            return true;
+        }
+
+        private (string VisibleText, int VisibleStartIndex, int CursorOffset) GetVisibleTextForInput(string text, SpriteFont font, int maxWidth, int cursorIndex)
+        {
+            string safeText = text ?? "";
+            cursorIndex = Math.Clamp(cursorIndex, 0, safeText.Length);
+
+            if (safeText.Length == 0 || font.MeasureString(safeText).X <= maxWidth)
+                return (safeText, 0, (int)font.MeasureString(safeText[..cursorIndex]).X);
+
+            int startIndex = GetVisibleWindowStart(safeText, font, maxWidth, cursorIndex);
+            int endIndex = GetVisibleWindowEnd(safeText, font, maxWidth, startIndex, cursorIndex);
+
+            string visibleText = safeText.Substring(startIndex, endIndex - startIndex);
+            int cursorOffset = MeasureTextSubstringWidth(font, safeText, startIndex, cursorIndex - startIndex);
+            return (visibleText, startIndex, cursorOffset);
+        }
+
+        private void DrawEditableTextInput(SpriteBatch b, Rectangle inputBounds, string text, int cursorIndex, int selectionAnchorIndex)
+        {
+            SpriteFont font = Game1.smallFont;
+            int maxWidth = inputBounds.Width - 30;
+            string safeText = text ?? "";
+            int safeCursorIndex = Math.Clamp(cursorIndex, 0, safeText.Length);
+            int safeSelectionAnchorIndex = Math.Clamp(selectionAnchorIndex, 0, safeText.Length);
+
+            (string visibleText, int visibleStartIndex, int cursorOffset) = GetVisibleTextForInput(safeText, font, maxWidth, safeCursorIndex);
+            (int selectionStart, int selectionEnd) = GetSelectionRange(safeCursorIndex, safeSelectionAnchorIndex, safeText.Length);
+            bool hasSelection = selectionStart != selectionEnd;
+
+            if (hasSelection)
+            {
+                int visibleSelectionStart = Math.Clamp(selectionStart, visibleStartIndex, visibleStartIndex + visibleText.Length);
+                int visibleSelectionEnd = Math.Clamp(selectionEnd, visibleStartIndex, visibleStartIndex + visibleText.Length);
+                if (visibleSelectionEnd > visibleSelectionStart)
+                {
+                    int highlightX = inputBounds.X + 15 + MeasureTextSubstringWidth(font, safeText, visibleStartIndex, visibleSelectionStart - visibleStartIndex);
+                    int highlightWidth = MeasureTextSubstringWidth(font, safeText, visibleSelectionStart, visibleSelectionEnd - visibleSelectionStart);
+                    int highlightHeight = (int)font.MeasureString("A").Y + 2;
+                    b.Draw(Game1.staminaRect, new Rectangle(highlightX, inputBounds.Y + 18, Math.Max(2, highlightWidth), highlightHeight), new Color(80, 140, 255, 140));
+                }
+            }
+
+            Vector2 textPosition = new Vector2(inputBounds.X + 15, inputBounds.Y + 20);
+            b.DrawString(font, visibleText, textPosition, Color.Black);
+
+            bool showCursor = ((int)(textCursorBlinkElapsedSeconds / 0.5d) % 2) == 0;
+            if (!showCursor)
+                return;
+
+            int cursorHeight = (int)font.MeasureString("A").Y + 2;
+            int cursorX = inputBounds.X + 15 + cursorOffset;
+            int cursorY = inputBounds.Y + 18;
+            b.Draw(Game1.staminaRect, new Rectangle(cursorX, cursorY, 2, cursorHeight), Color.Black);
         }
 
         private static string FormatSocialPostDateTime(string season, int day, int timeOfDay)

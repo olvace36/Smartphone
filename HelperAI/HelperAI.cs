@@ -133,7 +133,7 @@ namespace Smartphone
                     {
                         var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
 
-                        SMonitor.Log(jsonResponse.ToString(), LogLevel.Error);
+                        // SMonitor.Log(jsonResponse.ToString(), LogLevel.Error);
 
                         JObject json = JObject.Parse(jsonResponse);
                         JArray toolCalls = GetResponseFunctionCalls(json);
@@ -244,6 +244,113 @@ namespace Smartphone
             }
         }
 
+        private const string PlayerPhotoPrefix = "PlayerPhoto:";
+        private const string PlayerPhotoTagPrefix = "PlayerPhotoTag:";
+        private const string NpcPhotoPrefix = "NpcPhoto:";
+        private const string NpcPhotoTagPrefix = "NpcPhotoTag:";
+
+        private static string BuildConversationPreviewForAi(IEnumerable<string> rawMessages, string npcName, int maxLines, int textCount = 0)
+        {
+            List<string> sanitizedMessages = SanitizeConversationMessagesForAi(rawMessages, npcName);
+
+            int safeMaxLines = Math.Max(1, maxLines);
+            int skipCount = Math.Max(0, sanitizedMessages.Count - safeMaxLines + textCount);
+            int takeCount = Math.Min(safeMaxLines, Math.Max(0, sanitizedMessages.Count - textCount));
+
+            return string.Join("\n", sanitizedMessages.Skip(skipCount).Take(takeCount));
+        }
+
+        private static List<string> SanitizeConversationMessagesForAi(IEnumerable<string> rawMessages, string npcName)
+        {
+            var source = (rawMessages ?? Enumerable.Empty<string>())
+                .Select(message => (message ?? string.Empty).Trim())
+                .Where(message => !string.IsNullOrWhiteSpace(message))
+                .ToList();
+
+            var sanitized = new List<string>();
+
+            for (int i = 0; i < source.Count; i++)
+            {
+                string line = source[i];
+
+                if (line.StartsWith(PlayerPhotoPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    string tags = TryConsumeFollowingPhotoTag(source, ref i, isPlayerPhoto: true);
+                    sanitized.Add(FormatPhotoSummaryForAi(isPlayerPhoto: true, tags, npcName));
+                    continue;
+                }
+
+                if (line.StartsWith(NpcPhotoPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    string tags = TryConsumeFollowingPhotoTag(source, ref i, isPlayerPhoto: false);
+                    sanitized.Add(FormatPhotoSummaryForAi(isPlayerPhoto: false, tags, npcName));
+                    continue;
+                }
+
+                if (line.StartsWith(PlayerPhotoTagPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    string tags = NormalizePhotoTagText(line.Substring(PlayerPhotoTagPrefix.Length));
+                    sanitized.Add(FormatPhotoSummaryForAi(isPlayerPhoto: true, tags, npcName));
+                    continue;
+                }
+
+                if (line.StartsWith(NpcPhotoTagPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    string tags = NormalizePhotoTagText(line.Substring(NpcPhotoTagPrefix.Length));
+                    sanitized.Add(FormatPhotoSummaryForAi(isPlayerPhoto: false, tags, npcName));
+                    continue;
+                }
+
+                sanitized.Add(line);
+            }
+
+            return sanitized;
+        }
+
+        private static string TryConsumeFollowingPhotoTag(List<string> source, ref int currentIndex, bool isPlayerPhoto)
+        {
+            if (currentIndex + 1 >= source.Count)
+                return string.Empty;
+
+            string nextLine = source[currentIndex + 1];
+            string expectedTagPrefix = isPlayerPhoto ? PlayerPhotoTagPrefix : NpcPhotoTagPrefix;
+
+            if (!nextLine.StartsWith(expectedTagPrefix, StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+
+            currentIndex++;
+            return NormalizePhotoTagText(nextLine.Substring(expectedTagPrefix.Length));
+        }
+
+        private static string NormalizePhotoTagText(string rawTagText)
+        {
+            return string.Join("; ",
+                (rawTagText ?? string.Empty)
+                    .Split(';', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(tag => tag.Trim())
+                    .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                    .Distinct(StringComparer.OrdinalIgnoreCase));
+        }
+
+        private static string FormatPhotoSummaryForAi(bool isPlayerPhoto, string tags, string npcName)
+        {
+            string normalizedTags = NormalizePhotoTagText(tags);
+
+            if (isPlayerPhoto)
+            {
+                if (string.IsNullOrWhiteSpace(normalizedTags))
+                    return "PLAYER: [Attached photo]";
+
+                return $"PLAYER: [Attached photo tags: {normalizedTags}]";
+            }
+
+            string speaker = string.IsNullOrWhiteSpace(npcName) ? "NPC" : npcName;
+            if (string.IsNullOrWhiteSpace(normalizedTags))
+                return $"{speaker}: [Sent photo]";
+
+            return $"{speaker}: [Sent photo tags: {normalizedTags}]";
+        }
+
         private static string GetSystemMessage(NPC npc, string type, int textCount = 0)
         {
             try
@@ -312,9 +419,7 @@ namespace Smartphone
                 }
 
                 var messages_history = npcMessagesToday.ContainsKey(npc.Name) ? npcMessagesToday[npc.Name] : new List<string>();
-                string combined = string.Join("\n", messages_history
-                    .Skip(Math.Max(0, messages_history.Count - 12 + textCount))
-                    .Take(Math.Min(12, messages_history.Count - textCount)));
+                string combined = BuildConversationPreviewForAi(messages_history, npc.Name, maxLines: 12, textCount: textCount);
 
                 string summary = "";
                 if (npcConversationSummary.ContainsKey(npc.Name))
@@ -324,9 +429,11 @@ namespace Smartphone
 
                 if (type == "response")
                 {
-                    var systemMessage = $@"You are an AI roleplaying as NPC {npc.Name} in Stardew Valley, texting the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult).
+                    object[] possibleEvent = GetToolList(npc, listOnly: true);
+                    var systemMessage = $@"You are an AI roleplaying as NPC {npc.Name} in Stardew Valley, response to PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult). The PLAYER just sent you a message and/or photos.
                         Current relationship with player: {relation}.
                         Personality: {npcCharacteristic}
+                        Possible events: {string.Join(", ", possibleEvent)}.
 
                         WORLD CONTEXT:
                         {data}
@@ -338,9 +445,8 @@ namespace Smartphone
                         YOUR DIRECTIVES:
                         1. Reply naturally as {npc.Name} in =40 words, matching their tone and relationship with the player.
                         2. SLICE OF LIFE: Whenever natural, invent small, mundane details happening or happened around you. It can be anything that related to the context of the game.
-                        3. EVENT NEGOTIATION: If the player mentions hanging out event (picnic, dinner, campfire, birthday, ...), confirm Player to specify or you suggest a Time of Day for the event that is between now and before 11:00 PM. 
-                        4. TRIGGERING TOOLS: Once an activity AND a time are specified and agreed, call the appropriate function.
-                        5. SENDING GIFTS: If you want to surprise the player with an item or the PLAYER specify request a gift, call the Send_Mail_Gift tool and text them that you are sending something via the mail.";
+                        3. EVENT NEGOTIATION: If the player mentions hanging out event in possible event list able, confirm Player to specify or you suggest a Time of Day for the event that is between now and before 11:00 PM. 
+                        4. TRIGGERING TOOLS: Once an activity AND a time are specified and agreed, call the appropriate function.";
 
                     return systemMessage;
                 }
@@ -359,7 +465,7 @@ namespace Smartphone
 
                         YOUR DIRECTIVES:
                         1. Keep the text under 30 words. Be creative, in-character, and match your relationship level.
-                        2. SLICE OF LIFE: You are not limited to any topic, you can say anything happening around you or in the world, or just want to say hi, or share something interesting, or ask for help, or anything that a NPC could text to the player in their daily life.Be creative and dynamic so the message is not repetitive.";
+                        2. SLICE OF LIFE: You are not limited to any topic, you can say anything happening around you or in the world, just want to say hi, share something interesting, ask for help, or anything that a NPC could text to the player in their daily life. Be creative and dynamic so the message is not repetitive.";
 
                     return systemMessage;
                 }
@@ -421,9 +527,14 @@ namespace Smartphone
                 + $"Keep the summary under {maxAiSummaryLength} words. Remove outdated pleasantries, trivial daily greetings, or resolved minor topics, and just like human, some memory could be faded. "
                 + "Be concise, do not include header, irelevant or no value information.";
 
+                string sanitizedMessageList = BuildConversationPreviewForAi(
+                    (messageList ?? string.Empty).Split('\n', StringSplitOptions.None),
+                    npcName,
+                    maxLines: 20);
+
                 var user = $"Update the memory summary for {npcName} based on today's conversation.\n\n"
                     + "PREVIOUS SUMMARY:\n" + summary + "\n"
-                    + "TODAY'S NEW CONVERSATION:\n" + messageList;
+                    + "TODAY'S NEW CONVERSATION:\n" + sanitizedMessageList;
 
                 using (var httpClient = new HttpClient())
                 {

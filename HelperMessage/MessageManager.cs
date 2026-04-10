@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using StardewModdingAPI;
 using StardewValley;
 using Smartphone;
@@ -19,6 +20,66 @@ namespace Smartphone
         public static string currentPhoneTheme = AssetHelper.DefaultPhoneThemeName;
 
         private static IModHelper Helper => ModEntry.SHelper;
+
+        private static bool IsNpcMessageable(string npc)
+        {
+            NPC? targetNpc = Game1.getCharacterFromName(npc, mustBeVillager: false);
+            if (targetNpc == null)
+                return false;
+
+            if (!targetNpc.IsVillager || !targetNpc.CanSocialize || targetNpc.IsMonster)
+                return false;
+
+            string requirement = ModEntry.Config?.NpcMessageRequirement ?? ModConfig.NpcRequirementFriend;
+            if (string.Equals(requirement, ModConfig.NpcRequirementNoRequirement, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (string.Equals(requirement, ModConfig.NpcRequirementMeet, StringComparison.OrdinalIgnoreCase))
+                return Game1.player.friendshipData.ContainsKey(targetNpc.Name);
+
+            return Game1.player.getFriendshipHeartLevelForNPC(targetNpc.Name) >= 1;
+        }
+
+        private static int GetMaxMessagesPerNpc()
+        {
+            int configuredMax = ModEntry.Config?.MaxMessage ?? 1000;
+            return Math.Max(1, configuredMax);
+        }
+
+        private static void TrimMessageListToMax(List<string> messages, int maxMessages)
+        {
+            if (messages == null || messages.Count <= maxMessages)
+                return;
+
+            int removeCount = messages.Count - maxMessages;
+            messages.RemoveRange(0, removeCount);
+        }
+
+        private static void TrimMessagesForNpc(string npc)
+        {
+            int maxMessages = GetMaxMessagesPerNpc();
+
+            npcMessages.TryGetValue(npc, out List<string>? historicalMessages);
+            ModEntry.npcMessagesToday.TryGetValue(npc, out List<string>? todaysMessages);
+
+            int totalCount = (historicalMessages?.Count ?? 0) + (todaysMessages?.Count ?? 0);
+            int overflow = totalCount - maxMessages;
+            if (overflow <= 0)
+                return;
+
+            if (historicalMessages != null && historicalMessages.Count > 0)
+            {
+                int removeFromHistorical = Math.Min(overflow, historicalMessages.Count);
+                historicalMessages.RemoveRange(0, removeFromHistorical);
+                overflow -= removeFromHistorical;
+            }
+
+            if (overflow > 0 && todaysMessages != null && todaysMessages.Count > 0)
+            {
+                int removeFromToday = Math.Min(overflow, todaysMessages.Count);
+                todaysMessages.RemoveRange(0, removeFromToday);
+            }
+        }
 
         public static List<string> GetMessages(string npc)
         {
@@ -42,11 +103,10 @@ namespace Smartphone
                 unreadCounts[npc] = newCount;
         }
 
-        public static void AddMessage(string npc, string message, bool addCount = true, bool isFromPlayer = false)
+        public static void AddMessage(string npc, string message, bool addCount = true, bool isFromPlayer = false, bool notify = true)
         {
-            if (ModEntry.phoneMenu == null) ModEntry.phoneMenu = new PhoneMenu();
-            ModEntry.phoneMenu.UpdateNpcList();
-            if (!ModEntry.phoneMenu.messageableNpcList.Select(n => n.name).ToList().Contains(npc)) return;
+            if (!IsNpcMessageable(npc))
+                return;
             
             if (!npcMessages.ContainsKey(npc))
                 npcMessages[npc] = new List<string>();
@@ -63,6 +123,7 @@ namespace Smartphone
                 ModEntry.npcMessagesToday[npc].Add($"SYSTEM: ---{SDate.Now().DayOfWeek}, {SDate.Now().Season} {SDate.Now().Day:00}-Y{SDate.Now().Year}---");
 
             ModEntry.npcMessagesToday[npc].Add(message);
+            TrimMessagesForNpc(npc);
 
             if (addCount)
             {
@@ -78,7 +139,7 @@ namespace Smartphone
                 PhoneMenu.messageHistory = GetMessages(PhoneMenu.selectedNpc);
             }
 
-            if (!isFromPlayer)
+            if (!isFromPlayer && notify)
             {
                 if (ModEntry.Config?.notifyMessage ?? true)
                     Game1.addHUDMessage(new HUDMessage($"A new message from {npc}", HUDMessage.newQuest_type));
@@ -143,6 +204,10 @@ namespace Smartphone
                 }
             }
 
+            int maxMessages = GetMaxMessagesPerNpc();
+            foreach (string npc in mergedMessages.Keys.ToList())
+                TrimMessageListToMax(mergedMessages[npc], maxMessages);
+
             // Write the merged result
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/npcMessages", mergedMessages);
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/unreadCounts", unreadCounts);
@@ -159,6 +224,11 @@ namespace Smartphone
         {
             npcMessages = Helper.Data.ReadJsonFile<Dictionary<string, List<string>>>($"./userdata/{Constants.SaveFolderName}/npcMessages")
                           ?? new Dictionary<string, List<string>>();
+
+            int maxMessages = GetMaxMessagesPerNpc();
+            foreach (string npc in npcMessages.Keys.ToList())
+                TrimMessageListToMax(npcMessages[npc], maxMessages);
+
             unreadCounts = Helper.Data.ReadJsonFile<Dictionary<string, int>>($"./userdata/{Constants.SaveFolderName}/unreadCounts")
                           ?? new Dictionary<string, int>();
             latestAdd = Helper.Data.ReadJsonFile<Dictionary<string, long>>($"./userdata/{Constants.SaveFolderName}/latestAdd")

@@ -95,12 +95,48 @@ namespace Smartphone
                 setValue: value => Config.MaxStardewConnectPosts = Math.Clamp(value, 10, 500)
             );
 
+            configMenu.AddNumberOption(
+                mod: ModManifest,
+                name: () => "Player photo max",
+                tooltip: () => "Maximum number of player photos to keep. Older photos are deleted automatically when the limit is exceeded.",
+                getValue: () => Config.PlayerMaxPhoto,
+                setValue: value => Config.PlayerMaxPhoto = Math.Clamp(value, 1, 500),
+                min: 1,
+                max: 500
+            );
+
+            configMenu.AddNumberOption(
+                mod: ModManifest,
+                name: () => "NPC photo max",
+                tooltip: () => "Maximum number of NPC photos to keep. Older photos are deleted automatically when the limit is exceeded.",
+                getValue: () => Config.NpcMaxPhoto,
+                setValue: value => Config.NpcMaxPhoto = Math.Clamp(value, 1, 500),
+                min: 1,
+                max: 500
+            );
+
+            configMenu.AddNumberOption(
+                mod: ModManifest,
+                name: () => "Messages max per NPC",
+                tooltip: () => "Maximum number of stored messages per NPC in the Text app. Older messages are removed first.",
+                getValue: () => Config.MaxMessage,
+                setValue: value => Config.MaxMessage = Math.Clamp(value, 50, 5000)
+            );
+
             configMenu.AddBoolOption(
                 mod: ModManifest,
                 name: () => "Show StardewConnect image tags",
                 tooltip: () => "Show the saved image tag text above attached images in StardewConnect posts.",
                 getValue: () => Config.ShowSocialImageTags,
                 setValue: value => Config.ShowSocialImageTags = value
+            );
+
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Show message image tags",
+                tooltip: () => "Show attached message image tags when hovering photo bubbles in Text app.",
+                getValue: () => Config.ShowMessageImageTags,
+                setValue: value => Config.ShowMessageImageTags = value
             );
 
             configMenu.AddSectionTitle(mod: ModManifest, () => "HUD Notifications");
