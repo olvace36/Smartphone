@@ -81,11 +81,13 @@ namespace Smartphone
         private const int SeasonsPerYear = 4;
         private const int DaySortKeyMultiplier = 2000;
         private const string LastSocialVisitDataFileName = "stardewConnectLastVisit";
+        private const string SocialNotificationDismissalsDataFileName = "stardewConnectSocialNotificationDismissals";
 
         private static IModHelper Helper => ModEntry.SHelper;
 
         public static List<StardewConnectPost> Posts { get; private set; } = new();
         public static Dictionary<string, StardewConnectProfileStats> ProfileStats { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+        public static HashSet<string> SocialNotificationDismissedKeys { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
         private static StardewConnectVisitSnapshot LastSocialVisitSnapshot { get; set; } = new();
 
         public static List<StardewConnectPost> GetPostsSnapshot()
@@ -108,6 +110,79 @@ namespace Smartphone
         {
             LastSocialVisitSnapshot = CreateCurrentVisitSnapshot();
             SaveLastSocialVisitSnapshot();
+        }
+
+        public static bool IsSocialNotificationDismissed(string notificationKey)
+        {
+            return !string.IsNullOrWhiteSpace(notificationKey)
+                && SocialNotificationDismissedKeys.Contains(notificationKey);
+        }
+
+        public static bool DismissSocialNotification(string notificationKey)
+        {
+            if (string.IsNullOrWhiteSpace(notificationKey))
+                return false;
+
+            bool changed = SocialNotificationDismissedKeys.Add(notificationKey.Trim());
+            if (changed)
+                SaveSocialNotificationDismissals();
+
+            return changed;
+        }
+
+        public static int DismissSocialNotifications(IEnumerable<string> notificationKeys)
+        {
+            if (notificationKeys == null)
+                return 0;
+
+            int beforeCount = SocialNotificationDismissedKeys.Count;
+            foreach (string key in notificationKeys)
+            {
+                string trimmed = (key ?? "").Trim();
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                    SocialNotificationDismissedKeys.Add(trimmed);
+            }
+
+            int addedCount = SocialNotificationDismissedKeys.Count - beforeCount;
+            if (addedCount > 0)
+                SaveSocialNotificationDismissals();
+
+            return addedCount;
+        }
+
+        public static bool ClearSocialNotificationDismissals()
+        {
+            if (SocialNotificationDismissedKeys.Count == 0)
+                return false;
+
+            SocialNotificationDismissedKeys.Clear();
+            SaveSocialNotificationDismissals();
+            return true;
+        }
+
+        public static bool PruneSocialNotificationDismissals(IEnumerable<string> activeKeys)
+        {
+            if (activeKeys == null || SocialNotificationDismissedKeys.Count == 0)
+                return false;
+
+            var activeSet = new HashSet<string>(
+                activeKeys.Where(key => !string.IsNullOrWhiteSpace(key)).Select(key => key.Trim()),
+                StringComparer.OrdinalIgnoreCase);
+
+            bool changed = false;
+            foreach (string key in SocialNotificationDismissedKeys.ToList())
+            {
+                if (!activeSet.Contains(key))
+                {
+                    SocialNotificationDismissedKeys.Remove(key);
+                    changed = true;
+                }
+            }
+
+            if (changed)
+                SaveSocialNotificationDismissals();
+
+            return changed;
         }
 
         public static bool IsPostOnOrAfterLastSocialVisit(StardewConnectPost post)
@@ -329,6 +404,10 @@ namespace Smartphone
 
             Posts.Add(post);
             NotifyPhoneMenuDataChanged();
+
+            if (!authorIsPlayer)
+                TryShowSocialHudForNewPost(post);
+
             return post.Id;
         }
 
@@ -473,6 +552,26 @@ namespace Smartphone
                 post.PlayerReadCommentCount = post.Comments.Count;
             }
 
+            NotifyPhoneMenuDataChanged();
+
+            if (!authorIsPlayer)
+                TryShowSocialHudForNewComment(post, comment);
+
+            return true;
+        }
+
+        public static bool DeletePost(string postId)
+        {
+            StardewConnectPost? post = GetPost(postId);
+            if (post == null || !post.AuthorIsPlayer)
+                return false;
+
+            int index = Posts.FindIndex(item => string.Equals(item.Id, postId, StringComparison.OrdinalIgnoreCase));
+            if (index < 0)
+                return false;
+
+            Posts.RemoveAt(index);
+            RebuildProfileStatsFromPosts();
             NotifyPhoneMenuDataChanged();
             return true;
         }
@@ -659,6 +758,7 @@ namespace Smartphone
             PrunePosts(GetMaxPostCount());
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/stardewConnectPosts", Posts);
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/stardewConnectProfileStats", ProfileStats);
+            SaveSocialNotificationDismissals();
             SaveLastSocialVisitSnapshot();
         }
 
@@ -675,7 +775,16 @@ namespace Smartphone
                 Helper.Data.ReadJsonFile<StardewConnectVisitSnapshot>($"./userdata/{Constants.SaveFolderName}/{LastSocialVisitDataFileName}")
                 ?? CreateCurrentVisitSnapshot();
 
+            List<string> loadedDismissedNotificationKeys =
+                Helper.Data.ReadJsonFile<List<string>>($"./userdata/{Constants.SaveFolderName}/{SocialNotificationDismissalsDataFileName}")
+                ?? new List<string>();
+
             ProfileStats = new Dictionary<string, StardewConnectProfileStats>(loadedProfileStats, StringComparer.OrdinalIgnoreCase);
+            SocialNotificationDismissedKeys = new HashSet<string>(
+                loadedDismissedNotificationKeys
+                    .Where(key => !string.IsNullOrWhiteSpace(key))
+                    .Select(key => key.Trim()),
+                StringComparer.OrdinalIgnoreCase);
 
             SanitizeLoadedData();
             SanitizeLoadedProfileStats();
@@ -684,6 +793,8 @@ namespace Smartphone
 
             if (ProfileStats.Count == 0)
                 RebuildProfileStatsFromPosts();
+
+            SaveSocialNotificationDismissals();
         }
 
         private static void SanitizeLoadedData()
@@ -809,6 +920,16 @@ namespace Smartphone
                 return;
 
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/{LastSocialVisitDataFileName}", LastSocialVisitSnapshot);
+        }
+
+        private static void SaveSocialNotificationDismissals()
+        {
+            if (Helper == null)
+                return;
+
+            Helper.Data.WriteJsonFile(
+                $"./userdata/{Constants.SaveFolderName}/{SocialNotificationDismissalsDataFileName}",
+                SocialNotificationDismissedKeys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToList());
         }
 
         private static string GetCurrentSeason()
@@ -1352,6 +1473,110 @@ namespace Smartphone
                     ApplyCommentStats(post, comment.AuthorName, comment.AuthorIsPlayer);
                 }
             }
+        }
+
+        private static void TryShowSocialHudForNewPost(StardewConnectPost post)
+        {
+            if (post == null || post.AuthorIsPlayer)
+                return;
+
+            bool isFavouriteNpcPost = IsFavouriteNpc(post.AuthorName);
+            bool taggedPlayer = PostTargetsPlayer(post);
+            if (!isFavouriteNpcPost && !taggedPlayer)
+                return;
+
+            string authorName = ResolveActorName(post.AuthorName, post.AuthorIsPlayer);
+            if (string.IsNullOrWhiteSpace(authorName))
+                authorName = "Someone";
+
+            string message = taggedPlayer
+                ? $"{authorName} tagged you in StardewConnect."
+                : $"{authorName} posted on StardewConnect.";
+
+            TryShowSocialHudMessage(message);
+        }
+
+        private static void TryShowSocialHudForNewComment(StardewConnectPost post, StardewConnectComment comment)
+        {
+            if (post == null || comment == null || comment.AuthorIsPlayer)
+                return;
+
+            bool commentOnPlayerPost = post.AuthorIsPlayer;
+            bool taggedPlayer = ContainsPlayerMention(comment.Text);
+            if (!commentOnPlayerPost && !taggedPlayer)
+                return;
+
+            string authorName = ResolveActorName(comment.AuthorName, comment.AuthorIsPlayer);
+            if (string.IsNullOrWhiteSpace(authorName))
+                authorName = "Someone";
+
+            string message = taggedPlayer
+                ? $"{authorName} tagged you in a StardewConnect comment."
+                : $"{authorName} commented on your StardewConnect post.";
+
+            TryShowSocialHudMessage(message);
+        }
+
+        private static void TryShowSocialHudMessage(string message)
+        {
+            if (!(ModEntry.Config?.notifyStardewSocial ?? true))
+                return;
+
+            if (!Context.IsWorldReady || string.IsNullOrWhiteSpace(message))
+                return;
+
+            Game1.addHUDMessage(new HUDMessage(message, HUDMessage.newQuest_type));
+        }
+
+        private static bool IsFavouriteNpc(string npcName)
+        {
+            if (string.IsNullOrWhiteSpace(npcName) || MessageManager.favouriteNpc == null)
+                return false;
+
+            string normalizedNpcName = npcName.Trim();
+            return MessageManager.favouriteNpc.Any(name => NameComparer.Equals(name, normalizedNpcName));
+        }
+
+        private static bool PostTargetsPlayer(StardewConnectPost post)
+        {
+            if (post == null)
+                return false;
+
+            return ContainsTag(post.PostTag, "#Player")
+                || ContainsPlayerMention(post.Text);
+        }
+
+        private static bool ContainsTag(string tagText, string expectedTag)
+        {
+            if (string.IsNullOrWhiteSpace(tagText) || string.IsNullOrWhiteSpace(expectedTag))
+                return false;
+
+            foreach (string rawTag in tagText.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                string trimmedTag = (rawTag ?? "").Trim();
+                if (string.Equals(trimmedTag, expectedTag, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool ContainsPlayerMention(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            string playerName = (Game1.player?.Name ?? "Player").Trim();
+            return ContainsMentionToken(text, "Player")
+                || (!string.IsNullOrWhiteSpace(playerName) && ContainsMentionToken(text, playerName));
+        }
+
+        private static bool ContainsMentionToken(string text, string token)
+        {
+            if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(token))
+                return false;
+
+            return text.IndexOf("@" + token, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static void NotifyPhoneMenuDataChanged()

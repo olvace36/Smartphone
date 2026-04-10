@@ -41,6 +41,26 @@ namespace Smartphone
                 formatAllowedValue: value => value
             );
 
+            configMenu.AddParagraph(
+                mod: ModManifest,
+                text: () => "Controls which villagers appear in the Messages app."
+            );
+
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => "NPC message requirement",
+                tooltip: () => "No requirement: see everyone from the start.\nMeet: only NPCs you've already spoken to.\nFriend: requires 1+ hearts.",
+                getValue: () => Config.NpcMessageRequirement,
+                setValue: value => Config.NpcMessageRequirement = value,
+                allowedValues: new string[]
+                {
+                    ModConfig.NpcRequirementNoRequirement,
+                    ModConfig.NpcRequirementMeet,
+                    ModConfig.NpcRequirementFriend
+                },
+                formatAllowedValue: value => value
+            );
+
             // advance settings
             configMenu.AddSectionTitle(mod: ModManifest, () => "Advance Settings");
             configMenu.AddTextOption(
@@ -81,6 +101,32 @@ namespace Smartphone
                 tooltip: () => "Show the saved image tag text above attached images in StardewConnect posts.",
                 getValue: () => Config.ShowSocialImageTags,
                 setValue: value => Config.ShowSocialImageTags = value
+            );
+
+            configMenu.AddSectionTitle(mod: ModManifest, () => "HUD Notifications");
+
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Notify notification app",
+                tooltip: () => "Show HUD popups for Notification app updates.",
+                getValue: () => Config.notifyNotification,
+                setValue: value => Config.notifyNotification = value
+            );
+
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Notify messages",
+                tooltip: () => "Show HUD popups for new NPC messages.",
+                getValue: () => Config.notifyMessage,
+                setValue: value => Config.notifyMessage = value
+            );
+
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Notify StardewConnect",
+                tooltip: () => "Show HUD popups for new StardewConnect social notifications.",
+                getValue: () => Config.notifyStardewSocial,
+                setValue: value => Config.notifyStardewSocial = value
             );
         }
 

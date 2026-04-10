@@ -88,7 +88,7 @@ namespace Smartphone
             if (!Context.IsWorldReady)
                 return;
 
-            if (Game1.random.NextDouble() < SocialEventCreatePostChance)
+            if (Game1.random.NextDouble() < 1)
                 QueueRandomNpcSocialPost();
 
             if (Game1.random.NextDouble() < SocialEventEngagementChance)

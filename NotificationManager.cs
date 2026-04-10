@@ -32,10 +32,13 @@ namespace Smartphone
         public static void addNotification(string notificationMessage, string notificationName = "")
         {
             notificationList.Add(notificationMessage);
-            if (notificationName != "")
-                Game1.addHUDMessage(new HUDMessage($"New notification from {notificationName}", HUDMessage.newQuest_type));
-            else
-                Game1.addHUDMessage(new HUDMessage($"New notification", HUDMessage.newQuest_type));
+            if (ModEntry.Config?.notifyNotification ?? true)
+            {
+                if (!string.IsNullOrWhiteSpace(notificationName))
+                    Game1.addHUDMessage(new HUDMessage($"New notification from {notificationName}", HUDMessage.newQuest_type));
+                else
+                    Game1.addHUDMessage(new HUDMessage("New notification", HUDMessage.newQuest_type));
+            }
 
             DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 0);
             if (ModEntry.phoneMenu != null && PhoneMenu.currentApp != "appNotification")

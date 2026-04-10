@@ -162,8 +162,8 @@ namespace Smartphone
         private ClickableTextureComponent gameSpin;
 
 
-        private string userCaptureFolderPath = Path.Combine(ModEntry.Instance.Helper.DirectoryPath, "userdata", Constants.SaveFolderName, "player_photo");
-        private string npcCaptureFolderPath = Path.Combine(ModEntry.Instance.Helper.DirectoryPath, "userdata", Constants.SaveFolderName, "npc_photo");
+        private const string PlayerPhotoFolderName = "player_photo";
+        private const string NpcPhotoFolderName = "npc_photo";
         private List<string> capturedImages;
         private int currentImageIndex = -1;
         private Texture2D currentDisplayedImage = null;
@@ -190,8 +190,7 @@ namespace Smartphone
                 n.IsVillager &&
                 n.CanSocialize &&
                 !n.IsMonster &&
-                Game1.player.getFriendshipHeartLevelForNPC(n.Name) >= 1
-                //|| n.Name == "Lewis" || n.Name == "Robin"
+                CanMessageNpc(n)
             )
             .OrderByDescending(npc => MessageManager.favouriteNpc.Contains(npc.Name))
             .ThenByDescending(npc => latestTimestamps.TryGetValue(npc.Name, out long ts) ? ts : 0)
@@ -1082,7 +1081,7 @@ namespace Smartphone
             base.draw(b);
             drawMouse(b);
 
-           
+
 
         }
         public override void releaseLeftClick(int x, int y)
@@ -1128,6 +1127,14 @@ namespace Smartphone
                 if (socialCreateMenuOpen)
                 {
                     // create menu has no scrollable viewport
+                }
+                else if (socialNotificationMenuOpen)
+                {
+                    ClampSocialNotificationScroll();
+                    socialNotificationScrollOffset = MathHelper.Lerp(socialNotificationScrollOffset, socialNotificationScrollTarget, lerpAmount);
+
+                    if (Math.Abs(socialNotificationScrollOffset - socialNotificationScrollTarget) <= 0.5f)
+                        socialNotificationScrollOffset = socialNotificationScrollTarget;
                 }
                 else if (socialProfileMenuOpen)
                 {
@@ -1191,12 +1198,12 @@ namespace Smartphone
             if (selectedNpc != null && currentSuggestion.Item1 != "" && messageSuggestionBounds.Contains(x, y))
             {
                 currentMessage = currentSuggestion.Item2.Replace("\n", " ");
-                currentSuggestion = new ("", "");
+                currentSuggestion = new("", "");
                 Game1.playSound("smallSelect"); // optional
                 SnapChatScrollToBottom();
                 return;
             }
-            if(selectedNpc != null && firstMessageBounds.Contains(x, y) && (!ModEntry.npcMessagesToday.ContainsKey(selectedNpc) || ModEntry.npcMessagesToday[selectedNpc].Count == 0))
+            if (selectedNpc != null && firstMessageBounds.Contains(x, y) && (!ModEntry.npcMessagesToday.ContainsKey(selectedNpc) || ModEntry.npcMessagesToday[selectedNpc].Count == 0))
             {
                 string firstMessage = Game1.timeOfDay < 1200 ? $"Good morning {selectedNpc}" : Game1.timeOfDay < 1800 ? $"Good afternoon {selectedNpc}" : $"Good evening {selectedNpc}";
                 MessageManager.AddMessage(selectedNpc, $"PLAYER: {firstMessage}", isFromPlayer: true);
@@ -1322,12 +1329,12 @@ namespace Smartphone
                     HandleSocialBackNavigation();
                     return;
                 }
-                else if ( new List<string> { "appCamera", "appPhoto", "appGame", "appNotification", ExternalGroupAppState }.Contains(currentApp))
+                else if (new List<string> { "appCamera", "appPhoto", "appGame", "appNotification", ExternalGroupAppState }.Contains(currentApp))
                 {
                     if (currentApp == ExternalGroupAppState)
                         ClearCurrentExternalGroup();
 
-                    
+
                     currentApp = null;
                     return;
                 }
@@ -1572,7 +1579,7 @@ namespace Smartphone
             }
 
 
-            
+
             else if (gameCart.containsPoint(x, y) && currentApp == "appGame")
             {
                 exitThisMenu();
@@ -1738,7 +1745,7 @@ namespace Smartphone
                     currentSuggestion = new("", "");
                     return;
                 }
-                
+
                 if (currentApp != null)
                 {
                     if (currentApp == SocialAppState)
@@ -1876,7 +1883,7 @@ namespace Smartphone
 
             // Add reply to message history
             if (reply != null && reply != "")
-            { 
+            {
                 MessageManager.AddMessage(npcName, $"{npcName}: {reply}");
                 if (selectedNpc == npcName)
                     messageHistory = MessageManager.GetMessages(npcName);
@@ -2465,18 +2472,17 @@ namespace Smartphone
 
         public void UpdateNpcList()
         {
-            messageableNpcList = new List<ClickableComponent>();
+            messageableNpcList.Clear();
             Dictionary<string, long> latestTimestamps = MessageManager.GetLatestAddDictionary();
             string filter = currentMessage?.ToLower() ?? "";
 
             List<NPC> villagers = Utility.getAllVillagers()
             .Where(n =>
                 (n.IsVillager &&
-                 n.CanSocialize &&
-                 !n.IsMonster &&
-                 Game1.player.getFriendshipHeartLevelForNPC(n.Name) >= 1
-                 //|| n.Name == "Lewis" || n.Name == "Robin"
-                 )
+                n.CanSocialize &&
+                !n.IsMonster &&
+                CanMessageNpc(n)
+                )
                  && n.Name.ToLower().Contains(filter)
             )
             .OrderByDescending(npc => MessageManager.favouriteNpc.Contains(npc.Name))
@@ -2489,6 +2495,23 @@ namespace Smartphone
                 messageableNpcList.Add(new ClickableComponent(new Rectangle(0, 0, 0, 0), villagers[i].Name));
             }
         }
+
+        private static bool CanMessageNpc(NPC npc)
+        {
+            if (npc == null)
+                return false;
+
+            string requirement = ModEntry.Config?.NpcMessageRequirement ?? ModConfig.NpcRequirementFriend;
+
+            if (string.Equals(requirement, ModConfig.NpcRequirementNoRequirement, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (string.Equals(requirement, ModConfig.NpcRequirementMeet, StringComparison.OrdinalIgnoreCase))
+                return Game1.player.friendshipData.ContainsKey(npc.Name);
+
+            return Game1.player.getFriendshipHeartLevelForNPC(npc.Name) >= 1;
+        }
+
         private Texture2D CropTexture(Texture2D source, int x = 0, int y = 0, int width = 520, int height = 810)
         {
             int targetWidth = Math.Max(1, width);
@@ -2828,6 +2851,8 @@ namespace Smartphone
         {
             ApplyPhoneBackground(MessageManager.currentPhoneBackground);
 
+            string userCaptureFolderPath = GetCaptureFolderPath(PlayerPhotoFolderName);
+
             capturedImages = Directory.Exists(userCaptureFolderPath)
                 ? Directory.GetFiles(userCaptureFolderPath, "*.png")
                     .OrderByDescending(f => File.GetCreationTime(f))
@@ -2848,6 +2873,22 @@ namespace Smartphone
                 currentDisplayedImageIsSquare = false;
                 currentImageIndex = -1;
             }
+        }
+
+        private static string GetCurrentSaveFolderName()
+        {
+            return string.IsNullOrWhiteSpace(Constants.SaveFolderName)
+                ? "default"
+                : Constants.SaveFolderName;
+        }
+
+        private static string GetCaptureFolderPath(string photoFolderName)
+        {
+            return Path.Combine(
+                ModEntry.Instance.Helper.DirectoryPath,
+                "userdata",
+                GetCurrentSaveFolderName(),
+                photoFolderName);
         }
 
         private void AdjustCameraZoom(float delta)

@@ -44,6 +44,10 @@ namespace Smartphone
 
         public static void AddMessage(string npc, string message, bool addCount = true, bool isFromPlayer = false)
         {
+            if (ModEntry.phoneMenu == null) ModEntry.phoneMenu = new PhoneMenu();
+            ModEntry.phoneMenu.UpdateNpcList();
+            if (!ModEntry.phoneMenu.messageableNpcList.Select(n => n.name).ToList().Contains(npc)) return;
+            
             if (!npcMessages.ContainsKey(npc))
                 npcMessages[npc] = new List<string>();
             //npcMessages[npc].Add(message);
@@ -76,7 +80,9 @@ namespace Smartphone
 
             if (!isFromPlayer)
             {
-                Game1.addHUDMessage(new HUDMessage($"A new message from {npc}", HUDMessage.newQuest_type));
+                if (ModEntry.Config?.notifyMessage ?? true)
+                    Game1.addHUDMessage(new HUDMessage($"A new message from {npc}", HUDMessage.newQuest_type));
+
                 DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 0);
                 DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 1500);
             }

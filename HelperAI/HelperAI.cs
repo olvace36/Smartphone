@@ -115,11 +115,15 @@ namespace Smartphone
                         { "text", new { format = new { type = "text" }, verbosity = "low" } },
                         { "reasoning", chatReasoningEffort }
                     };
-                    var tools = GetToolList(npc);
-                    if (tools.Length > 0)
+
+                    if (type == "response")
                     {
-                        requestBody.Add("tools", tools);
-                        requestBody.Add("tool_choice", "auto");
+                        var tools = GetToolList(npc);
+                        if (tools.Length > 0)
+                        {
+                            requestBody.Add("tools", tools);
+                            requestBody.Add("tool_choice", "auto");
+                        }
                     }
 
                     var jsonRequest = JsonConvert.SerializeObject(requestBody);
@@ -326,8 +330,8 @@ namespace Smartphone
 
                         WORLD CONTEXT:
                         {data}
-                        Conversation Summary: {summary}
-
+                        Conversation Summary:
+                        {summary}
                         Current conversation:
                         {combined}
 
@@ -342,19 +346,41 @@ namespace Smartphone
                 }
                 else if (type == "text")
                 {
-                    var systemMessage = $@"You are an AI roleplaying as NPC {npc.Name} in Stardew Valley. Send a spontaneous text message to the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult) to invite them to hang out, or just want to say hi, or share something interesting, or ask for help, or anything that a NPC could text to the player in their daily life. Be creative and dynamic so the message is not repetitive.
-                        Relationship: {relation}.
+                    var systemMessage = $@"You are an AI roleplaying as NPC {npc.Name} in Stardew Valley. Send a text message to the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult) to start a new random conversation.
+                        Current relationship with player: {relation}.
                         Personality: {npcCharacteristic}
 
                         WORLD CONTEXT:
                         {data}
-                        Relationship Summary: {summary}
+                        Conversation Summary:
+                        {summary}
+                        Current conversation:
+                        {combined}
 
                         YOUR DIRECTIVES:
-                        1. Keep the text under 40 words. Be creative, in-character, and match your relationship level.
-                        2. SLICE OF LIFE: Use your current location, the time ({timeFormatted}), and the weather to mention something mundane or interesting happening right now (e.g., ""The wind is howling outside my house,"" or ""I'm incredibly bored at the shop today"").
-                        3. DO NOT act like an AI assistant. Act exactly like a real person sending a casual text.
-                        4. SENDING GIFTS: If you want to surprise the player with an item, call the Send_Gift tool and text them that you are sending something via the mail.";
+                        1. Keep the text under 30 words. Be creative, in-character, and match your relationship level.
+                        2. SLICE OF LIFE: You are not limited to any topic, you can say anything happening around you or in the world, or just want to say hi, or share something interesting, or ask for help, or anything that a NPC could text to the player in their daily life.Be creative and dynamic so the message is not repetitive.";
+
+                    return systemMessage;
+                }
+                else if (type == "invite")
+                {
+                    object[] possibleEvent = GetToolList(npc, listOnly: true);
+                    var systemMessage = $@"You are an AI roleplaying as NPC {npc.Name} in Stardew Valley. Send a text message to the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult) to invite them to hang out.
+                        Available activities you can invite the player to: {string.Join(", ", possibleEvent)}.
+                        Current relationship with player: {relation}.
+                        Personality: {npcCharacteristic}
+
+                        WORLD CONTEXT:
+                        {data}
+                        Conversation Summary:
+                        {summary}
+                        Current conversation:
+                        {combined}
+
+                        YOUR DIRECTIVES:
+                        1. You are given a list of activities you can invite the player to. If your relationship with the player is good enough and the context is appropriate, you can invite them.
+                        2. Send a text message under 30 words ask player if they want to hangout.";
 
                     return systemMessage;
                 }
@@ -748,7 +774,7 @@ namespace Smartphone
             }
         }
 
-        public static object[] GetToolList(NPC npc)
+        public static object[] GetToolList(NPC npc, bool listOnly = false)
         {
             int heartLevel = 0;
             if (Game1.player.friendshipData.ContainsKey(npc.Name)) heartLevel = (int)Game1.player.friendshipData[npc.Name].Points / 250;
@@ -831,6 +857,10 @@ namespace Smartphone
                 var allowedEvents = registeredEvents
                     .Select(evt => evt.EventType)
                     .ToArray();
+
+                if (listOnly)
+                    return allowedEvents;
+
                 var readableEventNames = string.Join(", ", registeredEvents.Select(evt => evt.DisplayName));
                 var extraToolDescriptions = string.Join(
                     " ",

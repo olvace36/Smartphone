@@ -42,12 +42,35 @@ namespace Smartphone
         private const int SocialProfilePostsHeaderHeight = 46;
         private const int SocialProfileStatIconSize = 18;
         private const int SocialLikeTooltipMaxNames = 5;
+        private const int SocialNotificationButtonSize = 40;
+        private const int SocialNotificationCardPadding = 14;
+        private const int SocialNotificationCardVerticalPadding = 12;
+        private const int SocialNotificationCardWidth = 500;
+        private const int SocialNotificationCardSpacing = 12;
+        private const int SocialNotificationPreviewWordCount = 4;
 
         private enum SocialCardRenderContext
         {
             Feed,
             Detail,
             Profile
+        }
+
+        private enum SocialNotificationType
+        {
+            PlayerPostComment,
+            FavouriteNpcPost,
+            TaggedInPost,
+            TaggedInComment
+        }
+
+        private sealed class SocialNotificationEntry
+        {
+            public string Key { get; init; } = "";
+            public string PostId { get; init; } = "";
+            public string Message { get; init; } = "";
+            public long SortKey { get; init; }
+            public SocialNotificationType Type { get; init; }
         }
 
         private sealed class SocialProfileClickableTarget
@@ -71,18 +94,23 @@ namespace Smartphone
         private readonly Dictionary<string, string> socialFeedTagHoverText = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> socialProfileTagHoverText = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, int> socialFeedPostImageIndices = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Rectangle> socialNotificationItemBounds = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, SocialNotificationEntry> socialNotificationItemsByKey = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Texture2D> socialImageCache = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> socialFailedImagePaths = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> socialNotifiedPostIds = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<SocialProfileClickableTarget> socialFeedProfileIconBounds = new();
         private readonly List<SocialProfileClickableTarget> socialDetailProfileIconBounds = new();
         private readonly List<SocialProfileClickableTarget> socialProfileIconBounds = new();
 
         private Rectangle socialFeedOpenCreatePostBounds = Rectangle.Empty;
         private Rectangle socialFeedOpenProfileBounds = Rectangle.Empty;
+        private Rectangle socialFeedOpenNotificationBounds = Rectangle.Empty;
         private Rectangle socialCreateSelectionToggleBounds = Rectangle.Empty;
         private Rectangle socialCreatePrevImageBounds = Rectangle.Empty;
         private Rectangle socialCreateNextImageBounds = Rectangle.Empty;
         private Rectangle socialCreateSubmitBounds = Rectangle.Empty;
+        private Rectangle socialNotificationClearAllBounds = Rectangle.Empty;
         private Rectangle socialDetailCommentSendBounds = Rectangle.Empty;
         private Rectangle socialDetailLikeBounds = Rectangle.Empty;
         private Rectangle socialDetailLikeHoverBounds = Rectangle.Empty;
@@ -97,6 +125,7 @@ namespace Smartphone
         private string socialCommentDraft = "";
         private bool socialCreateMenuOpen = false;
         private bool socialProfileMenuOpen = false;
+        private bool socialNotificationMenuOpen = false;
         private bool socialDetailReturnToProfile = false;
         private string socialDetailReturnProfileActorName = "";
         private bool socialDetailReturnProfileActorIsPlayer = false;
@@ -108,6 +137,8 @@ namespace Smartphone
 
         private float socialFeedScrollOffset = 0f;
         private float socialFeedScrollTarget = 0f;
+        private float socialNotificationScrollOffset = 0f;
+        private float socialNotificationScrollTarget = 0f;
         private float socialProfileScrollOffset = 0f;
         private float socialProfileScrollTarget = 0f;
         private float socialDetailScrollOffset = 0f;
@@ -156,6 +187,12 @@ namespace Smartphone
                 return true;
             }
 
+            if (socialNotificationMenuOpen)
+            {
+                CloseSocialNotificationMenu();
+                return true;
+            }
+
             if (!string.IsNullOrWhiteSpace(selectedSocialPostId))
             {
                 selectedSocialPostId = "";
@@ -192,7 +229,6 @@ namespace Smartphone
 
         private void CloseSocialApp()
         {
-            StardewConnectManager.MarkSocialAppVisitedNow();
             ResetSocialState();
             currentApp = null;
         }
@@ -206,6 +242,9 @@ namespace Smartphone
                 EnsureCreateImageCandidatesLoaded();
 
             List<StardewConnectPost> posts = StardewConnectManager.GetPostsSnapshot();
+            PruneDismissedSocialNotifications(posts);
+            RefreshSocialNotifiedPostIds(posts);
+
             var postIds = new HashSet<string>(posts.Select(post => post.Id), StringComparer.OrdinalIgnoreCase);
             foreach (string staleId in socialFeedPostImageIndices.Keys.Where(id => !postIds.Contains(id)).ToList())
                 socialFeedPostImageIndices.Remove(staleId);
@@ -256,6 +295,12 @@ namespace Smartphone
                 return;
             }
 
+            if (socialNotificationMenuOpen)
+            {
+                ClampSocialNotificationScroll(GetActiveSocialNotifications(posts));
+                return;
+            }
+
             ClampSocialFeedScroll(posts);
         }
 
@@ -267,6 +312,7 @@ namespace Smartphone
             socialCommentDraft = "";
             socialCreateMenuOpen = false;
             socialProfileMenuOpen = false;
+            socialNotificationMenuOpen = false;
             socialDetailReturnToProfile = false;
             socialDetailReturnProfileActorName = "";
             socialDetailReturnProfileActorIsPlayer = false;
@@ -275,6 +321,8 @@ namespace Smartphone
             socialCreateCandidateImages.Clear();
             socialCreateCandidateImageIndex = -1;
             socialDetailImageIndex = 0;
+            socialNotificationScrollOffset = 0f;
+            socialNotificationScrollTarget = 0f;
             socialProfileScrollOffset = 0f;
             socialProfileScrollTarget = 0f;
             socialDetailScrollOffset = 0f;
@@ -292,6 +340,7 @@ namespace Smartphone
             socialCommentDraft = "";
             socialCreateMenuOpen = false;
             socialProfileMenuOpen = false;
+            socialNotificationMenuOpen = false;
             socialDetailReturnToProfile = false;
             socialDetailReturnProfileActorName = "";
             socialDetailReturnProfileActorIsPlayer = false;
@@ -302,6 +351,8 @@ namespace Smartphone
 
             socialFeedScrollOffset = 0f;
             socialFeedScrollTarget = 0f;
+            socialNotificationScrollOffset = 0f;
+            socialNotificationScrollTarget = 0f;
             socialProfileScrollOffset = 0f;
             socialProfileScrollTarget = 0f;
             socialDetailScrollOffset = 0f;
@@ -324,16 +375,21 @@ namespace Smartphone
             socialDetailTagHoverBounds = Rectangle.Empty;
             socialDetailTagHoverText = "";
             socialFeedPostImageIndices.Clear();
+            socialNotificationItemBounds.Clear();
+            socialNotificationItemsByKey.Clear();
+            socialNotifiedPostIds.Clear();
             socialFeedProfileIconBounds.Clear();
             socialDetailProfileIconBounds.Clear();
             socialProfileIconBounds.Clear();
 
             socialFeedOpenCreatePostBounds = Rectangle.Empty;
             socialFeedOpenProfileBounds = Rectangle.Empty;
+            socialFeedOpenNotificationBounds = Rectangle.Empty;
             socialCreateSelectionToggleBounds = Rectangle.Empty;
             socialCreatePrevImageBounds = Rectangle.Empty;
             socialCreateNextImageBounds = Rectangle.Empty;
             socialCreateSubmitBounds = Rectangle.Empty;
+            socialNotificationClearAllBounds = Rectangle.Empty;
             socialDetailCommentSendBounds = Rectangle.Empty;
             socialDetailLikeBounds = Rectangle.Empty;
             socialDetailImagePrevBounds = Rectangle.Empty;
@@ -342,10 +398,7 @@ namespace Smartphone
 
         private int GetTotalSocialNotificationCount()
         {
-            List<StardewConnectPost> posts = StardewConnectManager.GetPostsSnapshot();
-            int playerPostNewCommentCount = posts.Count(IsPlayerPostWithNewCommentNotification);
-            int favouriteNpcNewPostCount = posts.Count(IsFavouriteNpcPostNotification);
-            return playerPostNewCommentCount + favouriteNpcNewPostCount;
+            return GetActiveSocialNotifications().Count;
         }
 
         private bool IsPlayerPostWithNewCommentNotification(StardewConnectPost post)
@@ -372,7 +425,7 @@ namespace Smartphone
 
         private bool IsFavouriteNpcPostNotification(StardewConnectPost post)
         {
-            if (post == null || post.AuthorIsPlayer || !StardewConnectManager.IsPostOnOrAfterLastSocialVisit(post))
+            if (post == null || post.AuthorIsPlayer)
                 return false;
 
             return IsFavouriteNpc(post.AuthorName);
@@ -380,8 +433,9 @@ namespace Smartphone
 
         private bool IsSocialNotificationPost(StardewConnectPost post)
         {
-            return IsPlayerPostWithNewCommentNotification(post)
-                || IsFavouriteNpcPostNotification(post);
+            return post != null
+                && !string.IsNullOrWhiteSpace(post.Id)
+                && socialNotifiedPostIds.Contains(post.Id);
         }
 
         private bool IsFavouriteNpc(string npcName)
@@ -390,6 +444,347 @@ namespace Smartphone
                 return false;
 
             return MessageManager.favouriteNpc.Any(name => string.Equals(name, npcName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private List<SocialNotificationEntry> GetActiveSocialNotifications(List<StardewConnectPost>? posts = null)
+        {
+            List<SocialNotificationEntry> allEntries = BuildSocialNotificationEntries(posts ?? StardewConnectManager.GetPostsSnapshot());
+            if (allEntries.Count == 0)
+                return allEntries;
+
+            return allEntries
+                .Where(entry => !StardewConnectManager.IsSocialNotificationDismissed(entry.Key))
+                .OrderByDescending(entry => entry.SortKey)
+                .ThenBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private List<SocialNotificationEntry> RefreshSocialNotifiedPostIds(List<StardewConnectPost>? posts = null)
+        {
+            List<SocialNotificationEntry> activeEntries = GetActiveSocialNotifications(posts);
+
+            socialNotifiedPostIds.Clear();
+            foreach (SocialNotificationEntry entry in activeEntries)
+            {
+                if (!string.IsNullOrWhiteSpace(entry.PostId))
+                    socialNotifiedPostIds.Add(entry.PostId);
+            }
+
+            return activeEntries;
+        }
+
+        private void PruneDismissedSocialNotifications(List<StardewConnectPost>? posts = null)
+        {
+            List<SocialNotificationEntry> allEntries = BuildSocialNotificationEntries(posts ?? StardewConnectManager.GetPostsSnapshot());
+            StardewConnectManager.PruneSocialNotificationDismissals(allEntries.Select(entry => entry.Key));
+        }
+
+        private List<SocialNotificationEntry> BuildSocialNotificationEntries(List<StardewConnectPost> posts)
+        {
+            var entries = new List<SocialNotificationEntry>();
+            if (posts == null || posts.Count == 0)
+                return entries;
+
+            foreach (StardewConnectPost post in posts)
+            {
+                if (post == null || string.IsNullOrWhiteSpace(post.Id))
+                    continue;
+
+                SocialNotificationEntry? playerCommentEntry = BuildPlayerCommentNotification(post);
+                if (playerCommentEntry != null)
+                    entries.Add(playerCommentEntry);
+
+                SocialNotificationEntry? favouriteNpcPostEntry = BuildFavouriteNpcPostNotification(post);
+                if (favouriteNpcPostEntry != null)
+                    entries.Add(favouriteNpcPostEntry);
+
+                SocialNotificationEntry? taggedInPostEntry = BuildTaggedInPostNotification(post);
+                if (taggedInPostEntry != null)
+                    entries.Add(taggedInPostEntry);
+
+                SocialNotificationEntry? taggedInCommentEntry = BuildTaggedInCommentNotification(post);
+                if (taggedInCommentEntry != null)
+                    entries.Add(taggedInCommentEntry);
+            }
+
+            return entries;
+        }
+
+        private SocialNotificationEntry? BuildPlayerCommentNotification(StardewConnectPost post)
+        {
+            if (!IsPlayerPostWithNewCommentNotification(post))
+                return null;
+
+            post.Comments ??= new List<StardewConnectComment>();
+            int readCount = Math.Clamp(post.PlayerReadCommentCount, 0, post.Comments.Count);
+
+            List<StardewConnectComment> unreadNpcComments = post.Comments
+                .Skip(readCount)
+                .Where(comment => comment != null && !comment.AuthorIsPlayer)
+                .ToList();
+
+            if (unreadNpcComments.Count == 0)
+                return null;
+
+            StardewConnectComment firstUnread = unreadNpcComments[0];
+            StardewConnectComment latestUnread = unreadNpcComments[unreadNpcComments.Count - 1];
+            int unreadCount = unreadNpcComments.Count;
+
+            string authorName = ResolveSocialProfileActorName(firstUnread.AuthorName, firstUnread.AuthorIsPlayer);
+            if (string.IsNullOrWhiteSpace(authorName))
+                authorName = "Someone";
+
+            string message = unreadCount <= 1
+                ? $"{authorName} commented on your post (1 new comment)"
+                : $"{authorName} and {unreadCount - 1} others commented on your post ({unreadCount} new comments)";
+
+            return new SocialNotificationEntry
+            {
+                Key = BuildSocialNotificationKey(SocialNotificationType.PlayerPostComment, post.Id, $"{latestUnread.Id}|{unreadCount}"),
+                PostId = post.Id,
+                Message = message,
+                SortKey = BuildSocialChronologicalSortKey(latestUnread.Season, latestUnread.Day, latestUnread.Year, latestUnread.TimeOfDay),
+                Type = SocialNotificationType.PlayerPostComment
+            };
+        }
+
+        private SocialNotificationEntry? BuildFavouriteNpcPostNotification(StardewConnectPost post)
+        {
+            if (!IsFavouriteNpcPostNotification(post))
+                return null;
+
+            string authorName = ResolveSocialProfileActorName(post.AuthorName, post.AuthorIsPlayer);
+            if (string.IsNullOrWhiteSpace(authorName))
+                authorName = "Someone";
+
+            int attachmentCount = StardewConnectManager.GetAttachmentCount(post);
+            string message;
+            if (attachmentCount > 0)
+            {
+                string label = attachmentCount == 1 ? "image" : "images";
+                message = $"{authorName} posted {attachmentCount} new {label}";
+            }
+            else
+            {
+                string preview = BuildSocialNotificationPostPreview(post.Text, SocialNotificationPreviewWordCount);
+                message = $"{authorName} posted a new post: {preview}";
+            }
+
+            return new SocialNotificationEntry
+            {
+                Key = BuildSocialNotificationKey(SocialNotificationType.FavouriteNpcPost, post.Id),
+                PostId = post.Id,
+                Message = message,
+                SortKey = BuildSocialChronologicalSortKey(post.Season, post.Day, post.Year, post.TimeOfDay),
+                Type = SocialNotificationType.FavouriteNpcPost
+            };
+        }
+
+        private SocialNotificationEntry? BuildTaggedInPostNotification(StardewConnectPost post)
+        {
+            if (post == null || post.AuthorIsPlayer)
+                return null;
+
+            if (!PostTagsPlayer(post))
+                return null;
+
+            string authorName = ResolveSocialProfileActorName(post.AuthorName, post.AuthorIsPlayer);
+            if (string.IsNullOrWhiteSpace(authorName))
+                authorName = "Someone";
+
+            return new SocialNotificationEntry
+            {
+                Key = BuildSocialNotificationKey(SocialNotificationType.TaggedInPost, post.Id),
+                PostId = post.Id,
+                Message = $"{authorName} tagged you in a post",
+                SortKey = BuildSocialChronologicalSortKey(post.Season, post.Day, post.Year, post.TimeOfDay),
+                Type = SocialNotificationType.TaggedInPost
+            };
+        }
+
+        private SocialNotificationEntry? BuildTaggedInCommentNotification(StardewConnectPost post)
+        {
+            if (post?.Comments == null || post.Comments.Count == 0)
+                return null;
+
+            StardewConnectComment? latestTaggedComment = null;
+            for (int i = post.Comments.Count - 1; i >= 0; i--)
+            {
+                StardewConnectComment comment = post.Comments[i];
+                if (comment == null || comment.AuthorIsPlayer)
+                    continue;
+
+                if (!ContainsPlayerMention(comment.Text))
+                    continue;
+
+                latestTaggedComment = comment;
+                break;
+            }
+
+            if (latestTaggedComment == null)
+                return null;
+
+            string authorName = ResolveSocialProfileActorName(latestTaggedComment.AuthorName, latestTaggedComment.AuthorIsPlayer);
+            if (string.IsNullOrWhiteSpace(authorName))
+                authorName = "Someone";
+
+            return new SocialNotificationEntry
+            {
+                Key = BuildSocialNotificationKey(SocialNotificationType.TaggedInComment, post.Id, latestTaggedComment.Id),
+                PostId = post.Id,
+                Message = $"{authorName} tagged you in a comment",
+                SortKey = BuildSocialChronologicalSortKey(
+                    latestTaggedComment.Season,
+                    latestTaggedComment.Day,
+                    latestTaggedComment.Year,
+                    latestTaggedComment.TimeOfDay),
+                Type = SocialNotificationType.TaggedInComment
+            };
+        }
+
+        private bool PostTagsPlayer(StardewConnectPost post)
+        {
+            if (post == null)
+                return false;
+
+            string postTag = StardewConnectManager.GetPostTag(post);
+            if (ContainsTag(postTag, "#Player"))
+                return true;
+
+            return ContainsPlayerMention(post.Text);
+        }
+
+        private static bool ContainsTag(string tagText, string expectedTag)
+        {
+            if (string.IsNullOrWhiteSpace(tagText) || string.IsNullOrWhiteSpace(expectedTag))
+                return false;
+
+            foreach (string rawTag in tagText.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                string trimmed = (rawTag ?? "").Trim();
+                if (string.Equals(trimmed, expectedTag, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private bool ContainsPlayerMention(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            string playerName = (Game1.player?.Name ?? "Player").Trim();
+            return ContainsMentionToken(text, "Player")
+                || (!string.IsNullOrWhiteSpace(playerName) && ContainsMentionToken(text, playerName));
+        }
+
+        private static bool ContainsMentionToken(string text, string token)
+        {
+            if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(token))
+                return false;
+
+            return text.IndexOf("@" + token, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static string BuildSocialNotificationKey(SocialNotificationType type, string postId, string discriminator = "")
+        {
+            string safePostId = postId ?? "";
+            if (string.IsNullOrWhiteSpace(discriminator))
+                return $"{type}|{safePostId}";
+
+            return $"{type}|{safePostId}|{discriminator}";
+        }
+
+        private static string BuildSocialNotificationPostPreview(string text, int maxWords)
+        {
+            string trimmed = (text ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(trimmed))
+                return "...";
+
+            string[] words = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            int safeWordCount = Math.Max(1, maxWords);
+            if (words.Length <= safeWordCount)
+                return trimmed;
+
+            return string.Join(" ", words.Take(safeWordCount)) + " ...";
+        }
+
+        private void DismissSocialNotificationsForPost(string postId)
+        {
+            if (string.IsNullOrWhiteSpace(postId))
+                return;
+
+            List<SocialNotificationEntry> entries = GetActiveSocialNotifications();
+            var notificationKeys = new List<string>();
+            foreach (SocialNotificationEntry entry in entries)
+            {
+                if (!string.Equals(entry.PostId, postId, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                notificationKeys.Add(entry.Key);
+            }
+
+            StardewConnectManager.DismissSocialNotifications(notificationKeys);
+            StardewConnectManager.MarkPostCommentsRead(postId);
+            RefreshSocialNotifiedPostIds();
+        }
+
+        private void DismissAllSocialNotifications()
+        {
+            List<SocialNotificationEntry> entries = GetActiveSocialNotifications();
+            if (entries.Count == 0)
+                return;
+
+            StardewConnectManager.DismissSocialNotifications(entries.Select(entry => entry.Key));
+
+            foreach (string postId in entries.Select(entry => entry.PostId).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase))
+                StardewConnectManager.MarkPostCommentsRead(postId);
+
+            RefreshSocialNotifiedPostIds();
+        }
+
+        private static long BuildSocialChronologicalSortKey(string season, int day, int year, int timeOfDay)
+        {
+            int dayIndex = GetSocialAbsoluteDayIndex(season, day, year);
+            int normalizedTimeOfDay = NormalizeSocialTimeOfDay(timeOfDay);
+            int hour = normalizedTimeOfDay / 100;
+            int minute = normalizedTimeOfDay % 100;
+            int totalMinutes = (hour * 60) + minute;
+
+            return ((long)dayIndex * 2000L) + totalMinutes;
+        }
+
+        private static int GetSocialAbsoluteDayIndex(string season, int day, int year)
+        {
+            int seasonIndex = (season ?? "").Trim().ToLowerInvariant() switch
+            {
+                "spring" => 0,
+                "summer" => 1,
+                "fall" => 2,
+                "winter" => 3,
+                _ => 0
+            };
+
+            int safeDay = Math.Clamp(day, 1, 28);
+            int safeYear = Math.Max(1, year);
+
+            return ((safeYear - 1) * 4 * 28)
+                + (seasonIndex * 28)
+                + (safeDay - 1);
+        }
+
+        private static int NormalizeSocialTimeOfDay(int rawTime)
+        {
+            if (rawTime <= 0)
+                return 600;
+
+            int hour = rawTime / 100;
+            int minute = rawTime % 100;
+
+            hour = Math.Clamp(hour, 0, 26);
+            minute = Math.Clamp(minute, 0, 59);
+            return (hour * 100) + minute;
         }
 
         private void DrawSocialApp(SpriteBatch b)
@@ -407,6 +802,12 @@ namespace Smartphone
             if (socialCreateMenuOpen)
             {
                 DrawSocialCreatePostMenu(b);
+                return;
+            }
+
+            if (socialNotificationMenuOpen)
+            {
+                DrawSocialNotificationMenu(b);
                 return;
             }
 
@@ -451,6 +852,8 @@ namespace Smartphone
             socialDetailLikeHoverBounds = Rectangle.Empty;
             socialDetailTagHoverBounds = Rectangle.Empty;
             socialDetailTagHoverText = "";
+            socialNotificationItemBounds.Clear();
+            socialNotificationItemsByKey.Clear();
 
             socialFeedProfileIconBounds.Clear();
             socialDetailProfileIconBounds.Clear();
@@ -460,13 +863,17 @@ namespace Smartphone
             socialCreatePrevImageBounds = Rectangle.Empty;
             socialCreateNextImageBounds = Rectangle.Empty;
             socialCreateSubmitBounds = Rectangle.Empty;
+            socialNotificationClearAllBounds = Rectangle.Empty;
             socialDetailLikeBounds = Rectangle.Empty;
             socialDetailCommentSendBounds = Rectangle.Empty;
             socialDetailImagePrevBounds = Rectangle.Empty;
             socialDetailImageNextBounds = Rectangle.Empty;
             socialFeedOpenProfileBounds = Rectangle.Empty;
+            socialFeedOpenNotificationBounds = Rectangle.Empty;
 
             List<StardewConnectPost> posts = StardewConnectManager.GetPostsSnapshot();
+            PruneDismissedSocialNotifications(posts);
+            RefreshSocialNotifiedPostIds(posts);
             ClampSocialFeedScroll(posts);
 
             b.End();
@@ -533,8 +940,145 @@ namespace Smartphone
                 actorIsPlayer: true,
                 socialFeedOpenProfileBounds);
 
+            socialFeedOpenNotificationBounds = new Rectangle(
+                socialFeedOpenProfileBounds.Right + 10,
+                socialFeedOpenProfileBounds.Y,
+                SocialNotificationButtonSize,
+                SocialNotificationButtonSize);
+
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.menuTexture,
+                new Rectangle(0, 256, 60, 60),
+                socialFeedOpenNotificationBounds.X,
+                socialFeedOpenNotificationBounds.Y,
+                socialFeedOpenNotificationBounds.Width,
+                socialFeedOpenNotificationBounds.Height,
+                new Color(255, 255, 255, 220),
+                1f,
+                false);
+
+            if (textureAppNotification != null)
+            {
+                Rectangle iconBounds = new Rectangle(
+                    socialFeedOpenNotificationBounds.X + 6,
+                    socialFeedOpenNotificationBounds.Y + 6,
+                    socialFeedOpenNotificationBounds.Width - 12,
+                    socialFeedOpenNotificationBounds.Height - 12);
+                b.Draw(textureAppNotification, iconBounds, Color.White);
+            }
+
+            int socialNotificationCount = GetTotalSocialNotificationCount();
+            if (socialNotificationCount > 0)
+                DrawSocialUnreadBadge(b, socialFeedOpenNotificationBounds.Right + 8, socialFeedOpenNotificationBounds.Y - 4, socialNotificationCount);
+
             DrawSocialLikeTooltipIfHovered(b, posts, socialFeedLikeHoverBounds);
             DrawSocialTagTooltipIfHovered(b, posts, socialFeedTagHoverBounds, socialFeedTagHoverText, SocialContentViewportRect);
+        }
+
+        private void DrawSocialNotificationMenu(SpriteBatch b)
+        {
+            socialFeedPostBounds.Clear();
+            socialFeedLikeBounds.Clear();
+            socialFeedCommentBounds.Clear();
+            socialFeedPostImagePrevBounds.Clear();
+            socialFeedPostImageNextBounds.Clear();
+            socialProfilePostBounds.Clear();
+            socialProfileLikeBounds.Clear();
+            socialFeedLikeHoverBounds.Clear();
+            socialProfileLikeHoverBounds.Clear();
+            socialFeedTagHoverBounds.Clear();
+            socialProfileTagHoverBounds.Clear();
+            socialFeedTagHoverText.Clear();
+            socialProfileTagHoverText.Clear();
+            socialDetailLikeHoverBounds = Rectangle.Empty;
+            socialDetailTagHoverBounds = Rectangle.Empty;
+            socialDetailTagHoverText = "";
+
+            socialNotificationItemBounds.Clear();
+            socialNotificationItemsByKey.Clear();
+
+            socialFeedProfileIconBounds.Clear();
+            socialDetailProfileIconBounds.Clear();
+            socialProfileIconBounds.Clear();
+
+            socialFeedOpenCreatePostBounds = Rectangle.Empty;
+            socialFeedOpenProfileBounds = Rectangle.Empty;
+            socialFeedOpenNotificationBounds = Rectangle.Empty;
+            socialCreateSelectionToggleBounds = Rectangle.Empty;
+            socialCreatePrevImageBounds = Rectangle.Empty;
+            socialCreateNextImageBounds = Rectangle.Empty;
+            socialCreateSubmitBounds = Rectangle.Empty;
+            socialDetailLikeBounds = Rectangle.Empty;
+            socialDetailCommentSendBounds = Rectangle.Empty;
+            socialDetailImagePrevBounds = Rectangle.Empty;
+            socialDetailImageNextBounds = Rectangle.Empty;
+
+            List<StardewConnectPost> posts = StardewConnectManager.GetPostsSnapshot();
+            PruneDismissedSocialNotifications(posts);
+            List<SocialNotificationEntry> notifications = RefreshSocialNotifiedPostIds(posts);
+            ClampSocialNotificationScroll(notifications);
+
+            b.End();
+
+            Rectangle clipRect = SocialContentViewportRect;
+            Game1.graphics.GraphicsDevice.ScissorRectangle = clipRect;
+
+            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState() { ScissorTestEnable = true });
+
+            int cardX = xPositionOnScreen + SocialPostCardX;
+            int cursorY = yPositionOnScreen + SocialViewportYOffset + SocialPostTopPadding - (int)MathF.Floor(socialNotificationScrollOffset);
+            int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
+
+            if (notifications.Count == 0)
+            {
+                b.DrawString(Game1.smallFont, "No notification.", new Vector2(cardX + 14, cursorY + 10), Color.Black);
+            }
+            else
+            {
+                foreach (SocialNotificationEntry entry in notifications)
+                {
+                    List<string> lines = SplitTextIntoLines(
+                        entry.Message,
+                        Game1.smallFont,
+                        SocialNotificationCardWidth - (SocialNotificationCardPadding * 2));
+                    if (lines.Count == 0)
+                        lines.Add("");
+
+                    int cardHeight = (lines.Count * lineHeight) + (SocialNotificationCardVerticalPadding * 2);
+                    Rectangle cardBounds = new Rectangle(cardX, cursorY, SocialNotificationCardWidth, cardHeight);
+
+                    IClickableMenu.drawTextureBox(
+                        b,
+                        Game1.menuTexture,
+                        new Rectangle(0, 256, 60, 60),
+                        cardBounds.X,
+                        cardBounds.Y,
+                        cardBounds.Width,
+                        cardBounds.Height,
+                        new Color(255, 255, 255, 230),
+                        1f,
+                        false);
+
+                    int textY = cardBounds.Y + SocialNotificationCardVerticalPadding;
+                    foreach (string line in lines)
+                    {
+                        b.DrawString(Game1.smallFont, line, new Vector2(cardBounds.X + SocialNotificationCardPadding, textY), Color.Black);
+                        textY += lineHeight;
+                    }
+
+                    socialNotificationItemBounds[entry.Key] = cardBounds;
+                    socialNotificationItemsByKey[entry.Key] = entry;
+
+                    cursorY += cardHeight + SocialNotificationCardSpacing;
+                }
+            }
+
+            b.End();
+            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+
+            socialNotificationClearAllBounds = okButton.bounds;
+            okButton.draw(b);
         }
 
         private void DrawSocialDetail(SpriteBatch b, StardewConnectPost selectedPost)
@@ -555,6 +1099,8 @@ namespace Smartphone
             socialDetailLikeHoverBounds = Rectangle.Empty;
             socialDetailTagHoverBounds = Rectangle.Empty;
             socialDetailTagHoverText = "";
+            socialNotificationItemBounds.Clear();
+            socialNotificationItemsByKey.Clear();
 
             socialFeedProfileIconBounds.Clear();
             socialDetailProfileIconBounds.Clear();
@@ -562,11 +1108,14 @@ namespace Smartphone
 
             socialFeedOpenCreatePostBounds = Rectangle.Empty;
             socialFeedOpenProfileBounds = Rectangle.Empty;
+            socialFeedOpenNotificationBounds = Rectangle.Empty;
             socialCreateSelectionToggleBounds = Rectangle.Empty;
             socialCreatePrevImageBounds = Rectangle.Empty;
             socialCreateNextImageBounds = Rectangle.Empty;
             socialCreateSubmitBounds = Rectangle.Empty;
+            socialNotificationClearAllBounds = Rectangle.Empty;
 
+            RefreshSocialNotifiedPostIds(StardewConnectManager.GetPostsSnapshot());
             ClampSocialDetailScroll(selectedPost);
 
             int attachmentCount = StardewConnectManager.GetAttachmentCount(selectedPost);
@@ -614,6 +1163,20 @@ namespace Smartphone
             socialDetailCommentSendBounds = okButton.bounds;
             okButton.draw(b);
 
+            if (selectedPost.AuthorIsPlayer)
+            {
+                b.Draw(
+                    removeButton.texture,
+                    new Vector2(removeButton.bounds.X, removeButton.bounds.Y),
+                    removeButton.sourceRect,
+                    Color.White * 0.8f,
+                    0f,
+                    Vector2.Zero,
+                    removeButton.scale,
+                    SpriteEffects.None,
+                    1f);
+            }
+
             DrawSocialLikeTooltipIfHovered(b, selectedPost, socialDetailLikeHoverBounds);
             DrawSocialTagTooltipIfHovered(b, selectedPost, socialDetailTagHoverBounds, socialDetailTagHoverText, GetSocialDetailViewportRect());
 
@@ -641,11 +1204,15 @@ namespace Smartphone
             socialDetailLikeHoverBounds = Rectangle.Empty;
             socialDetailTagHoverBounds = Rectangle.Empty;
             socialDetailTagHoverText = "";
+            socialNotificationItemBounds.Clear();
+            socialNotificationItemsByKey.Clear();
             socialFeedProfileIconBounds.Clear();
             socialDetailProfileIconBounds.Clear();
             socialProfileIconBounds.Clear();
             socialFeedOpenCreatePostBounds = Rectangle.Empty;
             socialFeedOpenProfileBounds = Rectangle.Empty;
+            socialFeedOpenNotificationBounds = Rectangle.Empty;
+            socialNotificationClearAllBounds = Rectangle.Empty;
             socialDetailLikeBounds = Rectangle.Empty;
             socialDetailCommentSendBounds = Rectangle.Empty;
             socialDetailImagePrevBounds = Rectangle.Empty;
@@ -812,6 +1379,8 @@ namespace Smartphone
             socialDetailLikeHoverBounds = Rectangle.Empty;
             socialDetailTagHoverBounds = Rectangle.Empty;
             socialDetailTagHoverText = "";
+            socialNotificationItemBounds.Clear();
+            socialNotificationItemsByKey.Clear();
 
             socialFeedProfileIconBounds.Clear();
             socialDetailProfileIconBounds.Clear();
@@ -819,16 +1388,19 @@ namespace Smartphone
 
             socialFeedOpenCreatePostBounds = Rectangle.Empty;
             socialFeedOpenProfileBounds = Rectangle.Empty;
+            socialFeedOpenNotificationBounds = Rectangle.Empty;
             socialCreateSelectionToggleBounds = Rectangle.Empty;
             socialCreatePrevImageBounds = Rectangle.Empty;
             socialCreateNextImageBounds = Rectangle.Empty;
             socialCreateSubmitBounds = Rectangle.Empty;
+            socialNotificationClearAllBounds = Rectangle.Empty;
             socialDetailLikeBounds = Rectangle.Empty;
             socialDetailCommentSendBounds = Rectangle.Empty;
             socialDetailImagePrevBounds = Rectangle.Empty;
             socialDetailImageNextBounds = Rectangle.Empty;
 
             List<StardewConnectPost> profilePosts = GetSelectedProfilePosts();
+            RefreshSocialNotifiedPostIds(StardewConnectManager.GetPostsSnapshot());
             ClampSocialProfileScroll(profilePosts);
 
             StardewConnectProfileStats stats = StardewConnectManager.GetProfileStatsSnapshot(
@@ -1911,6 +2483,9 @@ namespace Smartphone
             if (socialCreateMenuOpen)
                 return HandleSocialCreateMenuClick(x, y);
 
+            if (socialNotificationMenuOpen)
+                return HandleSocialNotificationMenuClick(x, y);
+
             if (socialProfileMenuOpen)
                 return HandleSocialProfileMenuClick(x, y);
 
@@ -1926,6 +2501,13 @@ namespace Smartphone
                 if (socialFeedOpenProfileBounds.Contains(x, y))
                 {
                     OpenSocialProfile(Game1.player?.Name ?? "Player", actorIsPlayer: true);
+                    Game1.playSound("smallSelect");
+                    return true;
+                }
+
+                if (socialFeedOpenNotificationBounds.Contains(x, y))
+                {
+                    OpenSocialNotificationMenu();
                     Game1.playSound("smallSelect");
                     return true;
                 }
@@ -1995,6 +2577,15 @@ namespace Smartphone
 
             Rectangle detailViewport = GetSocialDetailViewportRect();
 
+            StardewConnectPost? selectedPost = StardewConnectManager.GetPost(selectedSocialPostId);
+
+            if (selectedPost != null && selectedPost.AuthorIsPlayer && removeButton.containsPoint(x, y))
+            {
+                bool deleted = TryDeleteSelectedSocialPost(selectedPost);
+                Game1.playSound(deleted ? "trashcan" : "cancel");
+                return true;
+            }
+
             foreach (SocialProfileClickableTarget target in socialDetailProfileIconBounds)
             {
                 if (!IsPointOnVisibleBounds(target.Bounds, x, y, detailViewport))
@@ -2030,6 +2621,43 @@ namespace Smartphone
             {
                 bool created = TryCreatePlayerSocialComment();
                 Game1.playSound(created ? "smallSelect" : "cancel");
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool HandleSocialNotificationMenuClick(int x, int y)
+        {
+            if (socialNotificationClearAllBounds.Contains(x, y))
+            {
+                bool hadNotifications = GetActiveSocialNotifications().Count > 0;
+                if (hadNotifications)
+                    DismissAllSocialNotifications();
+
+                Game1.playSound(hadNotifications ? "smallSelect" : "cancel");
+                return true;
+            }
+
+            Rectangle viewportRect = SocialContentViewportRect;
+            if (!viewportRect.Contains(x, y))
+                return false;
+
+            foreach ((string key, Rectangle bounds) in socialNotificationItemBounds.ToList())
+            {
+                if (!IsPointOnVisibleBounds(bounds, x, y, viewportRect))
+                    continue;
+
+                if (!socialNotificationItemsByKey.TryGetValue(key, out SocialNotificationEntry? entry)
+                    || entry == null
+                    || string.IsNullOrWhiteSpace(entry.PostId))
+                {
+                    continue;
+                }
+
+                CloseSocialNotificationMenu();
+                OpenSocialPostDetail(entry.PostId, returnToProfile: false);
+                Game1.playSound("smallSelect");
                 return true;
             }
 
@@ -2118,6 +2746,19 @@ namespace Smartphone
                 return;
 
             float wheelSteps = direction / 120f;
+
+            if (socialNotificationMenuOpen)
+            {
+                List<SocialNotificationEntry> notifications = GetActiveSocialNotifications();
+                ClampSocialNotificationScroll(notifications);
+
+                socialNotificationScrollTarget = Math.Clamp(
+                    socialNotificationScrollTarget - wheelSteps * SocialScrollPixelsPerWheelNotch,
+                    0f,
+                    CalculateSocialNotificationMaxScroll(notifications));
+
+                return;
+            }
 
             if (socialProfileMenuOpen)
             {
@@ -2240,6 +2881,46 @@ namespace Smartphone
             return true;
         }
 
+        private bool TryDeleteSelectedSocialPost(StardewConnectPost? selectedPost)
+        {
+            if (selectedPost == null || !selectedPost.AuthorIsPlayer)
+                return false;
+
+            bool returnToProfile = socialDetailReturnToProfile;
+            string returnProfileActorName = socialDetailReturnProfileActorName;
+            bool returnProfileActorIsPlayer = socialDetailReturnProfileActorIsPlayer;
+
+            bool deleted = StardewConnectManager.DeletePost(selectedPost.Id);
+            if (!deleted)
+                return false;
+
+            selectedSocialPostId = "";
+            socialCommentDraft = "";
+            socialDetailImageIndex = 0;
+            socialDetailScrollOffset = 0f;
+            socialDetailScrollTarget = 0f;
+            socialDetailReturnToProfile = false;
+            socialDetailReturnProfileActorName = "";
+            socialDetailReturnProfileActorIsPlayer = false;
+            socialDetailLikeBounds = Rectangle.Empty;
+            socialDetailCommentSendBounds = Rectangle.Empty;
+            socialDetailImagePrevBounds = Rectangle.Empty;
+            socialDetailImageNextBounds = Rectangle.Empty;
+            socialDetailLikeHoverBounds = Rectangle.Empty;
+            socialDetailTagHoverBounds = Rectangle.Empty;
+            socialDetailTagHoverText = "";
+
+            if (returnToProfile)
+            {
+                socialProfileMenuOpen = true;
+                selectedSocialProfileActorName = returnProfileActorName;
+                selectedSocialProfileActorIsPlayer = returnProfileActorIsPlayer;
+                ClampSocialProfileScroll();
+            }
+
+            return true;
+        }
+
         private void OpenSocialPostDetail(
             string postId,
             bool returnToProfile,
@@ -2255,6 +2936,7 @@ namespace Smartphone
 
             selectedSocialPostId = postId;
             socialProfileMenuOpen = false;
+            socialNotificationMenuOpen = false;
             socialCommentDraft = "";
             socialDetailImageIndex = 0;
             socialDetailScrollOffset = 0f;
@@ -2266,7 +2948,7 @@ namespace Smartphone
                 : "";
             socialDetailReturnProfileActorIsPlayer = returnToProfile && profileActorIsPlayer;
 
-            StardewConnectManager.MarkPostCommentsRead(postId);
+            DismissSocialNotificationsForPost(postId);
         }
 
         private void OpenSocialProfile(string actorName, bool actorIsPlayer)
@@ -2278,6 +2960,7 @@ namespace Smartphone
             selectedSocialPostId = "";
             socialCommentDraft = "";
             socialCreateMenuOpen = false;
+            socialNotificationMenuOpen = false;
             socialProfileMenuOpen = true;
             selectedSocialProfileActorName = resolvedActorName;
             selectedSocialProfileActorIsPlayer = actorIsPlayer;
@@ -2294,6 +2977,7 @@ namespace Smartphone
         private void OpenSocialCreatePostMenu()
         {
             socialCreateMenuOpen = true;
+            socialNotificationMenuOpen = false;
             socialProfileMenuOpen = false;
             selectedSocialPostId = "";
             socialCommentDraft = "";
@@ -2321,9 +3005,36 @@ namespace Smartphone
             socialCreateSubmitBounds = Rectangle.Empty;
         }
 
+        private void OpenSocialNotificationMenu()
+        {
+            socialCreateMenuOpen = false;
+            socialProfileMenuOpen = false;
+            socialNotificationMenuOpen = true;
+            selectedSocialPostId = "";
+            socialCommentDraft = "";
+            socialDetailReturnToProfile = false;
+            socialDetailReturnProfileActorName = "";
+            socialDetailReturnProfileActorIsPlayer = false;
+
+            List<SocialNotificationEntry> notifications = GetActiveSocialNotifications();
+            ClampSocialNotificationScroll(notifications);
+        }
+
+        private void CloseSocialNotificationMenu()
+        {
+            socialNotificationMenuOpen = false;
+            socialNotificationItemBounds.Clear();
+            socialNotificationItemsByKey.Clear();
+            socialNotificationClearAllBounds = Rectangle.Empty;
+            socialNotificationScrollOffset = 0f;
+            socialNotificationScrollTarget = 0f;
+        }
+
         private void EnsureCreateImageCandidatesLoaded()
         {
             socialCreateCandidateImages.Clear();
+
+            string userCaptureFolderPath = GetCaptureFolderPath(PlayerPhotoFolderName);
 
             if (Directory.Exists(userCaptureFolderPath))
             {
@@ -2481,7 +3192,7 @@ namespace Smartphone
                 return;
             }
 
-            int targetIndex = FindSocialOpenTargetPostIndex(posts);
+            int targetIndex = FindSocialOpenTargetPostIndexByCurrentTime(posts);
             if (targetIndex < 0)
             {
                 SnapSocialFeedToBottom();
@@ -2491,17 +3202,22 @@ namespace Smartphone
             SnapSocialFeedToPostIndex(posts, targetIndex);
         }
 
-        private int FindSocialOpenTargetPostIndex(List<StardewConnectPost> posts)
+        private int FindSocialOpenTargetPostIndexByCurrentTime(List<StardewConnectPost> posts)
         {
-            for (int i = 0; i < posts.Count; i++)
-            {
-                if (IsPlayerPostWithNewCommentNotification(posts[i]))
-                    return i;
-            }
+            long nowKey = BuildSocialChronologicalSortKey(
+                Game1.currentSeason,
+                Math.Max(1, Game1.dayOfMonth),
+                Math.Max(1, Game1.year),
+                Game1.timeOfDay);
 
             for (int i = 0; i < posts.Count; i++)
             {
-                if (StardewConnectManager.IsPostOnOrAfterLastSocialVisit(posts[i]))
+                StardewConnectPost post = posts[i];
+                if (post == null)
+                    continue;
+
+                long postKey = BuildSocialChronologicalSortKey(post.Season, post.Day, post.Year, post.TimeOfDay);
+                if (postKey >= nowKey)
                     return i;
             }
 
@@ -2662,6 +3378,48 @@ namespace Smartphone
             }
 
             return Math.Max(0f, contentHeight - SocialViewportHeight);
+        }
+
+        private int MeasureSocialNotificationCardHeight(SocialNotificationEntry entry)
+        {
+            List<string> lines = SplitTextIntoLines(
+                entry?.Message ?? "",
+                Game1.smallFont,
+                SocialNotificationCardWidth - (SocialNotificationCardPadding * 2));
+
+            if (lines.Count == 0)
+                lines.Add("");
+
+            int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
+            return (lines.Count * lineHeight) + (SocialNotificationCardVerticalPadding * 2);
+        }
+
+        private float CalculateSocialNotificationMaxScroll(List<SocialNotificationEntry> notifications)
+        {
+            if (notifications == null || notifications.Count == 0)
+                return 0f;
+
+            int contentHeight = SocialPostTopPadding + SocialPostBottomPadding;
+            for (int i = 0; i < notifications.Count; i++)
+            {
+                contentHeight += MeasureSocialNotificationCardHeight(notifications[i]);
+                if (i < notifications.Count - 1)
+                    contentHeight += SocialNotificationCardSpacing;
+            }
+
+            return Math.Max(0f, contentHeight - SocialViewportHeight);
+        }
+
+        private void ClampSocialNotificationScroll(List<SocialNotificationEntry> notifications)
+        {
+            float maxScroll = CalculateSocialNotificationMaxScroll(notifications);
+            socialNotificationScrollTarget = Math.Clamp(socialNotificationScrollTarget, 0f, maxScroll);
+            socialNotificationScrollOffset = Math.Clamp(socialNotificationScrollOffset, 0f, maxScroll);
+        }
+
+        private void ClampSocialNotificationScroll()
+        {
+            ClampSocialNotificationScroll(GetActiveSocialNotifications());
         }
 
         private float CalculateSocialDetailMaxScroll(StardewConnectPost post)

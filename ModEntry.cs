@@ -44,21 +44,12 @@ namespace Smartphone
         public void SendSmartphoneMessageFromNPC(string npcName, string message)
         {
             if (Game1.getCharacterFromName(npcName) == null) return;
-            if (ModEntry.phoneMenu == null) ModEntry.phoneMenu = new PhoneMenu();
-            ModEntry.phoneMenu.UpdateNpcList();
-            if (!ModEntry.phoneMenu.messageableNpcList.Select(npc => npc.name).ToList().Contains(npcName)) return;
-            ModEntry.phoneMenu.ClosePhoneMenu();
-
             MessageManager.AddMessage(npcName, $"{npcName}: " + message);
         }
 
         public void SendSmartphoneMessageFromPlayer(string npcName, string message)
         {
             if (Game1.getCharacterFromName(npcName) == null) return;
-            if (ModEntry.phoneMenu == null) ModEntry.phoneMenu = new PhoneMenu();
-            ModEntry.phoneMenu.UpdateNpcList();
-            if (!ModEntry.phoneMenu.messageableNpcList.Select(npc => npc.name).ToList().Contains(npcName)) return;
-            ModEntry.phoneMenu.ClosePhoneMenu();
             MessageManager.AddMessage(npcName, $"PLAYER: {message}", isFromPlayer: true);
         }
 
@@ -348,16 +339,27 @@ namespace Smartphone
                                 npc.CurrentDialogue?.Clear();
                             }
                         }
-                        // else
-                        // {
-                        //    Task.Run(async () =>
-                        //    {
-                        //        SMonitor.Log("SENDING AI MSG FROM: " + npcName, LogLevel.Info);
-                        //        string messages = await SendMessageToAssistant(npcName, type: "text");
-                        //        MessageManager.AddMessage(npcName, $"{npcName}:" + messages);
-                        //        lastTimeReceiveMessage = Game1.timeOfDay;
-                        //    });
-                        // }
+                        else
+                        {
+                            if (Game1.random.NextDouble() < 0.3 && Game1.player.getFriendshipHeartLevelForNPC(npcName) >= 3)
+                            {
+                                Task.Run(async () =>
+                                {
+                                    string messages = await SendMessageToAssistant(npcName, type: "invite");
+                                    MessageManager.AddMessage(npcName, $"{npcName}:" + messages);
+                                    lastTimeReceiveMessage = Game1.timeOfDay;
+                                });
+                            }
+                            else
+                            {
+                                Task.Run(async () =>
+                                {
+                                    string messages = await SendMessageToAssistant(npcName, type: "text");
+                                    MessageManager.AddMessage(npcName, $"{npcName}:" + messages);
+                                    lastTimeReceiveMessage = Game1.timeOfDay;
+                                });
+                            }
+                        }
 
                         break;
                     }
@@ -368,7 +370,7 @@ namespace Smartphone
         }
 
 
-        public static void FirstDailyText (string npcName, string message)
+        public static void FirstDailyText(string npcName, string message)
         {
             NPC npc = Game1.getCharacterFromName(npcName);
             bool talkedToToday = Game1.player.friendshipData.TryGetValue(npcName, out Friendship friendship) && friendship.TalkedToToday;
