@@ -91,53 +91,59 @@ namespace Smartphone
 
         private void OnRendered(object sender, RenderedEventArgs e)
         {
-            if (!takeScreenshot)
-                return;
-
-            takeScreenshot = false;
-
-            GraphicsDevice graphics = Game1.graphics.GraphicsDevice;
-
-            int backBufferWidth = graphics.PresentationParameters.BackBufferWidth;
-            int backBufferHeight = graphics.PresentationParameters.BackBufferHeight;
-
-            // Create a RenderTarget the same size as the back buffer
-            using RenderTarget2D copyTarget = new RenderTarget2D(graphics, backBufferWidth, backBufferHeight);
-
-            // Copy current back buffer into our render target
-            graphics.SetRenderTarget(copyTarget);
-            graphics.Clear(Color.Black);
-
-            // Draw the backbuffer content into the render target
-            graphics.SetRenderTarget(null);
-            Color[] rawData = new Color[backBufferWidth * backBufferHeight];
-            graphics.GetBackBufferData(rawData);
-
-            Microsoft.Xna.Framework.Rectangle requestedCaptureBounds = GetCurrentPlayerPhotoCaptureBounds();
-            Microsoft.Xna.Framework.Rectangle captureBounds = ClampCaptureBoundsToBackBuffer(requestedCaptureBounds, backBufferWidth, backBufferHeight);
-
-            int cropX = captureBounds.X;
-            int cropY = captureBounds.Y;
-            int cropWidth = captureBounds.Width;
-            int cropHeight = captureBounds.Height;
-
-            // Extract pixel data from the cropped region
-            Color[] croppedData = new Color[cropWidth * cropHeight];
-            for (int y = 0; y < cropHeight; y++)
+            // dev tool grid drawing
+            if (isGridVisible && !Context.IsWorldReady)
             {
-                for (int x = 0; x < cropWidth; x++)
-                {
-                    int srcIndex = (cropY + y) * backBufferWidth + (cropX + x);
-                    int destIndex = y * cropWidth + x;
-                    croppedData[destIndex] = rawData[srcIndex];
-                }
+                DrawGrid();
             }
 
-            // Create cropped texture
-            using Texture2D croppedTexture = new Texture2D(graphics, cropWidth, cropHeight);
-            croppedTexture.SetData(croppedData);
+            if (takeScreenshot)
+            {
+                takeScreenshot = false;
 
-            SaveCapturedPhoto(croppedTexture, Game1.currentLocation?.Name, BuildImageTags(captureBounds).ToList(), true);
+                GraphicsDevice graphics = Game1.graphics.GraphicsDevice;
+
+                int backBufferWidth = graphics.PresentationParameters.BackBufferWidth;
+                int backBufferHeight = graphics.PresentationParameters.BackBufferHeight;
+
+                // Create a RenderTarget the same size as the back buffer
+                using RenderTarget2D copyTarget = new RenderTarget2D(graphics, backBufferWidth, backBufferHeight);
+
+                // Copy current back buffer into our render target
+                graphics.SetRenderTarget(copyTarget);
+                graphics.Clear(Color.Black);
+
+                // Draw the backbuffer content into the render target
+                graphics.SetRenderTarget(null);
+                Color[] rawData = new Color[backBufferWidth * backBufferHeight];
+                graphics.GetBackBufferData(rawData);
+
+                Microsoft.Xna.Framework.Rectangle requestedCaptureBounds = GetCurrentPlayerPhotoCaptureBounds();
+                Microsoft.Xna.Framework.Rectangle captureBounds = ClampCaptureBoundsToBackBuffer(requestedCaptureBounds, backBufferWidth, backBufferHeight);
+
+                int cropX = captureBounds.X;
+                int cropY = captureBounds.Y;
+                int cropWidth = captureBounds.Width;
+                int cropHeight = captureBounds.Height;
+
+                // Extract pixel data from the cropped region
+                Color[] croppedData = new Color[cropWidth * cropHeight];
+                for (int y = 0; y < cropHeight; y++)
+                {
+                    for (int x = 0; x < cropWidth; x++)
+                    {
+                        int srcIndex = (cropY + y) * backBufferWidth + (cropX + x);
+                        int destIndex = y * cropWidth + x;
+                        croppedData[destIndex] = rawData[srcIndex];
+                    }
+                }
+
+                // Create cropped texture
+                using Texture2D croppedTexture = new Texture2D(graphics, cropWidth, cropHeight);
+                croppedTexture.SetData(croppedData);
+
+                SaveCapturedPhoto(croppedTexture, Game1.currentLocation?.Name, BuildImageTags(captureBounds).ToList(), true);
+            }
         }
 
         private static string CaptureNpcPhoto(NPC npc, bool landscape = false, bool square = false)
@@ -164,7 +170,7 @@ namespace Smartphone
                 graphics.Clear(Color.Black);
 
                 Game1.game1.DrawWorld(Game1.currentGameTime, renderTarget);
-                tags = BuildImageTags(captureBounds).ToList();
+                tags = BuildImageTags(captureBounds, npc: npc).ToList();
             }
             catch (Exception ex)
             {

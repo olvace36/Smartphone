@@ -1,0 +1,1317 @@
+{
+  "HaleyHouse": {
+    "HaleyBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 9,
+      "endY": 10,
+      "description": "Bed, vanity, indoor palm trees, dresser, camera on a tripod"
+    },
+    "EmilyBedroom": {
+      "startX": 11,
+      "startY": 1,
+      "endX": 23,
+      "endY": 9,
+      "description": "Red bed, parrot on a stand, crafting table, radio, plants"
+    },
+    "LivingRoom": {
+      "startX": 1,
+      "startY": 11,
+      "endX": 12,
+      "endY": 23,
+      "description": "Bookshelf, red couch, coffee table, armchair, TV, globe"
+    },
+    "KitchenAndDining": {
+      "startX": 13,
+      "startY": 11,
+      "endX": 23,
+      "endY": 21,
+      "description": "Fireplace, kitchen counters, stove, fridge, dining table with chairs"
+    },
+    "EntranceAndSewingRoom": {
+      "startX": 13,
+      "startY": 22,
+      "endX": 19,
+      "endY": 27,
+      "description": "Sewing machine, yarn shelf, large potted plants, front entrance"
+    }
+  },
+  "SamHouse": {
+    "KitchenAndDining": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 9,
+      "endY": 7,
+      "description": "Kitchen counters, stove, fridge, dining table with chairs"
+    },
+    "JodiAndKentBedroom": {
+      "startX": 16,
+      "startY": 1,
+      "endX": 24,
+      "endY": 7,
+      "description": "Double bed, nightstand, plant, paintings"
+    },
+    "LivingRoom": {
+      "startX": 1,
+      "startY": 8,
+      "endX": 11,
+      "endY": 22,
+      "description": "Blue couch, armchair, TV, rugs, indoor plants, telephone"
+    },
+    "SamBedroom": {
+      "startX": 12,
+      "startY": 8,
+      "endX": 24,
+      "endY": 17,
+      "description": "Bed, bookshelf, guitar, drum set, keyboard, computer desk, posters"
+    },
+    "VincentBedroom": {
+      "startX": 7,
+      "startY": 18,
+      "endX": 13,
+      "endY": 23,
+      "description": "Single bed, toy box, play table with train set, rug"
+    }
+  },
+  "ManorHouse": {
+    "OfficeAndEntry": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 4,
+      "endY": 10,
+      "description": "Ledger books on stands, bulletin board with question mark box, small table with food and floor cushions, plants"
+    },
+    "KitchenAndDining": {
+      "startX": 5,
+      "startY": 1,
+      "endX": 14,
+      "endY": 10,
+      "description": "Kitchen counters, stove, sink, fridge, large dining table with six chairs, large potted plant"
+    },
+    "LewisBedroom": {
+      "startX": 15,
+      "startY": 1,
+      "endX": 23,
+      "endY": 9,
+      "description": "Fireplace, bed, red armchair, side tables, plants"
+    }
+  },
+  "Trailer": {
+    "PennyBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 7,
+      "endY": 9,
+      "description": "Desk with an open book, tall bookshelf, single bed, nightstand with lamp, purple carpet"
+    },
+    "LivingAndKitchenArea": {
+      "startX": 8,
+      "startY": 1,
+      "endX": 19,
+      "endY": 8,
+      "description": "Kitchen cabinets, stove, sink, green wrap-around couch, TV, trash can"
+    }
+  },
+  "JoshHouse": {
+    "GeorgeAndEvelynBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 7,
+      "endY": 7,
+      "description": "Double bed, vanity, nightstands, plant"
+    },
+    "AlexBedroom": {
+      "startX": 10,
+      "startY": 1,
+      "endX": 24,
+      "endY": 8,
+      "description": "Bed, bookshelf, weight bench, weights, dresser, football helmet, posters"
+    },
+    "KitchenAndDining": {
+      "startX": 1,
+      "startY": 12,
+      "endX": 9,
+      "endY": 24,
+      "description": "Kitchen counters, stove, fridge, dining table with chairs, trash can"
+    },
+    "LivingRoom": {
+      "startX": 12,
+      "startY": 12,
+      "endX": 24,
+      "endY": 24,
+      "description": "TV, armchair, bookshelf, grandfather clock, fireplace, rug, indoor plants"
+    }
+  },
+  "Saloon": {
+    "PrivateDiningRoom": {
+      "startX": 2,
+      "startY": 1,
+      "endX": 10,
+      "endY": 6,
+      "description": "Dining table with two chairs, grandfather clock, potted plant"
+    },
+    "GusBedroom": {
+      "startX": 11,
+      "startY": 1,
+      "endX": 25,
+      "endY": 6,
+      "description": "Bed, black couch, TV, small round table, plants"
+    },
+    "StorageRoom": {
+      "startX": 29,
+      "startY": 1,
+      "endX": 40,
+      "endY": 9,
+      "description": "Wooden barrels and metal kegs on a stone floor"
+    },
+    "MainBarArea": {
+      "startX": 1,
+      "startY": 13,
+      "endX": 27,
+      "endY": 24,
+      "description": "Jukebox, bar counter, stools, tables with chairs, shelves with bottles, fireplace, wooden bear statue"
+    },
+    "ArcadeAndPoolRoom": {
+      "startX": 28,
+      "startY": 13,
+      "endX": 45,
+      "endY": 24,
+      "description": "Arcade machines, Joja vending machine, pool table, blue couch, small tables"
+    }
+  },
+  "SeedShop": {
+    "AbigailBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 16,
+      "endY": 10,
+      "description": "Single bed, TV with game console, guinea pig terrarium, desk, posters, blue starry wallpaper"
+    },
+    "PierreAndCarolineBedroom": {
+      "startX": 18,
+      "startY": 1,
+      "endX": 29,
+      "endY": 9,
+      "description": "Double bed, bookshelf, black couch, TV, side tables"
+    },
+    "KitchenAndDining": {
+      "startX": 30,
+      "startY": 1,
+      "endX": 41,
+      "endY": 10,
+      "description": "Kitchen counters, stove, sink, fridge, dining table with chairs"
+    },
+    "ShopArea": {
+      "startX": 1,
+      "startY": 13,
+      "endX": 17,
+      "endY": 27,
+      "description": "Store counter, cash register, display shelves with goods, fresh produce bins, backpack display"
+    },
+    "LivingRoom": {
+      "startX": 18,
+      "startY": 10,
+      "endX": 29,
+      "endY": 24,
+      "description": "Fireplace, large brown rug, TV, plants, bookshelf, small table"
+    },
+    "SunroomShrine": {
+      "startX": 30,
+      "startY": 12,
+      "endX": 40,
+      "endY": 23,
+      "description": "Golden altar of Yoba, seating cushions, decorative columns"
+    }
+  },
+  "HarveyRoom": {
+    "HarveyBedroomAndLiving": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 14,
+      "endY": 11,
+      "description": "Bed, radio equipment on desk, model planes on shelves, bookshelf, dining table with chairs, red couches, TV, rugs"
+    },
+    "Kitchen": {
+      "startX": 15,
+      "startY": 2,
+      "endX": 22,
+      "endY": 7,
+      "description": "Small table with two chairs, kitchen counters, sink, fridge, potted plant"
+    }
+  },
+  "Hospital": {
+    "ExaminationRoom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 7,
+      "endY": 10,
+      "description": "Eye chart, medical diploma, sink, examination table, small desk, stool, plant"
+    },
+    "ReceptionAndWaiting": {
+      "startX": 1,
+      "startY": 11,
+      "endX": 14,
+      "endY": 18,
+      "description": "Reception desk with files and computer, row of blue waiting chairs, green rug, bookshelf"
+    },
+    "PatientWard": {
+      "startX": 13,
+      "startY": 1,
+      "endX": 23,
+      "endY": 14,
+      "description": "Three hospital beds with side tables, medical privacy screens, wall charts, trash can"
+    }
+  },
+  "Blacksmith": {
+    "ClintBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 11,
+      "endY": 5,
+      "description": "Bed, dresser, nightstands, radio, geodes on the floor, plant"
+    },
+    "ShopAndForge": {
+      "startX": 1,
+      "startY": 7,
+      "endX": 14,
+      "endY": 18,
+      "description": "Service counter, cash register, wall tools, large glowing forge, anvil, coal bin, barrels"
+    }
+  },
+  "ArchaeologyHouse": {
+    "LibraryAndReception": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 25,
+      "endY": 17,
+      "description": "Reception desk with cash register, numerous tall bookshelves, reading tables with green lamps, floor cushions"
+    },
+    "MuseumDisplay": {
+      "startX": 26,
+      "startY": 1,
+      "endX": 49,
+      "endY": 18,
+      "description": "Large empty display tables, fireplace, skeletal display piece, anchor on wall, decorative artifacts"
+    }
+  },
+  "ElliottHouse": {
+    "LivingArea": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 14,
+      "endY": 8,
+      "description": "Desk, chair, small plant, piano with bench, bed, nightstand, book on the floor"
+    }
+  },
+  "FishShop": {
+    "ShopArea": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 10,
+      "endY": 8,
+      "description": "Ladder, display cases with fish and supplies, counter, cash register, anchor on wall, fishing bobbers, indoor palm tree"
+    }
+  },
+  "ScienceHouse": {
+    "MaruBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 10,
+      "endY": 8,
+      "description": "Bed, computer desk with multiple monitors, server rack, keyboard, posters, couch"
+    },
+    "RobinAndDemetriusBedroom": {
+      "startX": 13,
+      "startY": 1,
+      "endX": 24,
+      "endY": 6,
+      "description": "Double bed, bookshelf, dresser, indoor plants, side tables"
+    },
+    "KitchenAndDining": {
+      "startX": 25,
+      "startY": 7,
+      "endX": 30,
+      "endY": 14,
+      "description": "Kitchen counters, stove, fridge, dining table with two chairs"
+    },
+    "CarpenterShop": {
+      "startX": 1,
+      "startY": 13,
+      "endX": 12,
+      "endY": 23,
+      "description": "Shop counter, cash register, wood logs, tools on wall, fireplace, small table"
+    },
+    "Laboratory": {
+      "startX": 16,
+      "startY": 14,
+      "endX": 25,
+      "endY": 23,
+      "description": "Lab counters, microscopes, glass flasks, periodic table poster, sink, chemical supplies"
+    }
+  },
+  "AnimalShop": {
+    "JasBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 9,
+      "endY": 9,
+      "description": "Bed, large blue bear, dollhouse, toys on floor"
+    },
+    "MarnieBedroom": {
+      "startX": 10,
+      "startY": 1,
+      "endX": 19,
+      "endY": 9,
+      "description": "Double bed, dresser, vanity, plants, rug"
+    },
+    "ShaneBedroom": {
+      "startX": 20,
+      "startY": 1,
+      "endX": 30,
+      "endY": 9,
+      "description": "Bed, TV, game console, spilled drinks, soccer ball, muddy footprints"
+    },
+    "ShopAndLivingArea": {
+      "startX": 1,
+      "startY": 10,
+      "endX": 19,
+      "endY": 18,
+      "description": "Shop counter, cash register, fireplace, armchairs, plants"
+    },
+    "KitchenAndDining": {
+      "startX": 20,
+      "startY": 10,
+      "endX": 32,
+      "endY": 18,
+      "description": "Kitchen counters, stove, fridge, dining table with chairs, trash can"
+    }
+  },
+  "LeahHouse": {
+    "StudioAndBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 14,
+      "endY": 8,
+      "description": "Bed, wood carving station, easel, canvas, paints, fireplace, bookshelf"
+    },
+    "Kitchen": {
+      "startX": 10,
+      "startY": 9,
+      "endX": 14,
+      "endY": 15,
+      "description": "Kitchen counters, stove, sink, dining table for one, mountain painting"
+    }
+  },
+  "WizardHouse": {
+    "Bedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 12,
+      "endY": 7,
+      "description": "Bed, glowing crystal ball on nightstand, indoor plants"
+    },
+    "CauldronRoom": {
+      "startX": 1,
+      "startY": 8,
+      "endX": 12,
+      "endY": 23,
+      "description": "Large bubbling green cauldron, ritual circle on floor, wood-burning stove, potion table, books, crystal pillar"
+    },
+    "PlantRoom": {
+      "startX": 1,
+      "startY": 24,
+      "endX": 12,
+      "endY": 34,
+      "description": "Stone floor, dense indoor plants and trees in planters"
+    }
+  },
+  "CommunityCenter": {
+    "KitchenAndDining": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 14,
+      "endY": 13,
+      "description": "Kitchen counters, stove, fridge, large dining table with food and chairs"
+    },
+    "PantryStorage": {
+      "startX": 15,
+      "startY": 1,
+      "endX": 24,
+      "endY": 9,
+      "description": "Shelves with jars, storage boxes, wooden barrels, stone floor"
+    },
+    "UpperMainHall": {
+      "startX": 25,
+      "startY": 5,
+      "endX": 45,
+      "endY": 14,
+      "description": "Fireplace, couches, large red rug, grandfather clock, large fish tank, bulletin boards"
+    },
+    "LowerHallAndGarden": {
+      "startX": 30,
+      "startY": 15,
+      "endX": 47,
+      "endY": 20,
+      "description": "Bookshelves, green rug, reading chairs, small dirt plot with crops, bench"
+    },
+    "CraftsRoom": {
+      "startX": 13,
+      "startY": 15,
+      "endX": 29,
+      "endY": 28,
+      "description": "Bookshelves, reading tables, large blue bear, plush bunny, sewing machine, loom, crafting tables"
+    },
+    "VaultOffice": {
+      "startX": 46,
+      "startY": 1,
+      "endX": 61,
+      "endY": 9,
+      "description": "Large metal safe, office desk with chair, filing cabinets, plants, couch"
+    },
+    "BoilerRoom": {
+      "startX": 52,
+      "startY": 10,
+      "endX": 67,
+      "endY": 21,
+      "description": "Furnace, metal pipes, coal mine cart on tracks, stone floor, stairs"
+    }
+  },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+  "SophiaHouse": {
+    "MasterBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 13,
+      "endY": 10,
+      "description": "Large bedroom with a red double bed, four large windows, multiple dressers, a red armchair, and a small side table with a lamp."
+    },
+    "SophiaBedroom": {
+      "startX": 14,
+      "startY": 1,
+      "endX": 26,
+      "endY": 10,
+      "description": "Pink-themed bedroom featuring a single bed, a computer desk with a monitor, bookshelves, a teddy bear, a purple rug, and a vanity."
+    },
+    "UpperHallway": {
+      "startX": 1,
+      "startY": 11,
+      "endX": 26,
+      "endY": 15,
+      "description": "Long wooden hallway connecting the upper rooms, decorated with small wall portraits, wall lamps, and crates on the left side."
+    },
+    "CraftRoom": {
+      "startX": 1,
+      "startY": 16,
+      "endX": 8,
+      "endY": 26,
+      "description": "Creative workspace containing a sewing machine, a mannequin, fabric rolls, a desk with an open book, and various potted plants."
+    },
+    "LivingDiningArea": {
+      "startX": 9,
+      "startY": 16,
+      "endX": 19,
+      "endY": 27,
+      "description": "Central open area featuring a television with a green rug, a fireplace with firewood, a large dining table with a puzzle or board game, and stairs leading up."
+    },
+    "Kitchen": {
+      "startX": 20,
+      "startY": 17,
+      "endX": 27,
+      "endY": 27,
+      "description": "Blue and white tiled kitchen with a stove, fridge, counters, and a small breakfast nook with a table and two blue chairs."
+    }
+  },
+  "Custom_AndyHouse": {
+    "Bedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 12,
+      "endY": 10,
+      "description": "Bedroom with a red double bed, a blue sofa, a radiator, a small desk with an open book, a dresser, and a cactus."
+    },
+    "Kitchen": {
+      "startX": 13,
+      "startY": 1,
+      "endX": 22,
+      "endY": 10,
+      "description": "Kitchen area featuring a stove, fridge, sink, a round wooden dining table with two blue chairs, and a trash can."
+    },
+    "LivingRoom": {
+      "startX": 1,
+      "startY": 11,
+      "endX": 22,
+      "endY": 20,
+      "description": "Large rustic living space with bookshelves, a desk holding a typewriter, a brick fireplace, a brown armchair and couch, a radio, and several wooden barrels."
+    }
+  },
+  "Custom_JenkinsHouse": {
+    "Bathroom": {
+      "startX": 2,
+      "startY": 2,
+      "endX": 10,
+      "endY": 13,
+      "description": "Large bathroom with blue and yellow checkered flooring, a double sink vanity, a toilet, a bathtub, and a glass shower stall."
+    },
+    "OliviaBedroom": {
+      "startX": 11,
+      "startY": 1,
+      "endX": 24,
+      "endY": 13,
+      "description": "Bedroom containing a red bed, a computer desk with two monitors, bookshelves, potted plants, and a framed Japanese character on the wall."
+    },
+    "VictorBedroom": {
+      "startX": 25,
+      "startY": 1,
+      "endX": 37,
+      "endY": 13,
+      "description": "Spacious bedroom with a red bed, a seating area featuring a couch and armchair, a desk, and a large wardrobe."
+    },
+    "UpperHallway": {
+      "startX": 2,
+      "startY": 14,
+      "endX": 37,
+      "endY": 19,
+      "description": "Long hallway connecting the upstairs rooms with a blue patterned carpet, several framed paintings, a fish tank, and a globe."
+    },
+    "Library": {
+      "startX": 2,
+      "startY": 20,
+      "endX": 23,
+      "endY": 31,
+      "description": "Extensive library room with multiple tall bookshelves, long reading desks with green chairs, and large bright windows."
+    },
+    "FireplaceRoom": {
+      "startX": 24,
+      "startY": 20,
+      "endX": 37,
+      "endY": 31,
+      "description": "Cozy sitting room centered around a large stone fireplace, with a brown couch, armchair, and a small desk with a lamp."
+    },
+    "TVRoom": {
+      "startX": 2,
+      "startY": 32,
+      "endX": 13,
+      "endY": 41,
+      "description": "Entertainment room featuring a large flat-screen TV, a computer setup, a brown couch, a fish tank, and a small table with teacups."
+    },
+    "Foyer": {
+      "startX": 14,
+      "startY": 32,
+      "endX": 25,
+      "endY": 41,
+      "description": "Grand entrance area with a large green patterned rug, decorative pillars, and potted trees."
+    },
+    "KitchenDining": {
+      "startX": 26,
+      "startY": 32,
+      "endX": 37,
+      "endY": 41,
+      "description": "Fully equipped kitchen with a stove, fridge, and sink, alongside a large wooden dining table with six chairs."
+    }
+  },
+  "Custom_SusanHouse": {
+    "CaskRoom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 19,
+      "endY": 9,
+      "description": "Long utility room completely filled with two rows of wooden casks or kegs, and a small desk area with a radio."
+    },
+    "Bedroom": {
+      "startX": 20,
+      "startY": 1,
+      "endX": 30,
+      "endY": 8,
+      "description": "Green-themed bedroom with a green bed, a dresser, a small TV, potted plants, and a framed picture of strawberries."
+    },
+    "LivingWorkspace": {
+      "startX": 1,
+      "startY": 10,
+      "endX": 20,
+      "endY": 20,
+      "description": "Open-plan living area with a fireplace, bookshelves, a crafting table with a hammer, a seating area, and indoor soil boxes growing small crops."
+    },
+    "KitchenDining": {
+      "startX": 21,
+      "startY": 10,
+      "endX": 30,
+      "endY": 20,
+      "description": "Kitchen space featuring a stove, fridge, counter space, and a separate alcove with a dining table and chairs."
+    }
+  },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  "Custom_Ridgeside_LennyHouse": {
+    "Kitchen": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 5,
+      "endY": 11,
+      "description": "Stove, sink, fridge, counters, trash can, radio, small stool, potted plants"
+    },
+    "Office": {
+      "startX": 6,
+      "startY": 4,
+      "endX": 10,
+      "endY": 9,
+      "description": "Large wooden desk, two chairs, desk lamp, papers, plants, patterned rug"
+    },
+    "LivingRoom": {
+      "startX": 11,
+      "startY": 1,
+      "endX": 19,
+      "endY": 11,
+      "description": "Fireplace, grandfather clock, black sofa, stacked crates with produce, round table, chest"
+    },
+    "Bedroom": {
+      "startX": 20,
+      "startY": 1,
+      "endX": 28,
+      "endY": 5,
+      "description": "Bed, nightstands, desk with computer, wooden chair, potted indoor tree"
+    },
+    "Library": {
+      "startX": 20,
+      "startY": 6,
+      "endX": 28,
+      "endY": 11,
+      "description": "Two large bookshelves, black armchair, wooden dresser, green rug"
+    }
+  },
+  "Custom_Ridgeside_IanHouse": {
+    "KitchenLiving": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 9,
+      "endY": 7,
+      "description": "Black sofa, fireplace, stove, sink, fridge, round table with chairs, stacked boxes"
+    },
+    "Bedroom": {
+      "startX": 10,
+      "startY": 1,
+      "endX": 14,
+      "endY": 7,
+      "description": "Two single beds, nightstand, potted plant, tools on the floor"
+    },
+    "Workshop": {
+      "startX": 1,
+      "startY": 9,
+      "endX": 14,
+      "endY": 18,
+      "description": "Large carved bear statue, wall map, animal skull, workbench, desk, logs, barrels, various tools and ores"
+    }
+  },
+  "Custom_Ridgeside_PaulaClinic": {
+    "LivingQuarters": {
+      "startX": 1,
+      "startY": 3,
+      "endX": 12,
+      "endY": 13,
+      "description": "Bed, green sofas, bookshelf, dining table with chairs, kitchen counters, fridge, sink, stove, plants"
+    },
+    "PatientRoom": {
+      "startX": 13,
+      "startY": 1,
+      "endX": 21,
+      "endY": 7,
+      "description": "Hospital bed, medical desk, stool, medical posters on wall, potted plant, trash can"
+    },
+    "Reception": {
+      "startX": 13,
+      "startY": 8,
+      "endX": 22,
+      "endY": 17,
+      "description": "Reception desk, waiting chairs, computer desk, weight scale, filing cabinet, medical equipment"
+    }
+  },
+  "Custom_Ridgeside_ShiroHouse": {
+    "Kitchen": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 6,
+      "endY": 13,
+      "description": "Kitchen counters, stove, sink, fridge, dining table with four chairs, plants, trash can"
+    },
+    "KidsBedroom": {
+      "startX": 7,
+      "startY": 1,
+      "endX": 15,
+      "endY": 7,
+      "description": "Two single beds (green and yellow), nightstand with lamp, large bookshelf, patterned rug"
+    },
+    "MasterBedroom": {
+      "startX": 16,
+      "startY": 1,
+      "endX": 25,
+      "endY": 7,
+      "description": "Large red double bed, wooden dresser, potted plant, stacked cardboard boxes, rug"
+    },
+    "PlayArea": {
+      "startX": 16,
+      "startY": 8,
+      "endX": 25,
+      "endY": 13,
+      "description": "Hallway area, action figures and dolls placed on the floor"
+    }
+  },
+  "Custom_Ridgeside_LogCabinHotelLobby": {
+    "VendingCorner": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 4,
+      "endY": 7,
+      "description": "Joja vending machine, potted plant"
+    },
+    "Reception": {
+      "startX": 5,
+      "startY": 1,
+      "endX": 15,
+      "endY": 8,
+      "description": "Reception desk, NPC, bookshelves, grandfather clock, desk lamp, small pink stool"
+    },
+    "PianoLounge": {
+      "startX": 1,
+      "startY": 9,
+      "endX": 15,
+      "endY": 16,
+      "description": "Piano with bench, large potted plants, table with a scroll"
+    },
+    "LobbyCenter": {
+      "startX": 16,
+      "startY": 7,
+      "endX": 27,
+      "endY": 16,
+      "description": "Large carved bear statue, two red sofas, red armchair, coffee tables, potted plants, stone fireplace"
+    },
+    "GrandStaircase": {
+      "startX": 21,
+      "startY": 1,
+      "endX": 24,
+      "endY": 6,
+      "description": "Large wooden staircase leading up"
+    },
+    "DiningArea": {
+      "startX": 28,
+      "startY": 1,
+      "endX": 39,
+      "endY": 16,
+      "description": "Round tables with white cloths, double doors, red velvet ropes, large potted plants"
+    },
+    "BarArea": {
+      "startX": 40,
+      "startY": 7,
+      "endX": 45,
+      "endY": 16,
+      "description": "Wooden bar counter, bar stools, dark wood paneling"
+    }
+  },
+  "Custom_Ridgeside_3Bros": {
+    "CheckoutArea": {
+      "startX": 2,
+      "startY": 2,
+      "endX": 17,
+      "endY": 8,
+      "description": "Heaps sign, cash register, checkout counter, blue cooler, back shelving unit with goods, radio"
+    },
+    "GroceryAisles": {
+      "startX": 2,
+      "startY": 9,
+      "endX": 17,
+      "endY": 17,
+      "description": "Display shelves stocked with jars and bottles, sale bins containing produce, wall shelving"
+    }
+  },
+  "Custom_Ridgeside_3Bros2ndFloor": {
+    "MasterBedroom": {
+      "startX": 4,
+      "startY": 1,
+      "endX": 10,
+      "endY": 6,
+      "description": "Red double bed, television, nightstand, trash can"
+    },
+    "TopHallway": {
+      "startX": 11,
+      "startY": 1,
+      "endX": 17,
+      "endY": 6,
+      "description": "Grandfather clock, wooden dresser"
+    },
+    "SharedBedroom": {
+      "startX": 18,
+      "startY": 1,
+      "endX": 23,
+      "endY": 6,
+      "description": "Two single beds, blue rug, small bedside tables"
+    },
+    "KitchenAndDining": {
+      "startX": 4,
+      "startY": 7,
+      "endX": 15,
+      "endY": 18,
+      "description": "Kitchen counters, fridge, sink, stove, rectangular dining table with four chairs, wooden barrel, sale sign"
+    },
+    "GuestBedroom": {
+      "startX": 16,
+      "startY": 7,
+      "endX": 21,
+      "endY": 14,
+      "description": "Single black bed, nightstand, trash can, stone accent wall"
+    }
+  },
+  "Custom_Ridgeside_JericHouse": {
+    "MainRoom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 14,
+      "endY": 10,
+      "description": "Kitchen counters, stove, sink, fridge, dining table with chairs, large potted tree, green patterned rug, bookshelf, display bins with produce"
+    },
+    "Storefront": {
+      "startX": 1,
+      "startY": 11,
+      "endX": 9,
+      "endY": 16,
+      "description": "Checkout counter, display bins with produce, potted plant"
+    },
+    "Bedroom": {
+      "startX": 16,
+      "startY": 1,
+      "endX": 23,
+      "endY": 10,
+      "description": "Bed, brick fireplace, red armchair, wooden dresser, bookshelf, nightstands, grey rug, dumbbells"
+    }
+  },
+  "Custom_Ridgeside_FreddieHouse": {
+    "Bedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 8,
+      "endY": 8,
+      "description": "Red double bed, tall bookshelf, wooden dresser, nightstand, small grey rug"
+    },
+    "KitchenDining": {
+      "startX": 9,
+      "startY": 1,
+      "endX": 16,
+      "endY": 8,
+      "description": "Kitchen counters, stove, sink, fridge, dining table with chairs, large potted plant"
+    },
+    "LivingRoom": {
+      "startX": 3,
+      "startY": 9,
+      "endX": 8,
+      "endY": 16,
+      "description": "Brick fireplace, red sofa, large potted plant, landscape painting, grey rug"
+    },
+    "CraftingRoom": {
+      "startX": 9,
+      "startY": 9,
+      "endX": 16,
+      "endY": 16,
+      "description": "Large red patterned rug, loom/spinning wheel, sewing supplies cabinet, red armchair, round table"
+    }
+  },
+  "Custom_Ridgeside_AllissaShed": {
+    "StorageArea": {
+      "startX": 1,
+      "startY": 3,
+      "endX": 8,
+      "endY": 15,
+      "description": "Display bins and stacked cardboard boxes filled with various fruits and vegetables"
+    },
+    "RestArea": {
+      "startX": 9,
+      "startY": 3,
+      "endX": 15,
+      "endY": 12,
+      "description": "Bed with a green blanket, empty wooden shelving units, round table with a radio and chair, green patterned rug"
+    }
+  },
+  "Custom_Ridgeside_AllissaHouse": {
+    "LivingAndKitchen": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 8,
+      "endY": 13,
+      "description": "Kitchen counters, sink, fridge, stove, two blue sofas, coffee table with a book, large green patterned rug, potted plants"
+    },
+    "KidsBedroom": {
+      "startX": 9,
+      "startY": 1,
+      "endX": 15,
+      "endY": 6,
+      "description": "Single bed with green blanket, teddy bear, nightstand, sewing/crafting cabinet, stool, wall shelf"
+    },
+    "Hallway": {
+      "startX": 9,
+      "startY": 7,
+      "endX": 15,
+      "endY": 13,
+      "description": "Brick fireplace, tall bookshelf, potted plant, small purple rug"
+    },
+    "MasterBedroom": {
+      "startX": 16,
+      "startY": 1,
+      "endX": 24,
+      "endY": 8,
+      "description": "Red double bed, large patterned rug, wooden dressers, globe, nightstands with lamps"
+    }
+  },
+  "Custom_Ridgeside_BertHouse": {
+    "KitchenDining": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 7,
+      "endY": 13,
+      "description": "Kitchen counters, sink, fridge, stove, blue square dining table with four chairs, football helmet and ball on a small table, plants"
+    },
+    "LivingRoom": {
+      "startX": 8,
+      "startY": 1,
+      "endX": 16,
+      "endY": 13,
+      "description": "Blue armchair, TV, brick fireplace, grandfather clock, teddy bear, large glass display counter with various items, potted plants"
+    },
+    "StairsArea": {
+      "startX": 17,
+      "startY": 1,
+      "endX": 20,
+      "endY": 13,
+      "description": "Wooden stairs leading up, patterned red rug, small cabinet with a radio"
+    }
+  },
+  "Custom_Ridgeside_BertHouse2ndFloor": {
+    "MasterBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 10,
+      "endY": 7,
+      "description": "Red double bed, tall bookshelf, dresser, nightstands with lamps, large red patterned rug, small blue stool"
+    },
+    "KidsBedroom": {
+      "startX": 11,
+      "startY": 1,
+      "endX": 20,
+      "endY": 7,
+      "description": "Single bed with green blanket, small purple tent, wall shelves with plushies, wooden dresser, green patterned rug, pink stool"
+    },
+    "Hallway": {
+      "startX": 1,
+      "startY": 8,
+      "endX": 20,
+      "endY": 14,
+      "description": "Blue sofa, tall bookshelf, large potted plants"
+    }
+  },
+  "Custom_Ridgeside_AguarLab": {
+    "LivingArea": {
+      "startX": 1,
+      "startY": 3,
+      "endX": 14,
+      "endY": 12,
+      "description": "Kitchen counters, stove, sink, fridge, blue dining table, blue sofa, two tall bookshelves, patterned rug"
+    },
+    "LabArea": {
+      "startX": 15,
+      "startY": 1,
+      "endX": 29,
+      "endY": 15,
+      "description": "Desks with computers, paperwork, and lab equipment, glass display cabinets, wall shelves with supplies, large blue containers, blue stools"
+    }
+  },
+  "Custom_Ridgeside_PurpleMansion": {
+    "PoolRoom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 18,
+      "endY": 13,
+      "description": "Large swimming pool, locker stalls, wooden benches, potted plant, glass walls"
+    },
+    "Kitchen": {
+      "startX": 20,
+      "startY": 1,
+      "endX": 39,
+      "endY": 13,
+      "description": "Extensive kitchen counters, sinks, fridges, stoves, kitchen island, blue dining table with chairs, wooden barrels"
+    },
+    "DiningRoom": {
+      "startX": 41,
+      "startY": 1,
+      "endX": 58,
+      "endY": 13,
+      "description": "Very long dining table with many chairs, brick fireplace, dark wooden cabinets, indoor trees, large purple rug"
+    },
+    "GymAndLockers": {
+      "startX": 1,
+      "startY": 15,
+      "endX": 13,
+      "endY": 24,
+      "description": "Locker rows, wooden benches, gym equipment, water cooler"
+    },
+    "GrandLounge": {
+      "startX": 14,
+      "startY": 14,
+      "endX": 43,
+      "endY": 38,
+      "description": "Massive open hall, grand staircases, large TV, yellow seating, grandfather clock, various potted plants, display cases, statues"
+    },
+    "Conservatory": {
+      "startX": 44,
+      "startY": 14,
+      "endX": 58,
+      "endY": 25,
+      "description": "Many potted flowers and plants on display tables, gardening tools, indoor garden area"
+    },
+    "Library": {
+      "startX": 44,
+      "startY": 26,
+      "endX": 58,
+      "endY": 37,
+      "description": "Large red rug, several long bookshelves, wooden reading desks with chairs and open books"
+    },
+    "GuestBedroomLeft": {
+      "startX": 1,
+      "startY": 39,
+      "endX": 18,
+      "endY": 47,
+      "description": "Single bed, green patterned rug, art easels, paintings, desk with lamp, wardrobe"
+    },
+    "GuestRoomBlue": {
+      "startX": 37,
+      "startY": 39,
+      "endX": 44,
+      "endY": 47,
+      "description": "Single blue bed, wardrobe, wooden desk, bookshelves, small blue rug"
+    },
+    "GuestBedroomRight": {
+      "startX": 45,
+      "startY": 39,
+      "endX": 58,
+      "endY": 47,
+      "description": "Double bed, brick fireplace, dressers, tall bookshelves, red rug, globe"
+    }
+  },
+  "Custom_Ridgeside_PurpleMansion2ndFloor": {
+    "GreenBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 9,
+      "endY": 10,
+      "description": "Dark bed, wooden dresser, desk with computer, tall bookshelf, green rug"
+    },
+    "GamerBedroom": {
+      "startX": 10,
+      "startY": 1,
+      "endX": 19,
+      "endY": 10,
+      "description": "Single red bed, TV with video game console, soccer ball, football, desk with computer, posters, display shelf"
+    },
+    "MasterBedroom": {
+      "startX": 20,
+      "startY": 1,
+      "endX": 31,
+      "endY": 10,
+      "description": "Red double bed, red sofa, extensive bookshelves, wooden dressers, globe, small purple rug"
+    },
+    "Bathroom": {
+      "startX": 32,
+      "startY": 1,
+      "endX": 37,
+      "endY": 10,
+      "description": "Large square bathtub, sink, toilet, palm trees, light blue tiled floor"
+    },
+    "BlackSofaBedroom": {
+      "startX": 38,
+      "startY": 1,
+      "endX": 47,
+      "endY": 10,
+      "description": "Dark bed, black sofa, red rug, round wooden table, tall bookshelf"
+    },
+    "UpperHallway": {
+      "startX": 1,
+      "startY": 11,
+      "endX": 47,
+      "endY": 27,
+      "description": "Long wide balcony overlooking the first floor, wooden columns, red carpets, black sofas, large potted plants"
+    }
+  },
+  "Custom_Ridgeside_FayeHouse": {
+    "BedroomAndWorkshop": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 13,
+      "endY": 8,
+      "description": "Bed, large bookshelf, sewing machine, loom, display shelf with thread, table with fabric and scissors, dresser, potted plants"
+    },
+    "KitchenAndLiving": {
+      "startX": 1,
+      "startY": 11,
+      "endX": 13,
+      "endY": 19,
+      "description": "Kitchen counters, stove, sink, fridge, dining table with two chairs, brick fireplace, red armchair, red patterned rug, trash can"
+    }
+  },
+  "Custom_Ridgeside_BlairHouse": {
+    "YellowBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 8,
+      "endY": 7,
+      "description": "Yellow double bed, teddy bear, nightstands with plants"
+    },
+    "RedBedroom": {
+      "startX": 10,
+      "startY": 1,
+      "endX": 18,
+      "endY": 7,
+      "description": "Red double bed, wooden dresser, table with radio, nightstands"
+    },
+    "KitchenAndDining": {
+      "startX": 21,
+      "startY": 1,
+      "endX": 30,
+      "endY": 14,
+      "description": "Kitchen counters, stove, sink, fridge, dining table with four chairs, tall bookshelf, grandfather clock, large potted plants"
+    },
+    "LivingHallway": {
+      "startX": 1,
+      "startY": 9,
+      "endX": 20,
+      "endY": 14,
+      "description": "Blue sofa, round table with two stools, golden shrine, stacked boxes"
+    }
+  },
+  "Custom_Ridgeside_PikaHouse": {
+    "MainLivingArea": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 14,
+      "endY": 15,
+      "description": "Kitchen counters, sinks, stoves, fridge, brick fireplace, dining table with chairs, food on counter, red sofa, large potted plant, blue coolers"
+    },
+    "MasterBedroom": {
+      "startX": 12,
+      "startY": 1,
+      "endX": 20,
+      "endY": 7,
+      "description": "Red double bed, tall bookshelf, wooden dresser, round table with stool"
+    },
+    "TeenBedroom": {
+      "startX": 15,
+      "startY": 9,
+      "endX": 20,
+      "endY": 15,
+      "description": "Single bed, posters on wall, electric guitar, wooden dresser with radio, soccer ball, green rug"
+    }
+  },
+  "Custom_Ridgeside_MaddieHouse": {
+    "KitchenAndLiving": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 11,
+      "endY": 16,
+      "description": "Kitchen counters, stove, sink, fridge, small dining table with chairs, blue sofa, blue armchair, coffee table, TV, tall bookshelves, globe, potted plants"
+    },
+    "Bedroom": {
+      "startX": 12,
+      "startY": 1,
+      "endX": 22,
+      "endY": 9,
+      "description": "Single bed with green blanket, desk with computer, tall mirror, wooden dressers, periodic table poster, blue stool"
+    },
+    "Library": {
+      "startX": 12,
+      "startY": 10,
+      "endX": 22,
+      "endY": 16,
+      "description": "Two short bookshelves, grandfather clock, brick fireplace, patterned floor border"
+    }
+  },
+  "Custom_Ridgeside_EzekielHouse": {
+    "MasterBedroom": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 10,
+      "endY": 11,
+      "description": "Red double bed, large green patterned rug, wooden dressers, nightstand, sword on display, wooden chair"
+    },
+    "KitchenDining": {
+      "startX": 11,
+      "startY": 1,
+      "endX": 21,
+      "endY": 11,
+      "description": "Kitchen counters, stove, sink, fridge, dining table with chairs, food, trash can"
+    },
+    "KidsBedroom": {
+      "startX": 22,
+      "startY": 1,
+      "endX": 31,
+      "endY": 11,
+      "description": "Single bed, large blue bear plushie, purple play tent, bookshelf, wooden dresser, small desk, grey rug"
+    },
+    "LivingRoom": {
+      "startX": 3,
+      "startY": 12,
+      "endX": 21,
+      "endY": 20,
+      "description": "Brick fireplace, large green patterned rug, long wooden display counter with artifacts, grandfather clock, tall bookshelf"
+    }
+  },
+  "Custom_Ridgeside_KennethHouse": {
+    "WorkshopArea": {
+      "startX": 1,
+      "startY": 1,
+      "endX": 9,
+      "endY": 11,
+      "description": "Desks with multiple computers and servers, TV, technical equipment, small round table with a book, typewriter, blue stools"
+    },
+    "LivingAndSleepingArea": {
+      "startX": 10,
+      "startY": 1,
+      "endX": 18,
+      "endY": 11,
+      "description": "Single bed with green blanket, long desk with computers and monitors, two black sofas, red patterned rug, wooden dresser, potted plants"
+    }
+  }
+
+}

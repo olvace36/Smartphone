@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Reflection;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Characters;
@@ -16,7 +17,9 @@ namespace Smartphone
         private const int MaxFruitTreeTagsPerImage = 10;
         private const int MaxAnimalTagsPerImage = 10;
         private const int MaxForageTagsPerImage = 10;
-        private const string PlayerTag = "Player";
+        private const string PlayerTag = "#Player";
+        // private const string IndoorAreaMapAssetPath = "assets/indoor_area.json";
+        // private const string OutdoorAreaMapAssetPath = "assets/outdoor_area.json";
         private const int BuildingFrontTilesLeftRight = 2;
         private const int BuildingFrontTilesUp = 3;
         private const int BuildingFrontTilesDown = 1;
@@ -24,6 +27,22 @@ namespace Smartphone
         private static int LastTriggeredUnlimitedEventYear = -1;
         private static string LastTriggeredUnlimitedEventSeason = string.Empty;
         private static int LastTriggeredUnlimitedEventDay = -1;
+        // private static readonly object AreaMapLoadLock = new();
+        private static readonly Point[] AreaSampleOffsets =
+        {
+            new Point(0, 0),
+            new Point(-1, -1),
+            new Point(0, -1),
+            new Point(1, -1),
+            new Point(-1, 0),
+            new Point(1, 0),
+            new Point(-1, 1),
+            new Point(0, 1),
+            new Point(1, 1)
+        };
+        private static bool AreaMapsLoaded;
+        private static Dictionary<string, Dictionary<string, AreaData>> IndoorAreasByLocation = new(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, Dictionary<string, AreaData>> OutdoorAreasByLocation = new(StringComparer.OrdinalIgnoreCase);
 
         public static Dictionary<string, string> ImageTags = new(StringComparer.OrdinalIgnoreCase);
 
@@ -69,7 +88,6 @@ namespace Smartphone
                 .Where(tag => !string.IsNullOrWhiteSpace(tag))
                 .Select(tag => tag.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             if (cleanedTags.Count == 0)
@@ -126,23 +144,160 @@ namespace Smartphone
                 SaveImageTags();
         }
 
-        private static IEnumerable<string> BuildImageTags(Rectangle captureBounds)
+        private static IEnumerable<string> BuildImageTags(Rectangle captureBounds, NPC? npc = null)
         {
             var tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                BuildLocationTag(Game1.currentLocation)
+                BuildLocationTag(Game1.currentLocation, npc: npc)
             };
 
+            AddAreaTags(tags, captureBounds);
             AddBuildingFrontTags(tags, captureBounds);
             AddWeatherTags(tags);
             AddCurrentEventTags(tags);
             AddCharacterTags(tags, captureBounds);
+            AddHeldFishTag(tags);
             AddCropAndFruitTreeTags(tags, captureBounds);
             AddForageTags(tags, captureBounds);
             AddFarmAnimalTags(tags, captureBounds);
-            AddHeldFishTag(tags);
 
             return tags;
+        }
+
+        private static void AddAreaTags(HashSet<string> tags, Rectangle captureBounds)
+        {
+            GameLocation? currentLocation = Game1.currentLocation;
+            if (currentLocation == null)
+                return;
+
+            if (!TryGetAreaDefinitionsForCurrentLocation(currentLocation, out Dictionary<string, AreaData>? areaDefinitions)
+                || areaDefinitions == null
+                || areaDefinitions.Count == 0)
+                return;
+
+            Point centerTile = GetCenterTileFromCapture(captureBounds);
+            Point[] sampleTiles = BuildAreaSampleTiles(centerTile);
+
+            foreach (var areaEntry in areaDefinitions
+                         .OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                string areaName = areaEntry.Key?.Trim() ?? string.Empty;
+                AreaData area = areaEntry.Value;
+                if (string.IsNullOrWhiteSpace(areaName))
+                    continue;
+
+                if (areaName.StartsWith("SVE_", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (SHelper?.ModRegistry?.Get("FlashShifter.StardewValleyExpandedCP") == null)
+                        continue;
+                }
+
+                if (areaName.StartsWith("RSV_", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (SHelper?.ModRegistry?.Get("Rafseazz.RSVCP") == null)
+                        continue;
+                }
+                if (!DoAllTilesFitArea(sampleTiles, area))
+                    continue;
+
+                string description = area.description?.Trim() ?? string.Empty;
+                string areaTag = string.IsNullOrWhiteSpace(description)
+                    ? $"#area: {areaName}"
+                    : $"#area: {areaName}, has {description}";
+                tags.Add(areaTag);
+                return;
+            }
+        }
+
+        private static bool TryGetAreaDefinitionsForCurrentLocation(GameLocation location, out Dictionary<string, AreaData>? areaDefinitions)
+        {
+            areaDefinitions = null;
+
+            string locationName = TryReadStringMember(location, "NameOrUniqueName", "Name");
+            if (string.IsNullOrWhiteSpace(locationName))
+                return false;
+
+            Dictionary<string, Dictionary<string, AreaData>>? customAreaOverrides = Instance?.areaTags;
+            if (customAreaOverrides != null
+                && customAreaOverrides.TryGetValue(locationName, out Dictionary<string, AreaData>? customAreas)
+                && customAreas != null
+                && customAreas.Count > 0)
+            {
+                areaDefinitions = customAreas;
+                return true;
+            }
+
+            bool isOutdoors = TryReadBooleanMemberValue(location, out bool outdoorsValue, "isOutdoors", "IsOutdoors") && outdoorsValue;
+
+            if (isOutdoors
+                && OutdoorAreasByLocation.TryGetValue(locationName, out Dictionary<string, AreaData>? outdoorAreas)
+                && outdoorAreas != null
+                && outdoorAreas.Count > 0)
+            {
+                areaDefinitions = outdoorAreas;
+                return true;
+            }
+
+            if (IndoorAreasByLocation.TryGetValue(locationName, out Dictionary<string, AreaData>? indoorAreas)
+                && indoorAreas != null
+                && indoorAreas.Count > 0)
+            {
+                areaDefinitions = indoorAreas;
+                return true;
+            }
+
+            if (OutdoorAreasByLocation.TryGetValue(locationName, out outdoorAreas)
+                && outdoorAreas != null
+                && outdoorAreas.Count > 0)
+            {
+                areaDefinitions = outdoorAreas;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static Point GetCenterTileFromCapture(Rectangle captureBounds)
+        {
+            Rectangle normalizedCaptureBounds = GetNormalizedCaptureBounds(captureBounds);
+
+            float centerScreenX = normalizedCaptureBounds.X + (normalizedCaptureBounds.Width / 2f);
+            float centerScreenY = normalizedCaptureBounds.Y + (normalizedCaptureBounds.Height / 2f);
+
+            float worldX = Game1.viewport.X + centerScreenX;
+            float worldY = Game1.viewport.Y + centerScreenY;
+
+            return new Point(
+                (int)Math.Floor(worldX / Game1.tileSize),
+                (int)Math.Floor(worldY / Game1.tileSize));
+        }
+
+        private static Point[] BuildAreaSampleTiles(Point centerTile)
+        {
+            var sampleTiles = new Point[AreaSampleOffsets.Length];
+            for (int i = 0; i < AreaSampleOffsets.Length; i++)
+            {
+                Point offset = AreaSampleOffsets[i];
+                sampleTiles[i] = new Point(centerTile.X + offset.X, centerTile.Y + offset.Y);
+            }
+
+            return sampleTiles;
+        }
+
+        private static bool DoAllTilesFitArea(IEnumerable<Point> tiles, AreaData area)
+        {
+            int minX = Math.Min(area.startX, area.endX);
+            int maxX = Math.Max(area.startX, area.endX);
+            int minY = Math.Min(area.startY, area.endY);
+            int maxY = Math.Max(area.startY, area.endY);
+
+            foreach (Point tile in tiles)
+            {
+                if (tile.X < minX || tile.X > maxX || tile.Y < minY || tile.Y > maxY)
+                    return false;
+            }
+
+            return true;
         }
 
         private static void AddCharacterTags(HashSet<string> tags, Rectangle captureBounds)
@@ -152,7 +307,7 @@ namespace Smartphone
                 && IsCharacterInsideCapture(Game1.player, captureBounds))
             {
                 tags.Add(PlayerTag);
-                AddPlayerClothingTags(tags);
+                // AddPlayerClothingTags(tags);
             }
 
             if (Game1.currentLocation?.characters != null)
@@ -162,8 +317,8 @@ namespace Smartphone
                     if (string.IsNullOrWhiteSpace(npc.Name))
                         continue;
 
-                    if (IsCharacterInsideCapture(npc, captureBounds))
-                        tags.Add($"{npc.Name}");
+                    if (IsCharacterInsideCapture(npc, captureBounds) && !tags.Contains($"#{npc.Name}"))
+                        tags.Add($"#{npc.Name}");
                 }
             }
         }
@@ -676,11 +831,20 @@ namespace Smartphone
                 width,
                 height);
 
+            return GetNormalizedCaptureBounds(captureBounds).Contains(screenBounds);
+        }
+
+        private static Rectangle GetNormalizedCaptureBounds(Rectangle captureBounds)
+        {
+            float zoom = Game1.options?.zoomLevel ?? 1f;
+            if (zoom <= 0f)
+                zoom = 1f;
+
             return new Rectangle(
-                (int)(captureBounds.X / Game1.options.zoomLevel), 
-                (int)(captureBounds.Y / Game1.options.zoomLevel), 
-                (int)(captureBounds.Width / Game1.options.zoomLevel), 
-                (int)(captureBounds.Height / Game1.options.zoomLevel)).Contains(screenBounds);
+                (int)(captureBounds.X / zoom),
+                (int)(captureBounds.Y / zoom),
+                (int)(captureBounds.Width / zoom),
+                (int)(captureBounds.Height / zoom));
         }
 
         private static void AddHeldFishTag(HashSet<string> tags)
@@ -696,7 +860,7 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(fishName))
                 return;
 
-            tags.Add($"holding {fishName}");
+            tags.Add($"#holding {fishName}");
         }
 
         private static void AddBuildingFrontTags(HashSet<string> tags, Rectangle captureBounds)
@@ -713,18 +877,18 @@ namespace Smartphone
                     if (!IsTileAreaInsideCapture(tile.ToVector2(), captureBounds, -BuildingFrontTilesLeftRight * 64, -BuildingFrontTilesUp * 64, (BuildingFrontTilesLeftRight + BuildingFrontTilesLeftRight + 1) * 64, (BuildingFrontTilesUp + BuildingFrontTilesDown + 1) * 64))
                         continue;
 
-                    string buildingName = doorItem.Value?.Trim();
+                    string? buildingName = doorItem.Value?.Trim();
                     if (string.IsNullOrWhiteSpace(buildingName))
                         continue;
 
-                    tags.Add($"in front of {buildingName}");
+                    tags.Add($"#front of {buildingName}");
                 }
             }
         }
 
         private static void AddWeatherTags(HashSet<string> tags)
         {
-            tags.Add($"weather {(Game1.currentLocation.GetWeather().Weather.ToString() == "Festival" ? "Sunny" : Game1.currentLocation.GetWeather().Weather.ToString())}");
+            tags.Add($"#weather {(Game1.currentLocation.GetWeather().Weather.ToString() == "Festival" ? "Sunny" : Game1.currentLocation.GetWeather().Weather.ToString())}");
         }
 
         private static void AddCurrentEventTags(HashSet<string> tags)
@@ -733,7 +897,7 @@ namespace Smartphone
                 return;
 
             if (Game1.CurrentEvent.isFestival && !string.IsNullOrWhiteSpace(Game1.CurrentEvent.FestivalName))
-                tags.Add(Game1.CurrentEvent.FestivalName.Trim());
+                tags.Add($"#{Game1.CurrentEvent.FestivalName.Trim()}");
 
             if (TryGetRecentUnlimitedEventTag(out string unlimitedEventTag))
                 tags.Add(unlimitedEventTag);
@@ -1091,20 +1255,19 @@ namespace Smartphone
                 characterBounds.Width,
                 characterBounds.Height);
 
-            return new Rectangle(
-                (int)(captureBounds.X / Game1.options.zoomLevel), 
-                (int)(captureBounds.Y / Game1.options.zoomLevel), 
-                (int)(captureBounds.Width / Game1.options.zoomLevel), 
-                (int)(captureBounds.Height / Game1.options.zoomLevel)).Contains(screenBounds);
+            return GetNormalizedCaptureBounds(captureBounds).Contains(screenBounds);
         }
 
-        private static string BuildLocationTag(GameLocation? location)
+        private static string BuildLocationTag(GameLocation? location, NPC? npc = null)
         {
-            string locationName = location?.Name;
+            string? locationName = location?.Name;
             if (string.IsNullOrWhiteSpace(locationName))
                 locationName = "unknown location";
 
-            return $"at {locationName}";
+            if(npc != null && location == npc.getHome())
+                return $"#at {npc.Name}'s home";
+
+            return $"#at {locationName}";
         }
     }
 }

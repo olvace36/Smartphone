@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using StardewModdingAPI;
 using StardewValley;
 
@@ -29,61 +31,52 @@ namespace Smartphone
         private static int SocialCommentsMostPopularWithin3DaysMax = 2;
 
 
-        // Social post weights
-        private static int SocialPostWeightText0Images = 22;
-        private static int SocialPostWeightText1Image = 20;
-        private static int SocialPostWeightText2Images = 14;
-        private static int SocialPostWeightText3Images = 8;
+        // Social post weights. Keep total 200
+        private static int SocialPostWeightText0Images = 65;
+        private static int SocialPostWeightText1Image = 30;
+        private static int SocialPostWeightText2Images = 10;
+        private static int SocialPostWeightText3Images = 5;
         private static int SocialPostWeightNoText0Images = 0;
-        private static int SocialPostWeightNoText1Image = 16;
-        private static int SocialPostWeightNoText2Images = 12;
-        private static int SocialPostWeightNoText3Images = 8;
+        private static int SocialPostWeightNoText1Image = 30;
+        private static int SocialPostWeightNoText2Images = 40;
+        private static int SocialPostWeightNoText3Images = 20;
 
 
         private static NPC? getRandomWeightedNPC()
         {
-            if (npcToAgeGroup != null && npcToAgeGroup.Count > 0)
+            List<NPC> candidates = Utility.getAllVillagers()
+                .OfType<NPC>()
+                .Where(npc => npc != null && npc.IsVillager && !string.IsNullOrWhiteSpace(npc.Name) && npc.CanSocialize)
+                .ToList();
+
+            if (candidates.Count == 0)
+                return null;
+
+            double getWeight(NPC npc)
             {
-                const int weight0 = 1;
-                const int weight16 = 3;
-                const int weight36 = 2;
-                const int weight55 = 1;
-
-                int totalWeight = 0;
-                foreach (var kvp in npcToAgeGroup)
+                return npc.Age switch
                 {
-                    int w = kvp.Value == "0+" ? weight0
-                          : kvp.Value == "16+" ? weight16
-                          : kvp.Value == "36+" ? weight36
-                          : kvp.Value == "55+" ? weight55
-                          : 0;
-                    totalWeight += w;
-                }
+                    1 => 0.50, // teens
+                    2 => 0.35, // adults
+                    0 => 0.15, // children
+                    _ => 0.00
+                };
+            }
 
-                if (totalWeight > 0)
-                {
-                    int pick = Game1.random.Next(totalWeight);
-                    int cumulative = 0;
-                    string? chosenNpc = null;
-                    foreach (var kvp in npcToAgeGroup)
-                    {
-                        int w = kvp.Value == "0+" ? weight0
-                              : kvp.Value == "16+" ? weight16
-                              : kvp.Value == "36+" ? weight36
-                              : kvp.Value == "55+" ? weight55
-                              : 0;
-                        cumulative += w;
-                        if (pick < cumulative)
-                        {
-                            chosenNpc = kvp.Key;
-                            break;
-                        }
-                    }
+            // 2. Calculate total weight
+            double totalWeight = candidates.Sum(npc => getWeight(npc));
 
-                    if (!string.IsNullOrEmpty(chosenNpc) && Game1.getCharacterFromName(chosenNpc) is NPC randomNpc)
-                    {
-                        return randomNpc;
-                    }
+            // 3. Pick a random threshold
+            double randomValue = Random.Shared.NextDouble() * totalWeight;
+            double cumulativeWeight = 0;
+
+            // 4. Iterate and find the selected candidate
+            foreach (var npc in candidates)
+            {
+                cumulativeWeight += getWeight(npc);
+                if (randomValue < cumulativeWeight)
+                { 
+                    return npc;
                 }
             }
 
@@ -120,15 +113,37 @@ namespace Smartphone
                     attachments.Add(imagePath);
             }
 
-            string postText = includeText ? "POST TEXT" : string.Empty;
-            if (string.IsNullOrWhiteSpace(postText) && attachments.Count == 0)
-                postText = "POST TEXT";
-
+            string npcCharacteristic = GetNpcCharacteristicForPrompt(selectedNpc);
+            List<List<string>> attachmentTags = attachments.Select(GetAttachmentTagsForPrompt).ToList();
             string authorName = selectedNpc.Name;
-            QueueDelayedSocialAction(() =>
+            QueueDelayedSocialAction(async () =>
             {
+                string postText = string.Empty;
+                if (includeText)
+                    postText = await GenerateNpcSocialPostText(authorName, npcCharacteristic, attachmentTags);
+
                 StardewConnectManager.AddNpcPostWithAttachments(authorName, postText, attachments);
             });
+        }
+
+        private static List<string> GetAttachmentTagsForPrompt(string imagePath)
+        {
+            if (string.IsNullOrWhiteSpace(imagePath))
+                return new List<string>();
+
+            string fileName = Path.GetFileName(imagePath.Trim());
+            if (string.IsNullOrWhiteSpace(fileName) || ImageTags == null)
+                return new List<string>();
+
+            if (!ImageTags.TryGetValue(fileName, out string? imageTag) || string.IsNullOrWhiteSpace(imageTag))
+                return new List<string>();
+
+            return imageTag
+                .Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Select(tag => tag.Trim())
+                .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private static (bool IncludeText, int ImageCount) ChooseRandomSocialPostFormat()
@@ -230,32 +245,73 @@ namespace Smartphone
                 return;
 
             int commentAttempts = Game1.random.Next(maxComments + 1);
-            for (int i = 0; i < commentAttempts; i++)
+            if (commentAttempts <= 0)
+                return;
+
+            QueueDelayedSocialAction(async () =>
             {
-                QueueDelayedSocialAction(() =>
+                StardewConnectPost? post = StardewConnectManager.GetPost(postId);
+                if (post == null)
+                    return;
+
+                List<string> actorNames = PickRandomNpcActorNamesForCommentBatch(post, commentAttempts);
+                if (actorNames.Count == 0)
+                    return;
+
+                Dictionary<string, string> generatedComments = await GenerateNpcSocialPostComments(post, actorNames);
+                if (generatedComments.Count == 0)
+                    return;
+
+                foreach (string actorName in actorNames)
                 {
-                    StardewConnectPost? post = StardewConnectManager.GetPost(postId);
-                    if (post == null)
-                        return;
+                    if (!generatedComments.TryGetValue(actorName, out string? commentText) || string.IsNullOrWhiteSpace(commentText))
+                        continue;
 
-                    string actorName = PickRandomNpcActorNameForComment(post);
-                    if (string.IsNullOrWhiteSpace(actorName))
-                        return;
-
-                    StardewConnectManager.AddNpcComment(postId, actorName, "COMMENT");
-                });
-            }
+                    string commentAuthorName = actorName;
+                    string generatedComment = commentText.Trim();
+                    QueueDelayedSocialAction(() =>
+                    {
+                        StardewConnectManager.AddNpcComment(postId, commentAuthorName, generatedComment);
+                    });
+                }
+            });
         }
 
         private static string PickRandomNpcActorNameForComment(StardewConnectPost post)
         {
+            return PickRandomNpcActorNameForComment(post, excludedNpcNames: null);
+        }
+
+        private static List<string> PickRandomNpcActorNamesForCommentBatch(StardewConnectPost post, int desiredCount)
+        {
+            var selectedActors = new List<string>();
+            if (post == null || desiredCount <= 0)
+                return selectedActors;
+
+            var reservedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < desiredCount; i++)
+            {
+                string actorName = PickRandomNpcActorNameForComment(post, reservedNames);
+                if (string.IsNullOrWhiteSpace(actorName))
+                    break;
+
+                if (reservedNames.Add(actorName))
+                    selectedActors.Add(actorName);
+            }
+
+            return selectedActors;
+        }
+
+        private static string PickRandomNpcActorNameForComment(StardewConnectPost post, ISet<string>? excludedNpcNames)
+        {
             if (post == null)
                 return string.Empty;
 
-            List<NPC> candidates = Utility.getAllCharacters()
+            List<NPC> candidates = Utility.getAllVillagers()
                 .OfType<NPC>()
-                .Where(npc => npc != null && npc.IsVillager && !string.IsNullOrWhiteSpace(npc.Name) && npc.CanSocialize && Game1.player.friendshipData.ContainsKey(npc.Name))
+                .Where(npc => npc != null && npc.IsVillager && !string.IsNullOrWhiteSpace(npc.Name) && npc.CanSocialize)
                 .Where(npc => !string.Equals(npc.Name, post.AuthorName, StringComparison.OrdinalIgnoreCase))
+                .Where(npc => excludedNpcNames == null || !excludedNpcNames.Contains(npc.Name))
                 .ToList();
 
             if (candidates.Count == 0)
@@ -283,9 +339,9 @@ namespace Smartphone
             if (post == null)
                 return string.Empty;
 
-            List<NPC> candidates = Utility.getAllCharacters()
+            List<NPC> candidates = Utility.getAllVillagers()
                 .OfType<NPC>()
-                .Where(npc => npc != null && npc.IsVillager && !string.IsNullOrWhiteSpace(npc.Name) && npc.CanSocialize && Game1.player.friendshipData.ContainsKey(npc.Name))
+                .Where(npc => npc != null && npc.IsVillager && !string.IsNullOrWhiteSpace(npc.Name) && npc.CanSocialize)
                 .Where(npc => !string.Equals(npc.Name, post.AuthorName, StringComparison.OrdinalIgnoreCase))
                 .Where(npc => !excludeAlreadyLiked || !StardewConnectManager.IsPostLikedBy(post, npc.Name))
                 .ToList();
@@ -306,9 +362,9 @@ namespace Smartphone
 
         private static NPC? GetRandomVillagerNpc(string excludedNpcName = "")
         {
-            List<NPC> candidates = Utility.getAllCharacters()
+            List<NPC> candidates = Utility.getAllVillagers()
                 .OfType<NPC>()
-                .Where(npc => npc != null && npc.IsVillager && !string.IsNullOrWhiteSpace(npc.Name) && npc.CanSocialize && Game1.player.friendshipData.ContainsKey(npc.Name))
+                .Where(npc => npc != null && npc.IsVillager && !string.IsNullOrWhiteSpace(npc.Name) && npc.CanSocialize)
                 .Where(npc => string.IsNullOrWhiteSpace(excludedNpcName)
                     || !string.Equals(npc.Name, excludedNpcName, StringComparison.OrdinalIgnoreCase))
                 .ToList();
@@ -364,18 +420,42 @@ namespace Smartphone
             if (action == null)
                 return;
 
-            int delay = Game1.random.Next(0, SocialActionMaxDelayMilliseconds + 1);
-            DelayedAction.functionAfterDelay(() =>
+            QueueDelayedSocialAction(() =>
             {
                 try
                 {
                     action();
+                    return Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    SMonitor.Log($"Random social action failed: {ex}", LogLevel.Trace);
+                    return Task.FromException(ex);
                 }
+            });
+        }
+
+        private static void QueueDelayedSocialAction(Func<Task> action)
+        {
+            if (action == null)
+                return;
+
+            int delay = Game1.random.Next(0, SocialActionMaxDelayMilliseconds + 1);
+            DelayedAction.functionAfterDelay(() =>
+            {
+                _ = RunDelayedSocialActionAsync(action);
             }, delay);
+        }
+
+        private static async Task RunDelayedSocialActionAsync(Func<Task> action)
+        {
+            try
+            {
+                await action();
+            }
+            catch (Exception ex)
+            {
+                SMonitor.Log($"Random social action failed: {ex}", LogLevel.Trace);
+            }
         }
     }
 }

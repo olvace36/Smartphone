@@ -261,6 +261,7 @@ namespace Smartphone
         public static Dictionary<string, string> npcToAgeGroup;
 
         public static PhoneMenu phoneMenu;
+        private Dictionary<string, Dictionary<string, AreaData>> areaTags;
 
 
         // =========================================================================================
@@ -347,8 +348,8 @@ namespace Smartphone
                                 npc.CurrentDialogue?.Clear();
                             }
                         }
-                        //else
-                        //{
+                        // else
+                        // {
                         //    Task.Run(async () =>
                         //    {
                         //        SMonitor.Log("SENDING AI MSG FROM: " + npcName, LogLevel.Info);
@@ -356,7 +357,7 @@ namespace Smartphone
                         //        MessageManager.AddMessage(npcName, $"{npcName}:" + messages);
                         //        lastTimeReceiveMessage = Game1.timeOfDay;
                         //    });
-                        //}
+                        // }
 
                         break;
                     }

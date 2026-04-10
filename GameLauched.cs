@@ -76,6 +76,10 @@ namespace Smartphone
             harmony.PatchAll();
 
 
+            // dev tool: prepare for grid overlay
+            solidPixel = new Texture2D(Game1.graphics.GraphicsDevice, 1, 1);
+            solidPixel.SetData(new[] { Color.White });
+
 
         }
 
@@ -163,8 +167,15 @@ namespace Smartphone
 
                 Game1.activeClickableMenu = phoneMenu;
             }
-        }
 
+            // DEVTOOL
+            if (e.Button == SButton.O && Game1.activeClickableMenu == null && false)
+            {
+                isGridVisible = !isGridVisible;
+                firstClickTile = null;
+                return;
+            }
+        }
 
 
         private void OnSaving(object sender, SavingEventArgs e)
@@ -181,6 +192,18 @@ namespace Smartphone
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
+            IndoorAreasByLocation = SHelper.Data.ReadJsonFile<Dictionary<string, Dictionary<string, AreaData>>>("assets/indoor_area.json") 
+                        ?? new Dictionary<string, Dictionary<string, AreaData>>();
+
+            OutdoorAreasByLocation = SHelper.Data.ReadJsonFile<Dictionary<string, Dictionary<string, AreaData>>>("assets/outdoor_area.json") 
+                        ?? new Dictionary<string, Dictionary<string, AreaData>>();
+
+            areaTags = new Dictionary<string, Dictionary<string, AreaData>>(IndoorAreasByLocation);
+            foreach (var kvp in OutdoorAreasByLocation)
+            {
+                areaTags[kvp.Key] = kvp.Value; 
+            }
+
             LoadImageTags();
 
             string npc_characteristic = Helper.ModContent.GetInternalAssetName("assets/npc_characteristic.json").BaseName;
@@ -194,7 +217,7 @@ namespace Smartphone
 
 
 
-            foreach (var npc in Utility.getAllCharacters())
+            foreach (var npc in Utility.getAllVillagers())
             {
                 if (!string.IsNullOrEmpty(npc.Birthday_Season) && npc.Birthday_Day > 0)
                 {
@@ -353,15 +376,36 @@ namespace Smartphone
             if (Game1.timeOfDay < 2300)
                 CheckSendNewMessage();
 
-            if (Config.OpenAIKey != "" && e.NewTime >= 700 && e.NewTime % 100 == 0 && chatModel != "gpt-5.4-nano")
+            if (Config.OpenAIKey == "" && e.NewTime % 400 == 0)
             {
+                // gpt-5.4 variant support reasoning effor: none, low, medium, high, xhigh
+                // gpt-5 variant support reasoning effort: minimal, low, medium, high
                 Task.Run(async () =>
                 {
                     var (premium, regular) = await GetOpenAIUsage();
-                    if (regular > 10000000)
+                    if (regular > 15000000)
                     {
-                        chatModel = "gpt-5.4-nano";
-                        summaryModel = "gpt-5.4-nano";
+                        chatModel = "gpt-5-nano";
+                        chatReasoningEffort = new { effort = "minimal", summary = "auto" };
+
+                        summaryModel = "gpt-5-nano";
+                        summaryReasoningEffort = new { effort = "minimal", summary = "auto" };
+                    }
+                    else if (regular > 10000000)
+                    {
+                        chatModel = "gpt-5-mini";
+                        chatReasoningEffort = new { effort = "minimal", summary = "auto" };
+
+                        summaryModel = "gpt-5-mini";
+                        summaryReasoningEffort = new { effort = "low", summary = "auto" };
+                    }
+                    else
+                    {
+                        chatModel = "gpt-5.4-mini";
+                        chatReasoningEffort = new { effort = "none", summary = "auto" };
+
+                        summaryModel = "gpt-5.4-mini";
+                        summaryReasoningEffort = new { effort = "low", summary = "auto" };
                     }
                 });
             }

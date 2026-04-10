@@ -1253,8 +1253,10 @@ namespace Smartphone
             cursorY += comments.Count > 0 ? 44 : 34;
 
             IEnumerable<StardewConnectComment> commentsToDraw = includeAllComments
-                ? comments
+                ? (IEnumerable<StardewConnectComment>)comments
                 : comments.Skip(Math.Max(0, comments.Count - SocialCommentPreviewCount));
+
+            commentsToDraw = System.Linq.Enumerable.Reverse(commentsToDraw);
 
             foreach (StardewConnectComment comment in commentsToDraw)
             {
@@ -1372,8 +1374,10 @@ namespace Smartphone
             height += comments.Count > 0 ? 44 : 34;
 
             IEnumerable<StardewConnectComment> commentsToMeasure = includeAllComments
-                ? comments
+                ? (IEnumerable<StardewConnectComment>)comments
                 : comments.Skip(Math.Max(0, comments.Count - SocialCommentPreviewCount));
+
+            commentsToMeasure = System.Linq.Enumerable.Reverse(commentsToMeasure);
 
             foreach (StardewConnectComment comment in commentsToMeasure)
                 height += MeasureSocialCommentHeight(comment, SocialPostTextMaxWidth - 20);

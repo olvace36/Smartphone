@@ -53,3 +53,5 @@ C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\gameTarget.png
 C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\phone.png
 C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\phone_background.png
 C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\PhoneTheme\OLD\phone_empty.png
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\Assets\indoor_area.json
+C:\Users\Ha\Desktop\Texter\bin\Debug\net6.0\Assets\outdoor_area.json
