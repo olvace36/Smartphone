@@ -311,7 +311,7 @@ namespace Smartphone
                         bool talkedToToday = Game1.player.friendshipData.TryGetValue(npcName, out Friendship friendship)
                                              && friendship.TalkedToToday;
 
-                        if (!talkedToToday)
+                        if (!talkedToToday && !Config.DisableDailyMessage)
                         {
                             // Mark as talked to
                             if (friendship != null)

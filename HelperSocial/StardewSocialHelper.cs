@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using StardewModdingAPI;
 using StardewValley;
+using StardewValley.Extensions;
 
 namespace Smartphone
 {
@@ -88,7 +89,7 @@ namespace Smartphone
             if (!Context.IsWorldReady)
                 return;
 
-            if (Game1.random.NextDouble() < 1)
+            if (Game1.random.NextDouble() < SocialEventCreatePostChance)
                 QueueRandomNpcSocialPost();
 
             if (Game1.random.NextDouble() < SocialEventEngagementChance)
@@ -108,7 +109,7 @@ namespace Smartphone
 
             for (int i = 0; i < safeImageCount; i++)
             {
-                string imagePath = CaptureNpcPhoto(selectedNpc);
+                string imagePath = CaptureNpcPhoto(selectedNpc, selectedNpc.Tile, Game1.random.NextBool(), Game1.random.NextBool());
                 if (!string.IsNullOrWhiteSpace(imagePath))
                     attachments.Add(imagePath);
             }

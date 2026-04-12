@@ -5,6 +5,7 @@ using StardewValley;
 using StardewValley.Menus;
 using TextCopy;
 using System.Text;
+using StardewModdingAPI;
 
 namespace Smartphone
 {
@@ -623,11 +624,6 @@ namespace Smartphone
         {
             if (!IsTextAppOpen() || !removeButton.containsPoint(x, y))
                 return false;
-
-                return false;
-                return false;
-
-                return false;
             messageHistory = MessageManager.GetMessages(selectedNpc);
             return true;
         }
@@ -1136,22 +1132,8 @@ namespace Smartphone
             if (!hasTextMessage && selectedPhotoPaths.Count == 0)
                 return;
 
-            // if (hasTextMessage)
-            // {
-            //     string normalizedMessage = playerMessage.ToLowerInvariant();
-            //     if (normalizedMessage.Contains("dinner"))
-            //         currentSuggestion = new($"Want to invite\n{selectedNpc} for dinner?", "[start dinner event]");
-            //     else if (normalizedMessage.Contains("birthday") && ModEntry.GetNpcsWithBirthdayToday().Contains(Game1.getCharacterFromName(selectedNpc)))
-            //         currentSuggestion = new($"Want to celebrate\n{selectedNpc}'s birthday'?", "[start NPC birthday event]");
-            //     else
-            //         currentSuggestion = new("", "");
-
-            //     MessageManager.AddMessage(selectedNpc, $"PLAYER: {playerMessage}", isFromPlayer: true);
-            // }
-            // else
-            // {
-            //     currentSuggestion = new("", "");
-            // }
+            if (hasTextMessage)
+                MessageManager.AddMessage(selectedNpc, $"PLAYER: {playerMessage}", isFromPlayer: true);
 
             if (selectedPhotoPaths.Count > 0)
             {
@@ -1305,54 +1287,54 @@ namespace Smartphone
             }
         }
 
-        private static (string ReplyText, int PhotoCount) ExtractNpcPhotoDirective(string rawReply)
-        {
-            if (string.IsNullOrWhiteSpace(rawReply))
-                return ("", 0);
+        // private static (string ReplyText, int PhotoCount) ExtractNpcPhotoDirective(string rawReply)
+        // {
+        //     if (string.IsNullOrWhiteSpace(rawReply))
+        //         return ("", 0);
 
-            int photoCount = 0;
-            string cleanedReply = rawReply;
-            int scanStart = 0;
+        //     int photoCount = 0;
+        //     string cleanedReply = rawReply;
+        //     int scanStart = 0;
 
-            while (true)
-            {
-                int tokenStart = cleanedReply.IndexOf(NpcPhotoCommandPrefix, scanStart, StringComparison.OrdinalIgnoreCase);
-                if (tokenStart < 0)
-                    break;
+        //     while (true)
+        //     {
+        //         int tokenStart = cleanedReply.IndexOf(NpcPhotoCommandPrefix, scanStart, StringComparison.OrdinalIgnoreCase);
+        //         if (tokenStart < 0)
+        //             break;
 
-                int tokenEnd = cleanedReply.IndexOf(']', tokenStart);
-                if (tokenEnd < 0)
-                    break;
+        //         int tokenEnd = cleanedReply.IndexOf(']', tokenStart);
+        //         if (tokenEnd < 0)
+        //             break;
 
-                string token = cleanedReply.Substring(tokenStart, tokenEnd - tokenStart + 1);
-                photoCount = Math.Max(photoCount, ParseNpcPhotoDirectiveCount(token));
+        //         string token = cleanedReply.Substring(tokenStart, tokenEnd - tokenStart + 1);
+        //         photoCount = Math.Max(photoCount, ParseNpcPhotoDirectiveCount(token));
 
-                cleanedReply = cleanedReply.Remove(tokenStart, tokenEnd - tokenStart + 1);
-                scanStart = tokenStart;
-            }
+        //         cleanedReply = cleanedReply.Remove(tokenStart, tokenEnd - tokenStart + 1);
+        //         scanStart = tokenStart;
+        //     }
 
-            return (cleanedReply.Trim(), Math.Clamp(photoCount, 0, ChatPhotoPickerMaxCount));
-        }
+        //     return (cleanedReply.Trim(), Math.Clamp(photoCount, 0, ChatPhotoPickerMaxCount));
+        // }
 
-        private static int ParseNpcPhotoDirectiveCount(string token)
-        {
-            if (string.IsNullOrWhiteSpace(token))
-                return 0;
+        // private static int ParseNpcPhotoDirectiveCount(string token)
+        // {
+        //     if (string.IsNullOrWhiteSpace(token))
+        //         return 0;
 
-            int colonIndex = token.IndexOf(':');
-            if (colonIndex < 0)
-                return 1;
+        //     int colonIndex = token.IndexOf(':');
+        //     if (colonIndex < 0)
+        //         return 1;
 
-            int endIndex = token.IndexOf(']', colonIndex + 1);
-            if (endIndex <= colonIndex)
-                return 1;
+        //     int endIndex = token.IndexOf(']', colonIndex + 1);
+        //     if (endIndex <= colonIndex)
+        //         return 1;
 
-            string countText = token.Substring(colonIndex + 1, endIndex - colonIndex - 1).Trim();
-            if (!int.TryParse(countText, out int requestedCount))
-                return 1;
+        //     string countText = token.Substring(colonIndex + 1, endIndex - colonIndex - 1).Trim();
+        //     if (!int.TryParse(countText, out int requestedCount))
+        //         return 1;
 
-            return Math.Clamp(requestedCount, 1, ChatPhotoPickerMaxCount);
-        }
+        //     return Math.Clamp(requestedCount, 1, ChatPhotoPickerMaxCount);
+        // }
 
         private static string ResolveChatImageTagFromPath(string imagePath)
         {
@@ -1425,32 +1407,30 @@ namespace Smartphone
 
             string merged = string.Join("\n", messages.Where(text => !string.IsNullOrWhiteSpace(text)));
             int counter = messages.Count;
-            string rawReply = await ModEntry.SendMessageToAssistant(npcName, merged, counter);
-
-            (string cleanedReply, int requestedPhotoCount) = ExtractNpcPhotoDirective(rawReply);
+            string cleanedReply = await ModEntry.SendMessageToAssistant(npcName, merged, counter);
 
             if (!string.IsNullOrWhiteSpace(cleanedReply))
                 MessageManager.AddMessage(npcName, $"{npcName}: {cleanedReply}");
 
-            if (requestedPhotoCount > 0)
-            {
-                List<string> npcPhotos = ModEntry.CaptureNpcPhotosForMessage(npcName, requestedPhotoCount);
-                List<string> validNpcPhotos = npcPhotos
-                    .Where(path => !string.IsNullOrWhiteSpace(path))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Take(ChatPhotoPickerMaxCount)
-                    .ToList();
+            // if (requestedPhotoCount > 0)
+            // {
+            //     List<string> npcPhotos = ModEntry.CaptureNpcPhotosForMessage(npcName, requestedPhotoCount);
+            //     List<string> validNpcPhotos = npcPhotos
+            //         .Where(path => !string.IsNullOrWhiteSpace(path))
+            //         .Distinct(StringComparer.OrdinalIgnoreCase)
+            //         .Take(ChatPhotoPickerMaxCount)
+            //         .ToList();
 
-                if (validNpcPhotos.Count > 0)
-                {
-                    string photoPayload = BuildPhotoPayload(validNpcPhotos);
-                    MessageManager.AddMessage(npcName, $"{NpcPhotoPrefix} {photoPayload}", addCount: false, isFromPlayer: false, notify: false);
+            //     if (validNpcPhotos.Count > 0)
+            //     {
+            //         string photoPayload = BuildPhotoPayload(validNpcPhotos);
+            //         MessageManager.AddMessage(npcName, $"{NpcPhotoPrefix} {photoPayload}", addCount: false, isFromPlayer: false, notify: false);
 
-                    string imageTag = BuildCombinedPhotoTagText(validNpcPhotos);
-                    if (!string.IsNullOrWhiteSpace(imageTag))
-                        MessageManager.AddMessage(npcName, $"{NpcPhotoTagPrefix} {imageTag}", addCount: false, isFromPlayer: false, notify: false);
-                }
-            }
+            //         string imageTag = BuildCombinedPhotoTagText(validNpcPhotos);
+            //         if (!string.IsNullOrWhiteSpace(imageTag))
+            //             MessageManager.AddMessage(npcName, $"{NpcPhotoTagPrefix} {imageTag}", addCount: false, isFromPlayer: false, notify: false);
+            //     }
+            // }
 
             if (selectedNpc == npcName)
                 messageHistory = MessageManager.GetMessages(npcName);

@@ -139,13 +139,13 @@ namespace Smartphone
                         JArray toolCalls = GetResponseFunctionCalls(json);
                         responseMessage = GetResponseOutputText(json);
 
-                        SMonitor.Log("-----", LogLevel.Error);
-                        SMonitor.Log(system, LogLevel.Error);
-                        SMonitor.Log("-----", LogLevel.Error);
-                        SMonitor.Log(user, LogLevel.Error);
-                        SMonitor.Log("-----", LogLevel.Error);
-                        SMonitor.Log(responseMessage, LogLevel.Error);
-                        SMonitor.Log("\n\n", LogLevel.Error);
+                        //SMonitor.Log("-----", LogLevel.Error);
+                        //SMonitor.Log(system, LogLevel.Error);
+                        //SMonitor.Log("-----", LogLevel.Error);
+                        //SMonitor.Log(user, LogLevel.Error);
+                        //SMonitor.Log("-----", LogLevel.Error);
+                        //SMonitor.Log(responseMessage, LogLevel.Error);
+                        //SMonitor.Log("\n\n", LogLevel.Error);
 
                         if (toolCalls.Count > 0)
                         {

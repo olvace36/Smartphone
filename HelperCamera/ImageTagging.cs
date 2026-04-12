@@ -314,7 +314,7 @@ namespace Smartphone
             {
                 foreach (NPC npc in Game1.currentLocation.characters.OfType<NPC>())
                 {
-                    if (string.IsNullOrWhiteSpace(npc.Name))
+                    if (string.IsNullOrWhiteSpace(npc.Name) || npc.IsInvisible)
                         continue;
 
                     if (IsCharacterInsideCapture(npc, captureBounds) && !tags.Contains($"#{npc.Name}"))

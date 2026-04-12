@@ -164,6 +164,14 @@ namespace Smartphone
                 getValue: () => Config.notifyStardewSocial,
                 setValue: value => Config.notifyStardewSocial = value
             );
+
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Disable Daily Message",
+                tooltip: () => "Disable the daily message feature.",
+                getValue: () => Config.DisableDailyMessage,
+                setValue: value => Config.DisableDailyMessage = value
+            );
         }
 
     }

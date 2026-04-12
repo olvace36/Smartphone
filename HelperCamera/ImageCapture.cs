@@ -92,7 +92,7 @@ namespace Smartphone
         private void OnRendered(object sender, RenderedEventArgs e)
         {
             // dev tool grid drawing
-            if (isGridVisible && !Context.IsWorldReady)
+            if (isGridVisible && Context.IsWorldReady)
             {
                 DrawGrid();
             }
@@ -146,7 +146,7 @@ namespace Smartphone
             }
         }
 
-        private static string CaptureNpcPhoto(NPC npc, bool landscape = false, bool square = false)
+        private static string CaptureNpcPhoto(NPC npc, Vector2 captureCenter, bool landscape = false, bool square = false, List<NPC>? visibleNpcAtTarget = null)
         {
             if (!Context.IsWorldReady || npc == null || npc.currentLocation == null || Game1.graphics?.GraphicsDevice == null || Game1.game1 == null)
                 return "";
@@ -163,7 +163,7 @@ namespace Smartphone
             try
             {
                 Game1.currentLocation = targetLocation;
-                Game1.viewport = BuildNpcCaptureViewport(npc, targetLocation, captureWidth, captureHeight);
+                Game1.viewport = BuildNpcCaptureViewport(targetLocation, captureCenter, captureWidth, captureHeight);
                 PrepareLocationRenderState(targetLocation);
 
                 graphics.SetRenderTarget(renderTarget);
@@ -184,29 +184,37 @@ namespace Smartphone
                 renderStateSnapshot.Restore();
             }
 
+            if (visibleNpcAtTarget != null)
+            {
+                foreach (var character in visibleNpcAtTarget)
+                {
+                    character.IsInvisible = false;
+                }
+            }
+
             return SaveCapturedPhoto(renderTarget, targetLocation.Name, tags, false);
         }
 
-        public static List<string> CaptureNpcPhotosForMessage(string npcName, int count = 1)
-        {
-            var photos = new List<string>();
-            if (string.IsNullOrWhiteSpace(npcName))
-                return photos;
+        // public static List<string> CaptureNpcPhotosForMessage(string npcName, int count = 1)
+        // {
+        //     var photos = new List<string>();
+        //     if (string.IsNullOrWhiteSpace(npcName))
+        //         return photos;
 
-            NPC? npc = Game1.getCharacterFromName(npcName);
-            if (npc == null)
-                return photos;
+        //     NPC? npc = Game1.getCharacterFromName(npcName);
+        //     if (npc == null)
+        //         return photos;
 
-            int safeCount = Math.Clamp(count, 1, 5);
-            for (int i = 0; i < safeCount; i++)
-            {
-                string photoPath = CaptureNpcPhoto(npc);
-                if (!string.IsNullOrWhiteSpace(photoPath))
-                    photos.Add(photoPath);
-            }
+        //     int safeCount = Math.Clamp(count, 1, 5);
+        //     for (int i = 0; i < safeCount; i++)
+        //     {
+        //         string photoPath = CaptureNpcPhoto(npc);
+        //         if (!string.IsNullOrWhiteSpace(photoPath))
+        //             photos.Add(photoPath);
+        //     }
 
-            return photos;
-        }
+        //     return photos;
+        // }
 
         private static void RecoverWorldDrawStateAfterCaptureFailure()
         {
@@ -383,9 +391,8 @@ namespace Smartphone
                 SaveImageTags();
         }
 
-        private static xTile.Dimensions.Rectangle BuildNpcCaptureViewport(NPC npc, GameLocation location, int captureWidth, int captureHeight)
+        private static xTile.Dimensions.Rectangle BuildNpcCaptureViewport(GameLocation location, Vector2 captureCenter, int captureWidth, int captureHeight)
         {
-            Microsoft.Xna.Framework.Rectangle npcBounds = npc.GetBoundingBox();
             object? map = GetMemberValue(location, "Map", "map");
 
             int mapWidth = map == null ? -1 : TryReadIntMember(map, "DisplayWidth", "displayWidth");
@@ -394,8 +401,9 @@ namespace Smartphone
             mapWidth = Math.Max(captureWidth, mapWidth);
             mapHeight = Math.Max(captureHeight, mapHeight);
 
-            int viewX = npcBounds.Center.X - (captureWidth / 2);
-            int viewY = npcBounds.Center.Y - (captureHeight / 2);
+            Vector2 pixelCenter = (captureCenter * Game1.tileSize) + new Vector2(Game1.tileSize / 2f, Game1.tileSize / 2f);
+            int viewX = (int)Math.Round(pixelCenter.X) - (captureWidth / 2);
+            int viewY = (int)Math.Round(pixelCenter.Y) - (captureHeight / 2);
 
             viewX = Math.Clamp(viewX, 0, Math.Max(0, mapWidth - captureWidth));
             viewY = Math.Clamp(viewY, 0, Math.Max(0, mapHeight - captureHeight));

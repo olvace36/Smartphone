@@ -90,6 +90,8 @@ namespace Smartphone
             public int endX { get; set; }
             public int endY { get; set; }
             public string description { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public List<string>? ownerNpc { get; set; }
         }
         // Callback for when you press Enter on the Name menu
         private void OnNameEntered(string name)
