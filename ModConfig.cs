@@ -9,10 +9,14 @@ namespace Smartphone
         public const string NpcRequirementNoRequirement = "No requirement";
         public const string NpcRequirementMeet = "Meet";
         public const string NpcRequirementFriend = "Friend";
+        public const string PostPerDayHigh = "High";
+        public const string PostPerDayMedium = "Medium";
+        public const string PostPerDayLow = "Low";
 
         public SButton ModKey { get; set; } = SButton.H;
         public string HelperOption { get; set; } = "Always";
         public string NpcMessageRequirement { get; set; } = NpcRequirementFriend;
+        public string PostPerDay { get; set; } = PostPerDayMedium;
 
         // advance
         public string OpenAIKey { get; set; } = "";

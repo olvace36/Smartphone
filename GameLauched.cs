@@ -69,6 +69,8 @@ namespace Smartphone
             helper.Events.GameLoop.TimeChanged += OnTimeChange;
             helper.Events.GameLoop.DayStarted += OnDayStarted;
             helper.Events.GameLoop.OneSecondUpdateTicked += OnOneSecondUpdateTicked;
+            helper.Events.Player.Warped += OnWarped;
+            helper.Events.Display.MenuChanged += OnMenuChanged;
             helper.Events.Display.Rendered += OnRendered;
 
 
@@ -225,7 +227,10 @@ namespace Smartphone
 
 
 
-            foreach (var npc in Utility.getAllVillagers())
+            foreach (var npc in Utility.getAllVillagers()
+            .OfType<NPC>()
+                .Where(npc => npc.CanSocialize && !npc.IsInvisible && Game1.player.friendshipData.ContainsKey(npc.Name))
+                .ToList())
             {
                 if (!string.IsNullOrEmpty(npc.Birthday_Season) && npc.Birthday_Day > 0)
                 {
@@ -275,6 +280,8 @@ namespace Smartphone
         private void OnDayStarted(object sender, DayStartedEventArgs e)
         {
             // Reset daily variables
+            ClearPendingRandomNpcSocialPost();
+            ResetDailyAiUsageLimit();
             isTodayEventAdded = false;
             lastTimeReceiveMessage = 600;
             npcMessagesToday.Clear();
@@ -329,6 +336,9 @@ namespace Smartphone
 
         private void OnDayEnding(object sender, DayEndingEventArgs e)
         {
+            PhoneMenu.ClearPendingQueuedChatReplies();
+            ClearQueuedAiActions();
+
             // gift memory
             var keysToRemove = new List<string>();
 
@@ -353,34 +363,56 @@ namespace Smartphone
 
 
             // chat summary
+            var conversationsToSummarize = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var kvp in npcMessagesToday)
             {
                 string npcName = kvp.Key;
                 List<string> messages = kvp.Value
                     .Skip(Math.Max(0, kvp.Value.Count - 30))
                     .ToList();
+
                 if (messages.Count == 0)
                     continue;
 
-                string messageList = string.Join("\n", messages);
-                Task.Run(async () =>
+                conversationsToSummarize[npcName] = string.Join("\n", messages);
+            }
+
+            if (conversationsToSummarize.Count == 0)
+                return;
+
+            Task.Run(async () =>
+            {
+                try
                 {
-                    string result = await SummaryConversation(npcName, messageList);
-                    if (!npcConversationSummary.ContainsKey(npcName))
-                        npcConversationSummary.Add(npcName, result);
-                    else
-                        npcConversationSummary[npcName] = result;
+                    Dictionary<string, string> batchSummaries = await SummaryConversationsBatch(conversationsToSummarize, bypassAiLimit: true);
+                    if (batchSummaries.Count == 0)
+                        return;
+
+                    foreach (var kvp in batchSummaries)
+                        npcConversationSummary[kvp.Key] = kvp.Value;
 
                     Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/npcConversationSummary", npcConversationSummary);
-                });
-            }
+                }
+                catch (Exception ex)
+                {
+                    SMonitor.Log($"Unable to update NPC conversation summaries in batch: {ex}", LogLevel.Trace);
+                }
+            });
         }
 
         private void OnTimeChange(object sender, TimeChangedEventArgs e)
         {
-            CreateRandomNpc();
-            // if (e.NewTime % 300 == 0)
-            //     RandomStardewSocialEvent();
+            
+            HandleAiUsageTimeChanged(e.NewTime);
+
+            if ((e.NewTime - 630) % GetSocialPostIntervalFromConfig() == 0 && Game1.timeOfDay >= 630 && Game1.timeOfDay <= 2400)
+                SetPendingRandomNpcSocialPost();
+
+            if (ShouldForceQueuePendingRandomNpcSocialPost(e.NewTime))
+                TryQueuePendingRandomNpcSocialPost();
+
+            if ((e.NewTime - 730) % GetSocialEngagementIntervalFromConfig() == 0 && Game1.timeOfDay >= 630 && Game1.timeOfDay <= 2400)
+                QueueRandomNpcEngagement();
 
             if (Game1.timeOfDay < 2300)
                 CheckSendNewMessage();
@@ -422,12 +454,13 @@ namespace Smartphone
             if (pendingInitNotification && isPlayerFree())
             {
                 Game1.drawLetterMessage("=== Smartphone ===^^Looks like this is your first time here, or you have recently updated the mod and >> LOST YOUR DATA @@^^" +
-                    "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in        $$/Mods/Smartphone/Userdata$$ folder.^    >> YOU MUST COPY IT WHEN UPDATE THE MOD @@^^" +
-                    "Thanks for trying out the mod, HaPyke +++");
+                    "Please note that your data, including conversations, photos, StardewSocial, everything,... are saved in             $$/Mods/Smartphone/Userdata$$ folder.^     >> YOU MUST COPY IT WHEN UPDATE THE MOD @@^^                                      > continue >" +
+                    "^Smartphone costs $real money$ to maintain. To keep this mod available for everyone, please use it responsibly!!!^^Really really really like the mod and like to help keep the lights on? Check out the mod page for ways to contribute.^^" +
+                    "         Thanks for trying out the mod, HaPyke +++");
 
                 NotificationManager.addNotification("=== Smartphone ===^^Looks like this is your first time here, or you have recently updated the mod and >> LOST YOUR DATA @@^^" +
-                    "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in        $$/Mods/Smartphone/Userdata$$ folder.^    >> YOU MUST COPY IT WHEN UPDATE THE MOD @@^^" +
-                    "Thanks for trying out the mod, HaPyke +++");
+                    "Please note that your data, including conversations, photos, StardewSocial, everything,... are saved in             $$/Mods/Smartphone/Userdata$$^     >> YOU MUST COPY IT WHEN UPDATE THE MOD @@^^" +
+                    "Smartphone costs $real money$ to maintain. To keep this mod available for everyone, please use it responsibly!!!^^Really really really like the mod and like to help keep the lights on? Check out the mod page for ways to contribute.^^Thanks for trying out the mod, HaPyke");
 
                 pendingInitNotification = false;
             }
@@ -463,12 +496,34 @@ namespace Smartphone
             }
         }
 
+        private void OnWarped(object sender, WarpedEventArgs e)
+        {
+            if (!Context.IsWorldReady || e == null || !e.IsLocalPlayer)
+                return;
+
+            TryQueuePendingRandomNpcSocialPost();
+        }
+
+        private void OnMenuChanged(object sender, MenuChangedEventArgs e)
+        {
+            if (!Context.IsWorldReady)
+                return;
+
+            if (Game1.activeClickableMenu != null)
+                TryQueuePendingRandomNpcSocialPost();
+        }
+
         private void OnOneSecondUpdateTicked(object sender, OneSecondUpdateTickedEventArgs e)
         {
             if (!Context.IsWorldReady) return;
 
+            if (Game1.activeClickableMenu != null)
+                TryQueuePendingRandomNpcSocialPost();
+
             if (e.IsMultipleOf(6000))
                 CheckCurrentEvent();
+
+            // SMonitor.Log(StardewConnectManager.GetLastSocialVisitSnapshot().TimeOfDay.ToString(), LogLevel.Error);
 
         }
 
@@ -488,52 +543,6 @@ namespace Smartphone
                 || Game1.player.UsingTool);
         }
 
-
-        private static void sendPlayerGift(string qualifiedItemId, string npcName)
-        {
-            FarmHouse home = Utility.getHomeOfFarmer(Game1.player);
-            var baseTile = home.getEntryLocation();
-
-            // Try to find nearest valid placement tile
-            Vector2? placeTile = null;
-            for (int radius = 2; radius <= 10 && placeTile == null; radius++)
-            {
-                for (int dx = -radius; dx <= radius; dx++)
-                {
-                    for (int dy = -radius; dy <= radius; dy++)
-                    {
-                        Vector2 check = new Vector2(baseTile.X + dx, baseTile.Y + dy);
-                        if (home.isTileOnMap(check) && home.isTilePlaceable(check) && home.isTileLocationOpen(check)
-                            && !home.objects.ContainsKey(check))
-                        {
-                            placeTile = check;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (placeTile == null)
-            {
-                return;
-            }
-
-            // Collect items
-            List<Item> allItems = new List<Item>();
-            var item = new StardewValley.Object(qualifiedItemId, 1);
-
-            for (var i = 0; i < Game1.random.Next(1, 4); i++)
-                allItems.Add(item);
-
-            if (allItems.Count == 0)
-                return;
-
-            // Create and place the giftbox
-            Chest giftbox = new Chest(allItems, placeTile.Value, giftbox: true, giftboxIndex: 0, giftboxIsStarterGift: false);
-            home.objects[placeTile.Value] = giftbox;
-
-            MessageManager.AddMessage(npcName, $"{npcName}: Supprise!!! I just send you a gift of {item.Name}!");
-        }
 
         private static async Task<(bool IsLatest, string? LatestVersion, string? LatestUrl)> CheckLatestAsync(IModInfo modInfo)
         {
@@ -624,16 +633,21 @@ namespace Smartphone
 
 
 
-        public static void CreateRandomNpc(string npcName = "Lewis")
+        public static string TryCaptureNpcPhoto(string npcName)
         {
-            NPC? dummyNpc = CreateDummyNpc(npcName);
-            if (dummyNpc == null)
-                return;
+            return TryCaptureNpcPhoto(npcName, 1).FirstOrDefault() ?? string.Empty;
+        }
 
+        public static List<string> TryCaptureNpcPhoto(string npcName, int photoCount)
+        {
+            Game1.chatBox.addErrorMessage($"Attempting to capture {photoCount} photo(s) for NPC: {npcName}");
+            var filePaths = new List<string>();
+            if (photoCount <= 0)
+                return filePaths;
 
             Dictionary<string, Dictionary<string, AreaData>>? customAreaTags = Instance?.areaTags;
             if (customAreaTags == null || customAreaTags.Count == 0)
-                return;
+                return filePaths;
 
             bool sveInstalled = SHelper?.ModRegistry?.Get("FlashShifter.StardewValleyExpandedCP") != null;
             bool rsvInstalled = SHelper?.ModRegistry?.Get("Rafseazz.RSVCP") != null;
@@ -645,7 +659,11 @@ namespace Smartphone
                 .Select(entry => entry.Key)
                 .ToList();
 
-            const int maxLocationAttempts = 3;
+            const int maxLocationAttempts = 5;
+            string selectedLocationName = string.Empty;
+            GameLocation? selectedLocation = null;
+            bool shouldWearSwimming = false;
+            var selectedLocationAreas = new List<KeyValuePair<string, AreaData>>();
 
             for (int attempt = 0; attempt < maxLocationAttempts && remainingLocations.Count > 0; attempt++)
             {
@@ -660,6 +678,9 @@ namespace Smartphone
                     continue;
                 }
 
+                shouldWearSwimming = string.Equals(locationName, "Beach", StringComparison.OrdinalIgnoreCase) && Game1.timeOfDay < 1830 
+                    && (Game1.GetSeasonForLocation(selectedLocation) == Season.Summer || Game1.GetSeasonForLocation(selectedLocation) == Season.Fall);
+
                 GameLocation targetLocation = Game1.getLocationFromName(locationName);
                 if (targetLocation == null || targetLocation.farmers.Count > 0)
                     continue;
@@ -673,90 +694,118 @@ namespace Smartphone
                 if (candidateAreas.Count == 0)
                     continue;
 
-                KeyValuePair<string, AreaData> selectedArea = candidateAreas[Game1.random.Next(candidateAreas.Count)];
-                if (!TryFindRandomWalkableInteriorTile(targetLocation, selectedArea.Value, out Vector2 targetTile))
-                    continue;
+                selectedLocationName = locationName;
+                selectedLocation = targetLocation;
+                selectedLocationAreas = candidateAreas;
+                break;
+            }
 
-                HashSet<string> ownerNpcNameSet = BuildOwnerNpcNameSet(selectedArea.Value.ownerNpc, npcName);
-                bool ownerNpcRequired = ownerNpcNameSet.Count > 0;
+            if (selectedLocation == null || selectedLocationAreas.Count == 0 || string.IsNullOrWhiteSpace(selectedLocationName))
+                return filePaths;
 
-                int additionalNpcCount = DetermineAdditionalNpcCount(selectedArea.Value, ownerNpcRequired);
-                List<NPC> additionalDummyNpcs = CreateAdditionalDummyNpcs(npcName, additionalNpcCount, ownerNpcNameSet);
-
-                if (ownerNpcRequired && !additionalDummyNpcs.Any(npc => ownerNpcNameSet.Contains(npc.Name)))
-                    continue;
-
-                var occupiedTiles = new HashSet<(int X, int Y)>
-                {
-                    ((int)targetTile.X, (int)targetTile.Y)
-                };
-
-                List<NPC> visibleNpcAtTarget = targetLocation.characters
-                    .OfType<NPC>()
-                    .Where(npc => npc.IsVillager && !npc.IsInvisible)
-                    .ToList();
-
-                foreach (var character in visibleNpcAtTarget)
-                {
-                    character.clearTextAboveHead();
-                    character.IsInvisible = true;
-                }
-
-                var spawnedDummies = new List<NPC>();
+            const int maxAreaAttemptsPerPhoto = 4;
+            for (int photoIndex = 0; photoIndex < photoCount; photoIndex++)
+            {
                 bool captureCompleted = false;
 
-                try
+                for (int areaAttempt = 0; areaAttempt < maxAreaAttemptsPerPhoto && !captureCompleted; areaAttempt++)
                 {
-                    Game1.warpCharacter(dummyNpc, locationName, targetTile);
-                    ApplyNaturalNpcWarpOffset(dummyNpc);
-                    spawnedDummies.Add(dummyNpc);
-
-                    bool ownerNpcPlaced = false;
-
-                    for (int additionalIndex = 0; additionalIndex < additionalDummyNpcs.Count; additionalIndex++)
-                    {
-                        NPC additionalDummyNpc = additionalDummyNpcs[additionalIndex];
-                        Vector2 placementAnchorTile = DetermineAdditionalNpcPlacementAnchor(spawnedDummies, dummyNpc, additionalIndex);
-                        int maxDistanceFromAnchor = additionalIndex switch
-                        {
-                            0 => 5,
-                            1 => 4,
-                            _ => 3
-                        };
-
-                        if (!TryFindNearbyWalkableInteriorTile(targetLocation, selectedArea.Value, placementAnchorTile, maxDistanceFromAnchor, occupiedTiles, out Vector2 additionalTile))
-                            continue;
-
-                        occupiedTiles.Add(((int)additionalTile.X, (int)additionalTile.Y));
-                        Game1.warpCharacter(additionalDummyNpc, locationName, additionalTile);
-                        ApplyNaturalNpcWarpOffset(additionalDummyNpc);
-                        spawnedDummies.Add(additionalDummyNpc);
-
-                        if (ownerNpcNameSet.Contains(additionalDummyNpc.Name))
-                            ownerNpcPlaced = true;
-                    }
-
-                    if (ownerNpcRequired && !ownerNpcPlaced)
+                    KeyValuePair<string, AreaData> selectedArea = selectedLocationAreas[Game1.random.Next(selectedLocationAreas.Count)];
+                    if (!TryFindRandomWalkableInteriorTile(selectedLocation, selectedArea.Value, out Vector2 targetTile))
                         continue;
 
-                    Vector2 captureCenterTile = DetermineGroupCaptureCenterTile(spawnedDummies, dummyNpc, targetLocation);
-                    ApplyGroupFacingDirections(spawnedDummies, dummyNpc, captureCenterTile);
+                    HashSet<string> ownerNpcNameSet = BuildOwnerNpcNameSet(selectedArea.Value.ownerNpc, npcName);
+                    bool ownerNpcRequired = ownerNpcNameSet.Count > 0;
 
-                    CaptureNpcPhoto(dummyNpc, captureCenterTile, Game1.random.NextBool(), Game1.random.NextDouble() < 0.3, visibleNpcAtTarget);
-                    captureCompleted = true;
+                    int additionalNpcCount = DetermineAdditionalNpcCount(selectedArea.Value, ownerNpcRequired);
+                    List<NPC> additionalDummyNpcs = CreateAdditionalDummyNpcs(npcName, additionalNpcCount, ownerNpcNameSet);
+
+                    if (ownerNpcRequired && !additionalDummyNpcs.Any(npc => ownerNpcNameSet.Contains(npc.Name)))
+                        continue;
+
+                    NPC? dummyNpc = CreateDummyNpc(npcName);
+                    if (dummyNpc == null)
+                        return filePaths;
+
+                    var occupiedTiles = new HashSet<(int X, int Y)>
+                    {
+                        ((int)targetTile.X, (int)targetTile.Y)
+                    };
+
+                    List<NPC> visibleNpcAtTarget = selectedLocation.characters
+                        .OfType<NPC>()
+                        .Where(npc => npc.IsVillager && !npc.IsInvisible)
+                        .ToList();
+
+                    foreach (var character in visibleNpcAtTarget)
+                    {
+                        character.clearTextAboveHead();
+                        character.IsInvisible = true;
+                    }
+
+                    var spawnedDummies = new List<NPC>();
+
+                    try
+                    {
+                        Game1.warpCharacter(dummyNpc, selectedLocationName, targetTile);
+                        ApplyNaturalNpcWarpOffset(dummyNpc);
+                        if (shouldWearSwimming)
+                            dummyNpc.wearIslandAttire();
+                        spawnedDummies.Add(dummyNpc);
+
+                        bool ownerNpcPlaced = false;
+
+                        for (int additionalIndex = 0; additionalIndex < additionalDummyNpcs.Count; additionalIndex++)
+                        {
+                            NPC additionalDummyNpc = additionalDummyNpcs[additionalIndex];
+                            Vector2 placementAnchorTile = DetermineAdditionalNpcPlacementAnchor(spawnedDummies, dummyNpc, additionalIndex);
+                            int maxDistanceFromAnchor = additionalIndex switch
+                            {
+                                0 => 5,
+                                1 => 4,
+                                _ => 3
+                            };
+
+                            if (!TryFindNearbyWalkableInteriorTile(selectedLocation, selectedArea.Value, placementAnchorTile, maxDistanceFromAnchor, occupiedTiles, out Vector2 additionalTile))
+                                continue;
+
+                            occupiedTiles.Add(((int)additionalTile.X, (int)additionalTile.Y));
+                            Game1.warpCharacter(additionalDummyNpc, selectedLocationName, additionalTile);
+                            
+                            if (shouldWearSwimming)
+                                additionalDummyNpc.wearIslandAttire();
+                            ApplyNaturalNpcWarpOffset(additionalDummyNpc);
+                            spawnedDummies.Add(additionalDummyNpc);
+
+                            if (ownerNpcNameSet.Contains(additionalDummyNpc.Name))
+                                ownerNpcPlaced = true;
+                        }
+
+                        if (ownerNpcRequired && !ownerNpcPlaced)
+                            continue;
+
+                        Vector2 captureCenterTile = DetermineGroupCaptureCenterTile(spawnedDummies, dummyNpc, selectedLocation);
+                        ApplyGroupFacingDirections(spawnedDummies, dummyNpc, captureCenterTile);
+
+                        string filePath = CaptureNpcPhoto(dummyNpc, captureCenterTile, Game1.random.NextBool(), Game1.random.NextDouble() < 0.3, visibleNpcAtTarget);
+                        if (!string.IsNullOrWhiteSpace(filePath))
+                        {
+                            filePaths.Add(filePath);
+                            captureCompleted = true;
+                        }
+                    }
+                    finally
+                    {
+                        foreach (NPC character in visibleNpcAtTarget)
+                            character.IsInvisible = false;
+
+                        foreach (NPC spawnedDummy in spawnedDummies)
+                            spawnedDummy.currentLocation?.characters?.Remove(spawnedDummy);
+                    }
                 }
-                finally
-                {
-                    foreach (NPC character in visibleNpcAtTarget)
-                        character.IsInvisible = false;
-
-                    foreach (NPC spawnedDummy in spawnedDummies)
-                        spawnedDummy.currentLocation?.characters?.Remove(spawnedDummy);
-                }
-
-                if (captureCompleted)
-                    return;
             }
+
+            return filePaths;
         }
 
         private static NPC? CreateDummyNpc(string npcName)
@@ -771,7 +820,7 @@ namespace Smartphone
             try
             {
                 Texture2D portrait = SHelper.GameContent.Load<Texture2D>($"Characters\\{npcName}");
-                NPC dummyNpc = new NPC(new AnimatedSprite($"Characters\\{npcName}", 0, 16, 32), Vector2.Zero, "Town", 2, npcName, portrait, true);
+                NPC dummyNpc = new NPC(new AnimatedSprite($"Characters\\{npcName}", 0, 16, 32), realNpc.DefaultPosition, realNpc.DefaultMap, 2, npcName, portrait, true);
                 // dummyNpc.SimpleNonVillagerNPC = true;
                 dummyNpc.EventActor = true;
                 dummyNpc.faceDirection(2);
@@ -873,7 +922,7 @@ namespace Smartphone
                 return additionalDummyNpcs;
 
             List<string> randomCandidates = Utility.getAllVillagers()
-                .Where(npc => npc != null && npc.IsVillager && npc.CanSocialize && !npc.IsInvisible)
+                .Where(npc => npc.CanSocialize && !npc.IsInvisible && Game1.player.friendshipData.ContainsKey(npc.Name))
                 .Select(npc => npc.Name)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Where(name => !selectedNpcNames.Contains(name))
@@ -1172,64 +1221,8 @@ namespace Smartphone
         private static bool IsWalkableWarpTile(GameLocation location, int tileX, int tileY)
         {
             var tile = new Vector2(tileX, tileY);
-            if (!location.isTileOnMap(tile))
-            {
-                Game1.chatBox.addErrorMessage($"Tile {tile} is not on the map.");
-                return false;
-            }
-
-            if (!string.IsNullOrWhiteSpace(location.doesTileHaveProperty(tileX, tileY, "Water", "Back")))
-            {
-                Game1.chatBox.addErrorMessage($"Tile {tile} has Water property.");
-                return false;
-            }
-
-            if (HasBuildingLayerTile(location, tileX, tileY))
-            {
-                Game1.chatBox.addErrorMessage($"Tile {tile} has a building layer tile.");
-                return false;
-            }
-
-            if (location.objects != null && location.objects.ContainsKey(tile))
-            {
-                Game1.chatBox.addErrorMessage($"Tile {tile} has an object.");
-                return false;
-            }
-
-            if (!location.isTileLocationOpen(tile))
-            {
-                Game1.chatBox.addErrorMessage($"Tile {tile} is not open.");
-                return false;
-            }
-
-            if (!location.isTilePassable(new Location(tileX, tileY), Game1.viewport))
-            {
-                Game1.chatBox.addErrorMessage($"Tile {tile} is not passable.");
-                return false;
-            }
-
-            if (location.characters != null && location.characters.Any(c => c.Tile == tile))
-            {
-                Game1.chatBox.addErrorMessage($"Tile {tile} has a character on it.");
-                return false;
-            }
-
             if (!location.CanSpawnCharacterHere(tile))
-            {
-                Game1.chatBox.addErrorMessage($"Tile {tile} cannot spawn character.");
                 return false;
-            }
-
-            if (location.terrainFeatures != null && location.terrainFeatures.ContainsKey(tile))
-            {
-                var feature = location.terrainFeatures[tile];
-                Game1.chatBox.addErrorMessage($"Tile {tile} has terrain feature {feature.GetType().Name}.");
-                if (feature is Tree || feature is LargeTerrainFeature)
-                {
-                    Game1.chatBox.addErrorMessage($"Tile {tile} has a tree or large terrain feature.");
-                    return false;
-                }
-            }
 
             return true;
         }

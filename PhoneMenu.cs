@@ -273,12 +273,7 @@ namespace Smartphone
             messageableNpcList = new List<ClickableComponent>();
             Dictionary<string, long> latestTimestamps = MessageManager.GetLatestAddDictionary();
             List<NPC> villagers = Utility.getAllVillagers()
-            .Where(n =>
-                n.IsVillager &&
-                n.CanSocialize &&
-                !n.IsMonster &&
-                CanMessageNpc(n)
-            )
+            .Where(n => !n.IsInvisible && n.CanSocialize && CanMessageNpc(n))
             .OrderByDescending(npc => MessageManager.favouriteNpc.Contains(npc.Name))
             .ThenByDescending(npc => latestTimestamps.TryGetValue(npc.Name, out long ts) ? ts : 0)
             .ThenBy(npc => npc.Name)
@@ -2245,20 +2240,15 @@ namespace Smartphone
             }
         }
 
-        public void UpdateNpcList()
+        public void UpdateNpcList(bool bypassFilter = false)
         {
             messageableNpcList.Clear();
             Dictionary<string, long> latestTimestamps = MessageManager.GetLatestAddDictionary();
             string filter = currentMessage?.ToLower() ?? "";
 
             List<NPC> villagers = Utility.getAllVillagers()
-            .Where(n =>
-                (n.IsVillager &&
-                n.CanSocialize &&
-                !n.IsMonster &&
-                CanMessageNpc(n)
-                )
-                 && n.Name.ToLower().Contains(filter)
+            .Where(n => !n.IsInvisible && n.CanSocialize && CanMessageNpc(n) 
+                && (bypassFilter || n.Name.ToLower().Contains(filter))
             )
             .OrderByDescending(npc => MessageManager.favouriteNpc.Contains(npc.Name))
             .ThenByDescending(npc => latestTimestamps.TryGetValue(npc.Name, out long ts) ? ts : 0)
@@ -3010,6 +3000,7 @@ namespace Smartphone
         public void ClosePhoneMenu()
         {
             CloseChatPhotoPicker(clearSelection: true);
+            currentMessage = null;
 
             if (currentApp == "appText" && selectedNpc != null)
             {

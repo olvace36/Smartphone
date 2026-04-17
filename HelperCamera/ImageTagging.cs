@@ -148,7 +148,7 @@ namespace Smartphone
         {
             var tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                BuildLocationTag(Game1.currentLocation, npc: npc)
+                BuildLocationTag(npc?.currentLocation, npc: npc)
             };
 
             AddAreaTags(tags, captureBounds);
@@ -1261,13 +1261,13 @@ namespace Smartphone
         private static string BuildLocationTag(GameLocation? location, NPC? npc = null)
         {
             string? locationName = location?.Name;
-            if (string.IsNullOrWhiteSpace(locationName))
-                locationName = "unknown location";
+            if (string.IsNullOrWhiteSpace(locationName) && npc == null)
+                location = Game1.currentLocation;
 
-            if(npc != null && location == npc.getHome())
+            if(npc != null && location?.Name == npc.DefaultMap)
                 return $"#at {npc.Name}'s home";
 
-            return $"#at {locationName}";
+            return $"#visiting {location?.Name}";
         }
     }
 }

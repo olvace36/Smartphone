@@ -346,6 +346,7 @@ namespace Smartphone
             socialDetailScrollTarget = 0f;
             currentApp = SocialAppState;
             SnapSocialFeedOnOpen();
+            StardewConnectManager.MarkSocialAppVisitedNow();
         }
 
         private void ResetSocialState()
@@ -3233,7 +3234,8 @@ namespace Smartphone
                 return;
             }
 
-            int targetIndex = FindSocialOpenTargetPostIndexByCurrentTime(posts);
+            StardewConnectVisitSnapshot lastVisit = StardewConnectManager.GetLastSocialVisitSnapshot();
+            int targetIndex = FindSocialOpenTargetPostIndexByLastVisit(posts, lastVisit);
             if (targetIndex < 0)
             {
                 SnapSocialFeedToBottom();
@@ -3243,13 +3245,13 @@ namespace Smartphone
             SnapSocialFeedToPostIndex(posts, targetIndex);
         }
 
-        private int FindSocialOpenTargetPostIndexByCurrentTime(List<StardewConnectPost> posts)
+        private int FindSocialOpenTargetPostIndexByLastVisit(List<StardewConnectPost> posts, StardewConnectVisitSnapshot lastVisit)
         {
-            long nowKey = BuildSocialChronologicalSortKey(
-                Game1.currentSeason,
-                Math.Max(1, Game1.dayOfMonth),
-                Math.Max(1, Game1.year),
-                Game1.timeOfDay);
+            long lastVisitKey = BuildSocialChronologicalSortKey(
+                lastVisit?.Season ?? "spring",
+                lastVisit?.Day ?? 1,
+                lastVisit?.Year ?? 1,
+                lastVisit?.TimeOfDay ?? 600);
 
             for (int i = 0; i < posts.Count; i++)
             {
@@ -3258,8 +3260,8 @@ namespace Smartphone
                     continue;
 
                 long postKey = BuildSocialChronologicalSortKey(post.Season, post.Day, post.Year, post.TimeOfDay);
-                if (postKey >= nowKey)
-                    return i;
+                if (postKey >= lastVisitKey)
+                   {Game1.chatBox.addErrorMessage("Post key" + postKey + "last visit key" + lastVisitKey); return i;}
             }
 
             return -1;

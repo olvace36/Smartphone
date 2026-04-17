@@ -61,6 +61,21 @@ namespace Smartphone
                 formatAllowedValue: value => value
             );
 
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => "Post per day",
+                tooltip: () => "High: more frequent social updates (posts every 3h, engagement every 2h).\nMedium: balanced frequency (posts every 4h, engagement every 3h).\nLow: fewer updates (posts every 6h, engagement every 4h).",
+                getValue: () => Config.PostPerDay,
+                setValue: value => Config.PostPerDay = value,
+                allowedValues: new string[]
+                {
+                    ModConfig.PostPerDayHigh,
+                    ModConfig.PostPerDayMedium,
+                    ModConfig.PostPerDayLow
+                },
+                formatAllowedValue: value => value
+            );
+
             // advance settings
             configMenu.AddSectionTitle(mod: ModManifest, () => "Advance Settings");
             configMenu.AddTextOption(

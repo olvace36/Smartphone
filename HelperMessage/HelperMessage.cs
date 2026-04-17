@@ -645,7 +645,7 @@ namespace Smartphone
                     else
                         MessageManager.favouriteNpc.Add(button.name);
 
-                    DelayedAction.functionAfterDelay(UpdateNpcList, 200);
+                    DelayedAction.functionAfterDelay(() => UpdateNpcList(), 200);
                     Game1.playSound("smallSelect");
                     return true;
                 }
@@ -1208,6 +1208,30 @@ namespace Smartphone
             return payloadBuilder.ToString();
         }
 
+        public static void ClearPendingQueuedChatReplies()
+        {
+            lock (replyQueueLock)
+            {
+                foreach (CancellationTokenSource cts in replyTimers.Values)
+                {
+                    try
+                    {
+                        cts.Cancel();
+                    }
+                    catch
+                    {
+                        // ignore cancellation race during day transition
+                    }
+
+                    cts.Dispose();
+                }
+
+                replyTimers.Clear();
+                pendingMessages.Clear();
+                lastInputActivityUtc.Clear();
+            }
+        }
+
         
         private static void RegisterTextInputActivity(string npcName)
         {
@@ -1395,6 +1419,21 @@ namespace Smartphone
 
         private static async Task SendBatchMessage(string npcName)
         {
+            await SendBatchMessage(npcName, consumeAiSlotNow: true);
+        }
+
+        private static async Task SendBatchMessage(string npcName, bool consumeAiSlotNow)
+        {
+            if (consumeAiSlotNow)
+            {
+                await ModEntry.RunAiActionWithQueueAsync(
+                    () => SendBatchMessage(npcName, consumeAiSlotNow: false),
+                    queueKey: $"chat:{npcName}",
+                    highPriority: true);
+
+                return;
+            }
+
             List<string> messages;
             lock (replyQueueLock)
             {
@@ -1816,20 +1855,15 @@ namespace Smartphone
         {
             chatPhotoCandidates.Clear();
 
-            var allPhotos = new List<string>();
             string playerCaptureFolder = GetCaptureFolderPath(PlayerPhotoFolderName);
-            string npcCaptureFolder = GetCaptureFolderPath(NpcPhotoFolderName);
 
             if (Directory.Exists(playerCaptureFolder))
-                allPhotos.AddRange(Directory.GetFiles(playerCaptureFolder, "*.png"));
-
-            if (Directory.Exists(npcCaptureFolder))
-                allPhotos.AddRange(Directory.GetFiles(npcCaptureFolder, "*.png"));
-
-            chatPhotoCandidates.AddRange(allPhotos
-                .Where(path => !string.IsNullOrWhiteSpace(path))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderByDescending(path => File.GetCreationTime(path)));
+            {
+                chatPhotoCandidates.AddRange(Directory.GetFiles(playerCaptureFolder, "*.png")
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(path => File.GetCreationTime(path)));
+            }
 
             if (chatPhotoCandidates.Count == 0)
                 chatPhotoCandidateIndex = -1;

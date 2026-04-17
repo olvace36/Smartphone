@@ -34,7 +34,7 @@ namespace Smartphone
             if (ModEntry.phoneMenu == null)
                 ModEntry.phoneMenu = new PhoneMenu();
 
-            ModEntry.phoneMenu.UpdateNpcList();
+            ModEntry.phoneMenu.UpdateNpcList(true);
             List<string> npcNames = ModEntry.phoneMenu.messageableNpcList
                 .Select(npc => npc.name)
                 .ToList();
@@ -341,22 +341,36 @@ namespace Smartphone
                         }
                         else
                         {
-                            if (Game1.random.NextDouble() < 0.3 && Game1.player.getFriendshipHeartLevelForNPC(npcName) >= 3)
+                            if (iUnlimitedEventExpansionApi != null && Game1.timeOfDay < 1900 &&Game1.random.NextDouble() < 0.3 && Game1.player.getFriendshipHeartLevelForNPC(npcName) >= 3)
                             {
                                 Task.Run(async () =>
                                 {
+                                    if (!TryConsumeAiCallSlot())
+                                        return;
+
                                     string messages = await SendMessageToAssistant(npcName, type: "invite");
-                                    MessageManager.AddMessage(npcName, $"{npcName}:" + messages);
-                                    lastTimeReceiveMessage = Game1.timeOfDay;
+                                    if (!string.IsNullOrWhiteSpace(messages)
+                                        && !messages.StartsWith("SYSTEM:", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        MessageManager.AddMessage(npcName, $"{npcName}:" + messages);
+                                        lastTimeReceiveMessage = Game1.timeOfDay;
+                                    }
                                 });
                             }
                             else
                             {
                                 Task.Run(async () =>
                                 {
+                                    if (!TryConsumeAiCallSlot())
+                                        return;
+
                                     string messages = await SendMessageToAssistant(npcName, type: "text");
-                                    MessageManager.AddMessage(npcName, $"{npcName}:" + messages);
-                                    lastTimeReceiveMessage = Game1.timeOfDay;
+                                    if (!string.IsNullOrWhiteSpace(messages)
+                                        && !messages.StartsWith("SYSTEM:", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        MessageManager.AddMessage(npcName, $"{npcName}:" + messages);
+                                        lastTimeReceiveMessage = Game1.timeOfDay;
+                                    }
                                 });
                             }
                         }
@@ -378,8 +392,12 @@ namespace Smartphone
             {
                 Task.Run(async () =>
                 {
+                    if (!TryConsumeAiCallSlot())
+                        return;
+
                     string reply = await ModEntry.SendMessageToAssistant(npcName, message, 1);
-                    if (reply != null && reply != "")
+                    if (!string.IsNullOrWhiteSpace(reply)
+                        && !reply.StartsWith("SYSTEM:", StringComparison.OrdinalIgnoreCase))
                         MessageManager.AddMessage(npcName, $"{npcName}:" + reply);
                     lastTimeReceiveMessage = Game1.timeOfDay;
                 });

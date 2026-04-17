@@ -109,7 +109,6 @@ namespace Smartphone
         public static void MarkSocialAppVisitedNow()
         {
             LastSocialVisitSnapshot = CreateCurrentVisitSnapshot();
-            SaveLastSocialVisitSnapshot();
         }
 
         public static bool IsSocialNotificationDismissed(string notificationKey)
@@ -413,41 +412,10 @@ namespace Smartphone
 
 
         // Get random post IDs with various filters. If no matching posts are found, returns an empty list.
-        public static List<string> GetRandomPostIdWithin1DayRange(int count = 1)
+
+        public static List<string> GetRandomPostIdWithinDayRange(int count = 1, int startDay = 0, int endDay = 1)
         {
-            List<StardewConnectPost> recentPosts = GetPostsWithinPastDays(0, 1);
-
-            if (recentPosts.Count == 0)
-                return new List<string>();
-
-            List<string> randomPostIds = new List<string>();
-            for (int i = 0; i < count; i++)
-            {
-                StardewConnectPost randomPost = recentPosts[Game1.random.Next(recentPosts.Count)];
-                randomPostIds.Add(randomPost.Id);
-            }
-            return randomPostIds;
-        }
-
-        public static List<string> GetRandomPostIdWithin3Days(int count = 1)
-        {
-            List<StardewConnectPost> recentPosts = GetPostsWithinPastDays(1, 3);
-
-            if (recentPosts.Count == 0)
-                return new List<string>();
-
-            List<string> randomPostIds = new List<string>();
-            for (int i = 0; i < count; i++)
-            {
-                StardewConnectPost randomPost = recentPosts[Game1.random.Next(recentPosts.Count)];
-                randomPostIds.Add(randomPost.Id);
-            }
-            return randomPostIds;
-        }
-
-        public static List<string> GetRandomPostIdWithin7Days(int count = 1)
-        {
-            List<StardewConnectPost> recentPosts = GetPostsWithinPastDays(3, 7);
+            List<StardewConnectPost> recentPosts = GetPostsWithinPastDays(startDay, endDay);
 
             if (recentPosts.Count == 0)
                 return new List<string>();
@@ -470,28 +438,20 @@ namespace Smartphone
             return mostRecentPost.Id;
         }
 
-        public static string GetMostPopularPostIdWithin1Day()
+        public static string GetOnePopularPostIdWithinDayRange(int startDay = 1, int endDay = 2)
         {
-            List<StardewConnectPost> recentPosts = GetPostsWithinPastDays(0, 1);
+            List<StardewConnectPost> recentPosts = GetPostsWithinPastDays(startDay, endDay);
 
             if (recentPosts.Count == 0)
                 return "";
 
-            StardewConnectPost mostPopularPost = recentPosts.OrderByDescending(post => post.LikedBy.Count).First();
-            return mostPopularPost.Id;
+            var topPosts = recentPosts
+                .OrderByDescending(post => post.LikedBy.Count)
+                .Take(3)
+                .ToList();
+
+            return topPosts[Game1.random.Next(topPosts.Count)].Id;
         }
-
-        public static string GetMostPopularPostIdWithin3Days()
-        {
-            List<StardewConnectPost> recentPosts = GetPostsWithinPastDays(1, 3);
-
-            if (recentPosts.Count == 0)
-                return "";
-
-            StardewConnectPost mostPopularPost = recentPosts.OrderByDescending(post => post.LikedBy.Count).First();
-            return mostPopularPost.Id;
-        }
-
 
         public static bool AddPlayerComment(string postId, string commentText)
         {
