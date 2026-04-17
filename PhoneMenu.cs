@@ -142,6 +142,7 @@ namespace Smartphone
         private readonly List<ChatPhotoHoverEntry> chatPhotoHoverEntries = new();
         private readonly List<ChatPhotoNavigationEntry> chatPhotoNavigationEntries = new();
         private readonly Dictionary<string, int> chatPhotoGroupIndices = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<int, Rectangle> chatDialogueChoiceBounds = new();
 
         private Dictionary<string, ClickableTextureComponent> favourityNpcButton = new();
         private readonly Dictionary<string, Rectangle> socialProfileNpcButtonBounds = new(StringComparer.OrdinalIgnoreCase);
@@ -245,6 +246,11 @@ namespace Smartphone
         private Rectangle messageSuggestionBounds = Rectangle.Empty;
         private Rectangle firstMessageBounds = Rectangle.Empty;
         private Rectangle chatPhotoButtonBounds = Rectangle.Empty;
+        private bool chatQuickActionsOpen = false;
+        private bool chatScheduleOptionsOpen = false;
+        private Rectangle chatQuickPhotoActionBounds = Rectangle.Empty;
+        private Rectangle chatQuickScheduleActionBounds = Rectangle.Empty;
+        private readonly Dictionary<string, Rectangle> chatScheduleEventButtonBounds = new(StringComparer.OrdinalIgnoreCase);
         private Rectangle chatPhotoPickerPrevBounds = Rectangle.Empty;
         private Rectangle chatPhotoPickerNextBounds = Rectangle.Empty;
         private Rectangle chatPhotoPickerToggleBounds = Rectangle.Empty;
@@ -1547,6 +1553,11 @@ namespace Smartphone
             SetEditableTextFieldState(field, "", 0, 0, clearUndoHistory);
         }
 
+        internal void ResetEditableTextFieldStateForChat()
+        {
+            ResetEditableTextFieldState(EditableTextFieldKind.Chat);
+        }
+
         private static (int Start, int End) GetSelectionRange(int cursorIndex, int selectionAnchorIndex, int textLength)
         {
             int safeCursorIndex = Math.Clamp(cursorIndex, 0, textLength);
@@ -1848,6 +1859,7 @@ namespace Smartphone
         public void OpenChat(string npcName)
         {
             selectedNpc = npcName;
+            ResetChatQuickActionsState();
             CloseChatPhotoPicker(clearSelection: true);
             ResetEditableTextFieldState(EditableTextFieldKind.Chat);
             messageHistory = MessageManager.GetMessages(npcName);
@@ -2189,6 +2201,37 @@ namespace Smartphone
             foreach (ChatMessageEntry entry in BuildChatEntries(msgList))
             {
                 int bubbleHeight = CalculateChatEntryHeight(entry, font, lineHeight);
+                totalHeight += bubbleHeight + 10;
+            }
+
+            totalHeight += CalculatePendingDialogueChoiceHeight();
+
+            return totalHeight;
+        }
+
+        private int CalculatePendingDialogueChoiceHeight()
+        {
+            if (string.IsNullOrWhiteSpace(selectedNpc))
+                return 0;
+
+            if (!PhoneDialogueRuntime.TryGetPendingChoice(selectedNpc, out PhoneDialogueChoiceState? pendingChoice)
+                || pendingChoice == null
+                || pendingChoice.Options.Count == 0)
+            {
+                return 0;
+            }
+
+            SpriteFont font = Game1.smallFont;
+            int lineHeight = (int)font.MeasureString("A").Y + 4;
+            int totalHeight = 0;
+
+            foreach (PhoneDialogueOption option in pendingChoice.Options)
+            {
+                if (string.IsNullOrWhiteSpace(option.DisplayText))
+                    continue;
+
+                List<string> wrappedLines = SplitTextIntoLines(option.DisplayText, font, maxBubbleWidth);
+                int bubbleHeight = Math.Max(1, wrappedLines.Count) * lineHeight + 10;
                 totalHeight += bubbleHeight + 10;
             }
 
@@ -2999,6 +3042,7 @@ namespace Smartphone
 
         public void ClosePhoneMenu()
         {
+            ResetChatQuickActionsState();
             CloseChatPhotoPicker(clearSelection: true);
             currentMessage = null;
 

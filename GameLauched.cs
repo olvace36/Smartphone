@@ -215,6 +215,7 @@ namespace Smartphone
             }
 
             LoadImageTags();
+            PhoneDialogueRuntime.ClearDailyState();
 
             string npc_characteristic = Helper.ModContent.GetInternalAssetName("assets/npc_characteristic.json").BaseName;
             NpcCharacteristics = Helper.ModContent.Load<Dictionary<string, string>>(npc_characteristic);
@@ -285,6 +286,7 @@ namespace Smartphone
             isTodayEventAdded = false;
             lastTimeReceiveMessage = 600;
             npcMessagesToday.Clear();
+            PhoneDialogueRuntime.ClearDailyState();
             FarmCropNames.Clear();
             FarmTreeNames.Clear();
             PendingUnlimitedEvents.Clear();
@@ -417,7 +419,7 @@ namespace Smartphone
             if (Game1.timeOfDay < 2300)
                 CheckSendNewMessage();
 
-            if (Config.OpenAIKey == "" && e.NewTime % 400 == 0)
+            if (Config.OpenAIKey == "" && e.NewTime % 300 == 0)
             {
                 // gpt-5.4 variant support reasoning effor: none, low, medium, high, xhigh
                 // gpt-5 variant support reasoning effort: minimal, low, medium, high
@@ -427,26 +429,26 @@ namespace Smartphone
                     if (regular > 15000000)
                     {
                         chatModel = "gpt-5-nano";
-                        chatReasoningEffort = new { effort = "minimal", summary = "auto" };
+                        chatReasoningEffort = new { effort = "minimal" };
 
                         summaryModel = "gpt-5-nano";
-                        summaryReasoningEffort = new { effort = "minimal", summary = "auto" };
+                        summaryReasoningEffort = new { effort = "minimal" };
                     }
                     else if (regular > 10000000)
                     {
                         chatModel = "gpt-5-mini";
-                        chatReasoningEffort = new { effort = "minimal", summary = "auto" };
+                        chatReasoningEffort = new { effort = "minimal" };
 
                         summaryModel = "gpt-5-mini";
-                        summaryReasoningEffort = new { effort = "low", summary = "auto" };
+                        summaryReasoningEffort = new { effort = "low" };
                     }
                     else
                     {
                         chatModel = "gpt-5.4-mini";
-                        chatReasoningEffort = new { effort = "none", summary = "auto" };
+                        chatReasoningEffort = new { effort = "none" };
 
                         summaryModel = "gpt-5.4-mini";
-                        summaryReasoningEffort = new { effort = "low", summary = "auto" };
+                        summaryReasoningEffort = new { effort = "low" };
                     }
                 });
             }
@@ -678,7 +680,7 @@ namespace Smartphone
                     continue;
                 }
 
-                shouldWearSwimming = string.Equals(locationName, "Beach", StringComparison.OrdinalIgnoreCase) && Game1.timeOfDay < 1830 
+                shouldWearSwimming = string.Equals(locationName, "Beach", StringComparison.OrdinalIgnoreCase) && Game1.timeOfDay < 1830
                     && (Game1.GetSeasonForLocation(selectedLocation) == Season.Summer || Game1.GetSeasonForLocation(selectedLocation) == Season.Fall);
 
                 GameLocation targetLocation = Game1.getLocationFromName(locationName);
@@ -771,7 +773,7 @@ namespace Smartphone
 
                             occupiedTiles.Add(((int)additionalTile.X, (int)additionalTile.Y));
                             Game1.warpCharacter(additionalDummyNpc, selectedLocationName, additionalTile);
-                            
+
                             if (shouldWearSwimming)
                                 additionalDummyNpc.wearIslandAttire();
                             ApplyNaturalNpcWarpOffset(additionalDummyNpc);

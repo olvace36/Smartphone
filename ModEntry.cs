@@ -322,21 +322,17 @@ namespace Smartphone
 
                             if (npc.CurrentDialogue != null)
                             {
-                                foreach (var dialogue in npc.CurrentDialogue)
+                                Task.Run(async () =>
                                 {
-                                    foreach (var piece in dialogue.dialogues)
-                                    {
-                                        string parsed = piece.Text;
-                                        parsed = dialogue.ReplacePlayerEnteredStrings(parsed);
+                                    await PhoneDialogueRuntime.DeliverDialogueSequenceAsync(
+                                        npcName,
+                                        npc.CurrentDialogue,
+                                        useRandomDelay: false,
+                                        minDelayMs: 0,
+                                        maxDelayMs: 1);
 
-                                        parsed = parsed.Split('$')[0].Trim();
-
-                                        MessageManager.AddMessage(npcName, $"{npcName}: " + parsed);
-
-                                        lastTimeReceiveMessage = Game1.timeOfDay;
-                                    }
-                                }
-                                npc.CurrentDialogue?.Clear();
+                                    npc.CurrentDialogue?.Clear();
+                                });
                             }
                         }
                         else
@@ -395,7 +391,7 @@ namespace Smartphone
                     if (!TryConsumeAiCallSlot())
                         return;
 
-                    string reply = await ModEntry.SendMessageToAssistant(npcName, message, 1);
+                    string reply = await ModEntry.SendMessageToAssistant(npcName, text: message);
                     if (!string.IsNullOrWhiteSpace(reply)
                         && !reply.StartsWith("SYSTEM:", StringComparison.OrdinalIgnoreCase))
                         MessageManager.AddMessage(npcName, $"{npcName}:" + reply);
@@ -413,22 +409,12 @@ namespace Smartphone
                 {
                     Task.Run(async () =>
                     {
-                        Random rng = new Random();
-
-                        foreach (var dialogue in npc.CurrentDialogue)
-                        {
-                            foreach (var piece in dialogue.dialogues)
-                            {
-                                int delay = rng.Next(3000, 5000);
-                                await Task.Delay(delay);
-
-                                string parsed = piece.Text;
-                                parsed = dialogue.ReplacePlayerEnteredStrings(parsed);
-                                parsed = parsed.Split('$')[0].Trim();
-
-                                MessageManager.AddMessage(npcName, $"{npcName}: " + parsed);
-                            }
-                        }
+                        await PhoneDialogueRuntime.DeliverDialogueSequenceAsync(
+                            npcName,
+                            npc.CurrentDialogue,
+                            useRandomDelay: true,
+                            minDelayMs: 3000,
+                            maxDelayMs: 5000);
 
                         npc.CurrentDialogue?.Clear();
                     });

@@ -28,11 +28,11 @@ namespace Smartphone
         // gpt-5.4 variant support reasoning effor: none, low, medium, high, xhigh
         // gpt-5 variant support reasoning effort: minimal, low, medium, high
         public static string chatModel = "gpt-5.4-mini";
-        public static object chatReasoningEffort = new { effort = "none", summary = "auto" };
+        public static object chatReasoningEffort = new { effort = "none" };
 
 
         public static string summaryModel = "gpt-5.4-mini";
-        public static object summaryReasoningEffort = new { effort = "low", summary = "auto" };
+        public static object summaryReasoningEffort = new { effort = "low" };
 
         private static string GetNpcCharacteristicForPrompt(NPC npc)
         {
@@ -61,7 +61,7 @@ namespace Smartphone
         }
 
         /// <summary>Call to OpenAI to generate a response</summary>
-        public static async Task<string> SendMessageToAssistant(string npcName, string text = "", int textCount = 0, string type = "response")
+        public static async Task<string> SendMessageToAssistant(string npcName, string text = "", string type = "response")
         {
             NPC npc = Game1.getCharacterFromName(npcName);
             var random = Game1.random;
@@ -77,13 +77,10 @@ namespace Smartphone
                 if (Config.OpenAIKey != "")
                     key = Config.OpenAIKey;
 
-                var user = text;
-                var system = "";
-
-                if (text != "text")
-                    system = GetSystemMessage(npc, type, textCount);
-                else
-                    system = GetSystemMessage(npc, type);
+                string user = type == "response"
+                    ? ModEntry.BuildResponseConversationUserInput(npc, text)
+                    : text;
+                string system = GetSystemMessage(npc, type);
 
                 string responseMessage = "";
                 using (var httpClient = new HttpClient())
@@ -140,11 +137,11 @@ namespace Smartphone
                         JArray toolCalls = GetResponseFunctionCalls(json);
                         responseMessage = GetResponseOutputText(json);
 
-                        SMonitor.Log("-----", LogLevel.Error);
+                        SMonitor.Log("system-----", LogLevel.Error);
                         SMonitor.Log(system, LogLevel.Error);
-                        SMonitor.Log("-----", LogLevel.Error);
+                        SMonitor.Log("user-----", LogLevel.Error);
                         SMonitor.Log(user, LogLevel.Error);
-                        SMonitor.Log("-----", LogLevel.Error);
+                        SMonitor.Log("response-----", LogLevel.Error);
                         SMonitor.Log(responseMessage, LogLevel.Error);
                         SMonitor.Log("\n\n", LogLevel.Error);
 
@@ -155,24 +152,22 @@ namespace Smartphone
                                 string functionName = call["name"]?.ToString() ?? string.Empty;
                                 string argumentsJson = call["arguments"]?.ToString() ?? "{}";
 
-                                if (functionName == "Schedule_Event")
+                                if (functionName == "schedule_event")
                                 {
                                     var args = JObject.Parse(argumentsJson);
                                     var eventNpcName = args["npc"]?.ToString();
                                     var eventType = args["event_type"]?.ToString();
-                                    var eventTime = args["time_of_day"]?.ToString();
-                                    var textResponse = args["npc_response"]?.ToString() ?? $"I will see you at {eventTime}.";
+                                    var textResponse = args["npc_response"]?.ToString();
 
                                     if (string.IsNullOrWhiteSpace(eventNpcName)
-                                        || string.IsNullOrWhiteSpace(eventType)
-                                        || !TryNormalizeEventTime(eventTime, out string normalizedEventTime))
+                                        || string.IsNullOrWhiteSpace(eventType))
                                     {
                                         continue;
                                     }
 
                                     if (!TryGetRegisteredUnlimitedEvent(eventType, out var registeredEvent) || registeredEvent == null)
                                     {
-                                        SMonitor.Log($"Schedule_Event ignored because event type '{eventType}' is not registered.", LogLevel.Warn);
+                                        SMonitor.Log($"schedule_event ignored because event type '{eventType}' is not registered.", LogLevel.Warn);
                                         continue;
                                     }
 
@@ -180,17 +175,15 @@ namespace Smartphone
                                         phoneMenu.ClosePhoneMenu();
 
                                     Game1.activeClickableMenu = new ConfirmationDialog(
-                                        $"Schedule {registeredEvent.DisplayName} event with {npc.Name} at {normalizedEventTime}?",
+                                        $"Schedule {registeredEvent.DisplayName} event with {npc.Name}?",
                                         onConfirm: (Farmer who) =>
                                         {
-                                            var pendingEvent = (eventNpcName.Trim(), registeredEvent.EventType, normalizedEventTime);
-                                            if (!PendingUnlimitedEvents.Contains(pendingEvent))
-                                            {
-                                                PendingUnlimitedEvents.Add(pendingEvent);
-                                            }
-
-                                            Game1.activeClickableMenu = null;
-                                            MessageManager.AddMessage(npcName, $"{npcName}: {textResponse}");
+                                            OpenScheduleEventTimeMenu(
+                                                eventNpcName.Trim(),
+                                                registeredEvent.EventType,
+                                                registeredEvent.DisplayName,
+                                                npcName,
+                                                textResponse);
 
                                         },
                                         onCancel: (Farmer who) =>
@@ -228,6 +221,7 @@ namespace Smartphone
                         }
 
                         SMonitor.Log($"Unable to receive AI content. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
+                        SMonitor.Log(httpResponse.ToString(), LogLevel.Error);
                         return "SYSTEM: ---Got an error---";
                     }
                 }
@@ -239,13 +233,13 @@ namespace Smartphone
         private const string NpcPhotoPrefix = "NpcPhoto:";
         private const string NpcPhotoTagPrefix = "NpcPhotoTag:";
 
-        private static string BuildConversationPreviewForAi(IEnumerable<string> rawMessages, string npcName, int maxLines, int textCount = 0)
+        private static string BuildConversationPreviewForAi(IEnumerable<string> rawMessages, string npcName, int maxLines)
         {
             List<string> sanitizedMessages = SanitizeConversationMessagesForAi(rawMessages, npcName);
 
             int safeMaxLines = Math.Max(1, maxLines);
-            int skipCount = Math.Max(0, sanitizedMessages.Count - safeMaxLines + textCount);
-            int takeCount = Math.Min(safeMaxLines, Math.Max(0, sanitizedMessages.Count - textCount));
+            int skipCount = Math.Max(0, sanitizedMessages.Count - safeMaxLines);
+            int takeCount = Math.Min(safeMaxLines, Math.Max(0, sanitizedMessages.Count));
 
             return string.Join("\n", sanitizedMessages.Skip(skipCount).Take(takeCount));
         }
@@ -341,7 +335,7 @@ namespace Smartphone
             return $"{speaker}: [Sent photo tags: {normalizedTags}]";
         }
 
-        private static string GetSystemMessage(NPC npc, string type, int textCount = 0)
+        private static string GetSystemMessage(NPC npc, string type)
         {
             try
             {
@@ -407,7 +401,7 @@ namespace Smartphone
                 }
 
                 var messages_history = npcMessagesToday.ContainsKey(npc.Name) ? npcMessagesToday[npc.Name] : new List<string>();
-                string combined = BuildConversationPreviewForAi(messages_history, npc.Name, maxLines: 12, textCount: textCount);
+                string combined = BuildConversationPreviewForAi(messages_history, npc.Name, maxLines: 12);
 
                 string summary = "";
                 if (npcConversationSummary.ContainsKey(npc.Name))
@@ -418,63 +412,74 @@ namespace Smartphone
                 if (type == "response")
                 {
                     object[] possibleEvent = GetToolList(npc, listOnly: true);
+                    var systemMessage = $@"
+                            **Context**
+                            * You are roleplaying as NPC **{npc.Name}** in Stardew Valley, responding to a conversation with PLAYER **{Game1.player.Name}** ({(Game1.player.IsMale ? "Male" : "Female")}, teen/young adult).
 
-                    // Personality: {npcCharacteristic}
-                    var systemMessage = $@"You are roleplaying as NPC {npc.Name} in Stardew Valley, responding to a message and/or photos from PLAYER {Game1.player.Name} ({(Game1.player.IsMale ? "Male" : "Female")}, teen/young adult).
-                        Relationship with player: {relation}.
-                        {(possibleEvent.Any() ? $"Possible events: {string.Join(", ", possibleEvent)}" : "")}
-                        WORLD CONTEXT:
-                        {data}
-                        Conversation Summary:
-                        {summary}
-                        Current conversation:
-                        {combined}
+                            **Response Instructions**
+                            1. **Response:** Reply to the user with a message of <30 words.
+                            2. **Slice of Life:** You may occasionally invent small, random dynamic details happening around you for your response. Be creative and do not be repetitive with your responses. 
 
-                        INSTRUCTIONS:
-                        1. Reply <30 words to the current conversation, matching tone and relationship with the player.
-                        2. SLICE OF LIFE: You may invent small, mundane details happening around you. It can be any topic.
-                        {(possibleEvent.Any() ? $@"3. EVENT NEGOTIATION: Only when player specifically mentions they want to have an event in possible event list, then confirm them to specify a time for the event that is between now and before 11:00 PM. 
-                                                4. TRIGGERING TOOLS: Once an activity AND a time are specified and agreed, call the function." : "")}
-                        ";
+                            {(!string.IsNullOrEmpty(Config.OpenAIKey) && !string.IsNullOrEmpty(npcCharacteristic) ? $"**{npc.Name} personality:** {npcCharacteristic}" : "")}
+                            * **Relationship with player:** {relation}
+                            * **World Context:** {data}
+                            * **Memory Summary:** {summary}
+                            ";
+
+                    if (possibleEvent.Any())
+                        systemMessage = $@"
+                            **Context**
+                            * You are roleplaying as NPC **{npc.Name}** in Stardew Valley, responding to a conversation with PLAYER **{Game1.player.Name}** ({(Game1.player.IsMale ? "Male" : "Female")}, teen/young adult).
+
+                            **Response Instructions**
+                            1. **Function call:** When the player intends to invite the NPC for an event that is in the possible event list below, then you must return the function schedule_event and finish.
+                            2. **Response:** If player do not intend to invite the NPC for an event, then reply to the user with a message of <30 words.
+                            3. **Slice of Life:** You may occasionally invent small, random dynamic details happening around you for your response. Be creative and do not be repetitive with your responses. Do not invite or suggest the player for an event.
+                            
+                            {(!string.IsNullOrEmpty(Config.OpenAIKey) && !string.IsNullOrEmpty(npcCharacteristic) ? $"**{npc.Name} personality:** {npcCharacteristic}" : "")}
+                            
+                            * **Relationship with player:** {relation}
+                            * **Possible events:** {string.Join(", ", possibleEvent)}
+                            * **World Context:** {data}
+                            * **Memory Summary:** {summary}
+                            ";
+
+
 
                     return systemMessage;
                 }
                 else if (type == "text")
                 {
-                    // Personality: {npcCharacteristic}
-                    var systemMessage = $@"You are roleplaying as NPC {npc.Name} in Stardew Valley. Send a text message to the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult) to start a new random conversation.
-                        Relationship with player: {relation}.
+                    var systemMessage = $@"
+                        **Context**
+                        * You are roleplaying as NPC {npc.Name} in Stardew Valley. Send a text message to the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult) to start a new random conversation.
 
-                        WORLD CONTEXT:
-                        {data}
-                        Conversation Summary:
-                        {summary}
-                        Current conversation:
-                        {combined}
-
-                        YOUR DIRECTIVES:
+                        **Response Instructions**
                         1. Keep the text under 30 words. Be creative, in-character, and match your relationship level.
-                        2. SLICE OF LIFE: You may invent small, mundane details happening around you. It can be any topic.";
+                        3. **Slice of Life:** You may occasionally invent small, random dynamic details happening around you for your response. Be creative and not repetitive with your responses.
 
+                        {(!string.IsNullOrEmpty(Config.OpenAIKey) && !string.IsNullOrEmpty(npcCharacteristic) ? $"**{npc.Name} personality:** {npcCharacteristic}" : "")}
+                        * **Relationship with player:** {relation}
+                        * **World Context:** {data}
+                        * **Memory Summary:** {summary}
+                        ";
                     return systemMessage;
                 }
                 else if (type == "invite")
                 {
                     object[] possibleEvent = GetToolList(npc, listOnly: true, ignoreBirthdayEvent: true);
+                    var systemMessage = $@"
+                        **Context**
+                        * You are roleplaying as NPC {npc.Name} in Stardew Valley. Send a text message to the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult) to invite them to hang out.
 
-                    // Personality: {npcCharacteristic}
-                    var systemMessage = $@"You are roleplaying as NPC {npc.Name} in Stardew Valley. Send a text message to the PLAYER {Game1.player.Name} ({Game1.player.Gender}, teen/young adult) to invite them to hang out.
-                        You will select one of these events: {string.Join(", ", possibleEvent)}.
-                        Relationship with player: {relation}.
+                        **Response Instructions**
+                        * Base on the relationship with player and the world context, if it's appropriate to invite the player for an event today, then send a text invitation under 20 words. You will select one of these events: {string.Join(", ", possibleEvent)}. Otherwise, do not send any message.
 
-                        WORLD CONTEXT:
-                        {data}
-                        Conversation Summary:
-                        {summary}
-                        Current conversation:
-                        {combined}
-                        
-                        If your relationship with the player is good enough and the context is appropriate, send a text invitation under 20 words.";
+                        {(!string.IsNullOrEmpty(Config.OpenAIKey) && !string.IsNullOrEmpty(npcCharacteristic) ? $"**{npc.Name} personality:** {npcCharacteristic}" : "")}
+                        * **Relationship with player:** {relation}
+                        * **World Context:** {data}
+                        * **Memory Summary:** {summary}
+                        ";
 
                     return systemMessage;
                 }
@@ -987,7 +992,7 @@ namespace Smartphone
                     .ToArray();
                 }
 
-                var readableEventNames = string.Join(", ", registeredEvents.Select(evt => evt.DisplayName));
+                // var readableEventNames = string.Join(", ", registeredEvents.Select(evt => evt.DisplayName));
                 var extraToolDescriptions = string.Join(
                     " ",
                     registeredEvents
@@ -995,8 +1000,8 @@ namespace Smartphone
                         .Where(text => !string.IsNullOrWhiteSpace(text))
                         .Distinct(StringComparer.OrdinalIgnoreCase));
 
-                string scheduleToolDescription = "Call ONLY when the NPC and the PLAYER have agreed to hang out today for one of the available event types AND a time between now and 11:00 PM is specified.";
-                scheduleToolDescription += $" Available event types: {readableEventNames}.";
+                string scheduleToolDescription = "Schedule an event for NPC and PLAYER, specifying the event type, and NPC response message.";
+                // scheduleToolDescription += $" Available event types: {readableEventNames}.";
                 if (!string.IsNullOrWhiteSpace(extraToolDescriptions))
                     scheduleToolDescription += $" {extraToolDescriptions}";
 
@@ -1004,7 +1009,7 @@ namespace Smartphone
                     new
                     {
                         type = "function",
-                        name = "Schedule_Event",
+                        name = "schedule_event",
                         description = scheduleToolDescription,
                         parameters = new
                         {
@@ -1015,13 +1020,12 @@ namespace Smartphone
                                 event_type = new
                                 {
                                     type = "string",
-                                    description = "The specific type of event you both agreed to.",
+                                    description = "The specific type of event agreed upon.",
                                     @enum = allowedEvents.ToArray()
                                 },
-                                time_of_day = new { type = "string", description = "The agreed time in HHMM format (e.g., '0900', '1730', '2150')" },
-                                npc_response = new { type = "string", description = "A message from NPC to invite or confirm the event" }
+                                npc_response = new { type = "string", description = "A message from the NPC to invite or confirm the event" }
                             },
-                            required = new[] { "npc", "event_type", "time_of_day", "npc_response" },
+                            required = new[] { "npc", "event_type", "npc_response" },
                             additionalProperties = false
                         },
                         strict = true
@@ -1065,7 +1069,7 @@ namespace Smartphone
                     {
                         if (part?["type"]?.ToString() == "output_text")
                         {
-                            var text = part["text"]?.ToString();
+                            var text = part["text"]?.ToString().Trim();
                             if (!string.IsNullOrWhiteSpace(text))
                                 return text;
                         }
@@ -1073,7 +1077,7 @@ namespace Smartphone
                 }
             }
 
-            var fallbackText = responseJson?["output_text"]?.ToString();
+            var fallbackText = responseJson?["output_text"]?.ToString()?.Trim();
             return fallbackText ?? string.Empty;
         }
 
@@ -1483,6 +1487,7 @@ namespace Smartphone
                     }
                 }
 
+                SMonitor.Log($"Premium models: {premiumInputTotal} input tokens, {premiumOutputTotal} output tokens.\nRegular models: {regularInputTotal} input tokens, {regularOutputTotal} output tokens.", LogLevel.Error);
                 return ((int)(premiumInputTotal + premiumOutputTotal), (int)(regularInputTotal + regularOutputTotal));
             }
             catch (Exception ex)

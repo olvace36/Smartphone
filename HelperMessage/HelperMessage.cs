@@ -6,12 +6,17 @@ using StardewValley.Menus;
 using TextCopy;
 using System.Text;
 using StardewModdingAPI;
+using StardewValley.Objects;
 
 namespace Smartphone
 {
     public partial class PhoneMenu
     {
         private const string TextAppState = "appText";
+        private const int ChatQuickActionButtonHeight = 30;
+        private static readonly Rectangle ChatQuickToggleArrowUpSource = new Rectangle(421, 472, 11, 12);
+        private static readonly Rectangle ChatQuickToggleArrowDownSource = new Rectangle(421, 459, 11, 12);
+        private static readonly Rectangle ChatQuickScheduleIconSource = new Rectangle(190, 423, 14, 11);
 
         private bool IsTextAppOpen()
         {
@@ -29,6 +34,7 @@ namespace Smartphone
             if (selectedNpc == null)
             {
                 chatPhotoButtonBounds = Rectangle.Empty;
+                ResetChatQuickActionsState();
                 favourityNpcButton.Clear();
                 socialProfileNpcButtonBounds.Clear();
                 int yStart = yPositionOnScreen + 150;
@@ -196,6 +202,7 @@ namespace Smartphone
                 List<ChatMessageEntry> chatMessages = BuildChatEntries(messageHistory);
                 chatPhotoHoverEntries.Clear();
                 chatPhotoNavigationEntries.Clear();
+                chatDialogueChoiceBounds.Clear();
 
                 int messageY = yPositionOnScreen + ChatViewportYOffset - (int)MathF.Floor(chatScrollOffset);
                 SpriteFont font = Game1.smallFont;
@@ -352,6 +359,14 @@ namespace Smartphone
                     messageY += bubbleHeight + 10;
                 }
 
+                DrawPendingDialogueChoices(
+                    b,
+                    font,
+                    lineHeight,
+                    visibleTop,
+                    visibleBottom,
+                    ref messageY);
+
                 // Reset clipping
                 b.End();
                 b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
@@ -359,7 +374,10 @@ namespace Smartphone
 
                 if (selectedNpc != null && (ModEntry.npcMessagesToday.ContainsKey(selectedNpc) && ModEntry.npcMessagesToday[selectedNpc].Count > 0 || ModEntry.Config.DisableDailyMessage))
                 {
-                    okButton.draw(b);
+                    bool hasPendingChoice = PhoneDialogueRuntime.HasPendingChoice(selectedNpc);
+                    if (!hasPendingChoice)
+                        okButton.draw(b);
+
                     // Draw input box
                     int inputY = yPositionOnScreen + 850;
 
@@ -372,7 +390,9 @@ namespace Smartphone
                         ChatAttachmentButtonWidth,
                         inputHeight);
 
-                    DrawChatAttachmentButton(b, chatPhotoButtonBounds, chatSelectedPhotos.Count);
+                    DrawChatQuickActionToggleButton(b, chatPhotoButtonBounds);
+                    if (chatQuickActionsOpen)
+                        DrawChatQuickActionMenu(b);
 
                     int inputX = chatPhotoButtonBounds.Right + 8;
                     int inputWidth = 370;
@@ -381,15 +401,35 @@ namespace Smartphone
                         inputX, inputY, inputWidth, inputHeight,
                         Color.White, 1f, false);
 
-                    DrawEditableTextInput(b, new Rectangle(inputX, inputY, inputWidth, inputHeight), currentMessage, currentMessageCursorIndex, currentMessageSelectionAnchorIndex);
+                    if (hasPendingChoice)
+                    {
+                        DrawReadOnlyChatInputText(
+                            b,
+                            new Rectangle(inputX, inputY, inputWidth, inputHeight),
+                            "Waiting for your response...");
 
-                    // enable ghost textBox. do not remove
-                    textBox.Selected = true;
-                    Game1.keyboardDispatcher.Subscriber = textBox;
+                        textBox.Selected = false;
+                        if (Game1.keyboardDispatcher.Subscriber == textBox)
+                            Game1.keyboardDispatcher.Subscriber = null;
+                    }
+                    else
+                    {
+                        DrawEditableTextInput(
+                            b,
+                            new Rectangle(inputX, inputY, inputWidth, inputHeight),
+                            currentMessage,
+                            currentMessageCursorIndex,
+                            currentMessageSelectionAnchorIndex);
+
+                        // enable ghost textBox. do not remove
+                        textBox.Selected = true;
+                        Game1.keyboardDispatcher.Subscriber = textBox;
+                    }
                 }
                 else
                 {
                     chatPhotoButtonBounds = Rectangle.Empty;
+                    ResetChatQuickActionsState();
                     string firstMessage = Game1.timeOfDay < 1200 ? $"Good morning {selectedNpc}" : Game1.timeOfDay < 1800 ? $"Good afternoon {selectedNpc}" : $"Good evening {selectedNpc}";
                     float maxWidth = Game1.smallFont.MeasureString(firstMessage).X + 20f;
                     int firstMessageLineHeight = (int)(Game1.smallFont.MeasureString("A").Y + 20);
@@ -426,7 +466,7 @@ namespace Smartphone
                 }
 
 
-                if (currentSuggestion.Item1 != "" && ModEntry.Config.HelperOption == "Minimal")
+                if (currentSuggestion.Item1 != "")
                 {
                     string suggestionText = currentSuggestion.Item1;
                     string[] lines = suggestionText.Split('\n');
@@ -469,56 +509,26 @@ namespace Smartphone
                         );
                     }
                 }
-                else if (ModEntry.Config.HelperOption == "Always" && currentMessage != "")
-                {
-                    string[] lines = { "Type one of these value",
-                        "to start event manually:",
-                        "  [Trigger Picnic Event]",
-                        "  [Trigger Dinner Event]",
-                        "  [Trigger Campfire Event]",
-                        "  [Trigger Birthday Event]"
-                    };
-
-                    float maxWidth = lines.Max(line => Game1.smallFont.MeasureString(line).X) + 15f;
-
-                    int helperLineHeight = (int)(Game1.smallFont.MeasureString("A").Y + 5);
-
-                    Vector2 position = new Vector2(xPositionOnScreen + 600, yPositionOnScreen + 650);
-                    messageSuggestionBounds = new Rectangle(
-                        (int)position.X,
-                        (int)position.Y,
-                        (int)maxWidth + 20,
-                        helperLineHeight * lines.Length + 10
-                    );
-
-                    IClickableMenu.drawTextureBox(
-                        Game1.spriteBatch,
-                        Game1.menuTexture,
-                        new Rectangle(0, 256, 60, 60),
-                        messageSuggestionBounds.X,
-                        messageSuggestionBounds.Y,
-                        messageSuggestionBounds.Width,
-                        messageSuggestionBounds.Height,
-                        Color.White,
-                        1f,
-                        false
-                    );
-
-                    for (int i = 0; i < lines.Length; i++)
-                    {
-                        Utility.drawTextWithShadow(
-                            Game1.spriteBatch,
-                            lines[i],
-                            Game1.smallFont,
-                            new Vector2(messageSuggestionBounds.X + 15, messageSuggestionBounds.Y + 10 + i * helperLineHeight),
-                            Game1.textColor
-                        );
-                    }
-                }
 
                 if (chatPhotoPickerOpen)
                     DrawChatPhotoPickerMenu(b);
             }
+        }
+
+        private void DrawReadOnlyChatInputText(SpriteBatch b, Rectangle inputBounds, string text)
+        {
+            SpriteFont font = Game1.smallFont;
+            int maxWidth = inputBounds.Width - 30;
+
+            string safeText = text ?? string.Empty;
+            (string visibleText, _, _) = GetVisibleTextForInput(
+                safeText,
+                font,
+                maxWidth,
+                safeText.Length);
+
+            Vector2 textPosition = new Vector2(inputBounds.X + 15, inputBounds.Y + 20);
+            b.DrawString(font, visibleText, textPosition, Color.DimGray);
         }
         private void DrawOpenSocialProfileButton(SpriteBatch b, Rectangle bounds)
         {
@@ -534,6 +544,74 @@ namespace Smartphone
                 3f,
                 false);
         }
+
+        private void DrawPendingDialogueChoices(
+            SpriteBatch b,
+            SpriteFont font,
+            int lineHeight,
+            int visibleTop,
+            int visibleBottom,
+            ref int messageY)
+        {
+            chatDialogueChoiceBounds.Clear();
+
+            if (string.IsNullOrWhiteSpace(selectedNpc))
+                return;
+
+            if (!PhoneDialogueRuntime.TryGetPendingChoice(selectedNpc, out PhoneDialogueChoiceState? pendingChoice)
+                || pendingChoice == null
+                || pendingChoice.Options.Count == 0)
+            {
+                return;
+            }
+
+            for (int optionIndex = 0; optionIndex < pendingChoice.Options.Count; optionIndex++)
+            {
+                PhoneDialogueOption option = pendingChoice.Options[optionIndex];
+                string optionText = $"{optionIndex + 1}. {option.DisplayText}";
+                List<string> wrappedLines = SplitTextIntoLines(optionText, font, maxBubbleWidth);
+
+                int bubbleHeight = Math.Max(1, wrappedLines.Count) * lineHeight + 10;
+                int bubbleWidth = 120;
+                foreach (string line in wrappedLines)
+                    bubbleWidth = Math.Max(bubbleWidth, (int)Math.Ceiling(font.MeasureString(line).X) + 20);
+
+                Rectangle bubbleRect = new Rectangle(
+                    xPositionOnScreen + width - bubbleWidth - 50,
+                    messageY,
+                    bubbleWidth,
+                    bubbleHeight);
+
+                chatDialogueChoiceBounds[optionIndex] = bubbleRect;
+
+                int bubbleTop = bubbleRect.Y;
+                int bubbleBottom = bubbleRect.Bottom + 10;
+                if (bubbleBottom >= visibleTop && bubbleTop <= visibleBottom)
+                {
+                    IClickableMenu.drawTextureBox(
+                        b,
+                        Game1.menuTexture,
+                        new Rectangle(0, 256, 60, 60),
+                        bubbleRect.X - 5,
+                        bubbleRect.Y,
+                        bubbleRect.Width + 12,
+                        bubbleRect.Height + 10,
+                        new Color(220, 240, 255, 240),
+                        1f,
+                        false);
+
+                    int textY = bubbleRect.Y + 15;
+                    foreach (string line in wrappedLines)
+                    {
+                        b.DrawString(font, line, new Vector2(bubbleRect.X + 10, textY), Color.Black);
+                        textY += lineHeight;
+                    }
+                }
+
+                messageY += bubbleHeight + 10;
+            }
+        }
+
         private void UpdateTextChatScroll(GameTime time)
         {
             ClampChatScroll();
@@ -602,12 +680,20 @@ namespace Smartphone
                 return true;
             }
 
+            if (chatQuickActionsOpen)
+            {
+                ResetChatQuickActionsState();
+                Game1.playSound("bigDeSelect");
+                return true;
+            }
+
             if (selectedNpc != null)
             {
                 MessageManager.SetUnreadCount(selectedNpc);
                 currentSuggestion = new("", "");
                 selectedNpc = null;
                 ResetEditableTextFieldState(EditableTextFieldKind.Search);
+                ResetChatQuickActionsState();
                 CloseChatPhotoPicker(clearSelection: true);
                 UpdateNpcList();
                 return true;
@@ -615,6 +701,7 @@ namespace Smartphone
 
             UpdateNpcList();
             currentApp = null;
+            ResetChatQuickActionsState();
             ResetEditableTextFieldState(EditableTextFieldKind.Search);
             CloseChatPhotoPicker(clearSelection: true);
             return true;
@@ -684,20 +771,51 @@ namespace Smartphone
                 return false;
             }
 
+            if (HandleTextDialogueChoiceClick(x, y))
+                return true;
+
             if (TryHandleChatPhotoNavigationClick(x, y))
                 return true;
 
-            if (chatPhotoButtonBounds.Contains(x, y))
-            {
-                OpenChatPhotoPicker();
-                Game1.playSound("smallSelect");
+            if (TryHandleChatQuickActionClick(x, y))
                 return true;
-            }
 
             if (okButton.containsPoint(x, y))
             {
                 if (!string.IsNullOrWhiteSpace(currentMessage) || chatSelectedPhotos.Count > 0)
                     onPlayerSend();
+
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool HandleTextDialogueChoiceClick(int x, int y)
+        {
+            if (!IsTextAppOpen() || string.IsNullOrWhiteSpace(selectedNpc))
+                return false;
+
+            if (!PhoneDialogueRuntime.HasPendingChoice(selectedNpc))
+                return false;
+
+            foreach (KeyValuePair<int, Rectangle> choiceBounds in chatDialogueChoiceBounds)
+            {
+                if (!choiceBounds.Value.Contains(x, y))
+                    continue;
+
+                bool selected = PhoneDialogueRuntime.TrySelectChoice(selectedNpc, choiceBounds.Key);
+                if (selected)
+                {
+                    ResetEditableTextFieldState(EditableTextFieldKind.Chat);
+                    messageHistory = MessageManager.GetMessages(selectedNpc);
+                    SnapChatScrollToBottom();
+                    Game1.playSound("smallSelect");
+                }
+                else
+                {
+                    Game1.playSound("cancel");
+                }
 
                 return true;
             }
@@ -744,15 +862,23 @@ namespace Smartphone
                         return true;
                     }
 
+                    if (chatQuickActionsOpen)
+                    {
+                        ResetChatQuickActionsState();
+                        return true;
+                    }
+
                     MessageManager.SetUnreadCount(selectedNpc);
                     selectedNpc = null;
                     ResetEditableTextFieldState(EditableTextFieldKind.Search);
                     currentSuggestion = new("", "");
+                    ResetChatQuickActionsState();
                     CloseChatPhotoPicker(clearSelection: true);
                     return true;
                 }
 
                 CloseChatPhotoPicker(clearSelection: true);
+                ResetChatQuickActionsState();
                 ResetEditableTextFieldState(EditableTextFieldKind.Search);
                 currentApp = null;
                 return true;
@@ -820,6 +946,14 @@ namespace Smartphone
 
         private bool HandleChatInputKey(Keys key, bool isRepeat)
         {
+            if (!string.IsNullOrWhiteSpace(selectedNpc) && PhoneDialogueRuntime.HasPendingChoice(selectedNpc))
+            {
+                if (!isRepeat && key != Keys.Escape)
+                    Game1.playSound("cancel");
+
+                return true;
+            }
+
             bool handled = TryApplyEditableTextKeyToField(
                 EditableTextFieldKind.Chat,
                 key,
@@ -836,6 +970,9 @@ namespace Smartphone
 
             if (textChanged && ShouldPlayTypingSound(key, allowPaste: !isRepeat))
                 Game1.playSound("coin");
+
+            if (textChanged)
+                ResetChatQuickActionsState();
 
             if (submitted)
             {
@@ -1121,6 +1258,12 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(selectedNpc))
                 return;
 
+            if (PhoneDialogueRuntime.HasPendingChoice(selectedNpc))
+            {
+                Game1.playSound("cancel");
+                return;
+            }
+
             string playerMessage = (currentMessage ?? "").Trim();
             bool hasTextMessage = !string.IsNullOrWhiteSpace(playerMessage);
             List<string> selectedPhotoPaths = chatSelectedPhotos
@@ -1153,6 +1296,7 @@ namespace Smartphone
             sendTextMessage(selectedNpc, hasTextMessage ? playerMessage : "", extraContextLines);
             ResetEditableTextFieldState(EditableTextFieldKind.Chat);
             chatSelectedPhotos.Clear();
+            ResetChatQuickActionsState();
             SnapChatScrollToBottom();
         }
 
@@ -1445,8 +1589,7 @@ namespace Smartphone
             }
 
             string merged = string.Join("\n", messages.Where(text => !string.IsNullOrWhiteSpace(text)));
-            int counter = messages.Count;
-            string cleanedReply = await ModEntry.SendMessageToAssistant(npcName, merged, counter);
+            string cleanedReply = await ModEntry.SendMessageToAssistant(npcName, merged);
 
             if (!string.IsNullOrWhiteSpace(cleanedReply))
                 MessageManager.AddMessage(npcName, $"{npcName}: {cleanedReply}");
@@ -1797,8 +1940,93 @@ namespace Smartphone
             }
         }
 
-        private void DrawChatAttachmentButton(SpriteBatch b, Rectangle bounds, int selectedCount)
+        private void ResetChatQuickActionsState()
         {
+            chatQuickActionsOpen = false;
+            chatScheduleOptionsOpen = false;
+            chatQuickPhotoActionBounds = Rectangle.Empty;
+            chatQuickScheduleActionBounds = Rectangle.Empty;
+            chatScheduleEventButtonBounds.Clear();
+        }
+
+        private bool TryHandleChatQuickActionClick(int x, int y)
+        {
+            if (chatPhotoButtonBounds.Contains(x, y))
+            {
+                if (chatQuickActionsOpen)
+                {
+                    ResetChatQuickActionsState();
+                }
+                else
+                {
+                    chatQuickActionsOpen = true;
+                    chatScheduleOptionsOpen = false;
+                    chatScheduleEventButtonBounds.Clear();
+                }
+
+                Game1.playSound("smallSelect");
+                return true;
+            }
+
+            if (!chatQuickActionsOpen)
+                return false;
+
+            if (chatQuickPhotoActionBounds.Contains(x, y))
+            {
+                OpenChatPhotoPicker();
+                Game1.playSound("smallSelect");
+                return true;
+            }
+
+            if (chatQuickScheduleActionBounds.Contains(x, y))
+            {
+                chatScheduleOptionsOpen = !chatScheduleOptionsOpen;
+                if (!chatScheduleOptionsOpen)
+                    chatScheduleEventButtonBounds.Clear();
+
+                Game1.playSound("smallSelect");
+                return true;
+            }
+
+            if (chatScheduleOptionsOpen)
+            {
+                foreach (KeyValuePair<string, Rectangle> eventButton in chatScheduleEventButtonBounds)
+                {
+                    if (!eventButton.Value.Contains(x, y))
+                        continue;
+                    bool opened = ModEntry.TryOpenManualScheduleEventTimeMenu(selectedNpc ?? string.Empty, eventButton.Key);
+                    ResetChatQuickActionsState();
+                    Game1.playSound(opened ? "smallSelect" : "cancel");
+                    this.ClosePhoneMenu();
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private List<RegisteredUnlimitedEvent> GetSchedulableEventsForSelectedNpc()
+        {
+            if (string.IsNullOrWhiteSpace(selectedNpc))
+                return new List<RegisteredUnlimitedEvent>();
+
+            int heartLevel = 0;
+            if (Game1.player?.friendshipData != null
+                && Game1.player.friendshipData.TryGetValue(selectedNpc, out Friendship? friendship)
+                && friendship != null)
+            {
+                heartLevel = friendship.Points / 250;
+            }
+
+            return ModEntry.GetRegisteredUnlimitedEventsForHeartLevel(heartLevel);
+        }
+
+        private void DrawChatQuickActionToggleButton(SpriteBatch b, Rectangle bounds)
+        {
+            Color buttonColor = chatQuickActionsOpen
+                ? new Color(255, 255, 255, 255)
+                : new Color(255, 255, 255, 255);
+
             IClickableMenu.drawTextureBox(
                 b,
                 Game1.menuTexture,
@@ -1807,16 +2035,200 @@ namespace Smartphone
                 bounds.Y,
                 bounds.Width,
                 bounds.Height,
-                new Color(255, 255, 255, 220),
+                buttonColor,
                 1f,
                 false);
 
-            Rectangle iconBounds = new Rectangle(bounds.X + 8, bounds.Y + 6, Math.Max(16, bounds.Width - 16), Math.Max(16, bounds.Height - 12));
-            b.Draw(textureAppPhoto, iconBounds, Color.White);
+            Rectangle arrowSource = chatQuickActionsOpen
+                ? ChatQuickToggleArrowUpSource
+                : ChatQuickToggleArrowDownSource;
 
-            if (selectedCount > 0)
+            int iconWidth = Math.Max(14, bounds.Width - 24);
+            int iconHeight = Math.Max(14, bounds.Height - 24);
+            Rectangle iconBounds = new Rectangle(
+                bounds.X + (bounds.Width - iconWidth) / 2,
+                bounds.Y + (bounds.Height - iconHeight) / 2,
+                iconWidth,
+                iconHeight);
+
+            b.Draw(Game1.mouseCursors, iconBounds, arrowSource, Color.White);
+
+            if (chatSelectedPhotos.Count > 0)
             {
-                string badgeText = Math.Min(ChatPhotoPickerMaxCount, selectedCount).ToString();
+                string badgeText = Math.Min(ChatPhotoPickerMaxCount, chatSelectedPhotos.Count).ToString();
+                Rectangle badgeBounds = new Rectangle(bounds.Right - 2, bounds.Y - 10, 24, 18);
+                b.Draw(Game1.staminaRect, badgeBounds, new Color(215, 48, 48, 235));
+
+                Vector2 badgeSize = Game1.smallFont.MeasureString(badgeText);
+                Vector2 badgePos = new Vector2(
+                    badgeBounds.X + (badgeBounds.Width - badgeSize.X) / 2f,
+                    badgeBounds.Y + (badgeBounds.Height - badgeSize.Y) / 2f - 1f);
+                b.DrawString(Game1.smallFont, badgeText, badgePos, Color.White);
+            }
+        }
+
+        private void DrawChatQuickActionMenu(SpriteBatch b)
+        {
+            if (chatPhotoButtonBounds == Rectangle.Empty)
+                return;
+
+            int actionX = chatPhotoButtonBounds.X;
+            int quickActionWidth = chatPhotoButtonBounds.Width;
+            int quickActionHeight = chatPhotoButtonBounds.Height;
+            int actionY = chatPhotoButtonBounds.Y - quickActionHeight - 8;
+
+            chatQuickPhotoActionBounds = new Rectangle(actionX, actionY, quickActionWidth, quickActionHeight);
+            chatQuickScheduleActionBounds = new Rectangle(actionX, actionY - quickActionHeight - 6, quickActionWidth, quickActionHeight);
+
+            DrawChatQuickIconActionButton(
+                b,
+                chatQuickPhotoActionBounds,
+                active: false,
+                useTextureIcon: textureAppPhoto,
+                useCursorIcon: null,
+                badgeCount: chatSelectedPhotos.Count);
+
+            DrawChatQuickIconActionButton(
+                b,
+                chatQuickScheduleActionBounds,
+                active: chatScheduleOptionsOpen,
+                useTextureIcon: null,
+                useCursorIcon: ChatQuickScheduleIconSource,
+                badgeCount: 0);
+
+            chatScheduleEventButtonBounds.Clear();
+            if (!chatScheduleOptionsOpen)
+                return;
+
+            List<RegisteredUnlimitedEvent> events = GetSchedulableEventsForSelectedNpc();
+            int panelWidth = 320;
+            int rowHeight = ChatQuickActionButtonHeight * 2;
+            int rowSpacing = 6;
+            int panelPadding = 10;
+            int rowsHeight = events.Count == 0
+                ? rowHeight
+                : events.Count * rowHeight + Math.Max(0, events.Count - 1) * rowSpacing;
+            int panelHeight = panelPadding * 2 + rowsHeight;
+
+            int panelX = chatQuickScheduleActionBounds.Right + 10;
+            int panelY = chatQuickScheduleActionBounds.Bottom - panelHeight;
+            panelX = Math.Clamp(panelX, 10, Game1.viewport.Width - panelWidth - 10);
+            panelY = Math.Clamp(panelY, 10, Game1.viewport.Height - panelHeight - 10);
+
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.menuTexture,
+                new Rectangle(0, 256, 60, 60),
+                panelX,
+                panelY,
+                panelWidth,
+                panelHeight,
+                new Color(255, 255, 255, 240),
+                1f,
+                false);
+
+            if (events.Count == 0)
+            {
+                b.DrawString(
+                    Game1.smallFont,
+                    "No events available.",
+                    new Vector2(panelX + panelPadding, panelY + panelPadding + 8),
+                    Color.Black);
+                return;
+            }
+
+            int buttonY = panelY + panelPadding;
+            foreach (RegisteredUnlimitedEvent registeredEvent in events)
+            {
+                Rectangle buttonBounds = new Rectangle(panelX + panelPadding, buttonY, panelWidth - panelPadding * 2, rowHeight);
+                chatScheduleEventButtonBounds[registeredEvent.EventType] = buttonBounds;
+
+                string label = GetTailTextToFit($"Schedule {registeredEvent.DisplayName}", Game1.smallFont, buttonBounds.Width - 16);
+                DrawChatQuickActionButton(b, buttonBounds, label, false);
+                buttonY += rowHeight + rowSpacing;
+            }
+        }
+
+        private void DrawChatQuickActionButton(SpriteBatch b, Rectangle bounds, string label, bool active)
+        {
+            Color color = active
+                ? new Color(205, 235, 255, 235)
+                : new Color(255, 255, 255, 220);
+
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.menuTexture,
+                new Rectangle(0, 256, 60, 60),
+                bounds.X,
+                bounds.Y,
+                bounds.Width,
+                bounds.Height,
+                color,
+                1f,
+                false);
+
+            string safeLabel = label ?? string.Empty;
+            List<string> lines = SplitTextIntoLines(safeLabel, Game1.smallFont, Math.Max(24, bounds.Width - 18));
+            if (lines.Count == 0)
+                lines.Add(safeLabel);
+
+            int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 2;
+            int totalHeight = lines.Count * lineHeight;
+            float startY = bounds.Y + Math.Max(2f, (bounds.Height - totalHeight) / 2f);
+
+            for (int i = 0; i < lines.Count; i++)
+            {
+                string line = lines[i];
+                Vector2 lineSize = Game1.smallFont.MeasureString(line);
+                Vector2 textPosition = new Vector2(
+                    bounds.X + Math.Max(8f, (bounds.Width - lineSize.X) / 2f),
+                    startY + i * lineHeight);
+                b.DrawString(Game1.smallFont, line, textPosition, Color.Black);
+            }
+        }
+
+        private void DrawChatQuickIconActionButton(
+            SpriteBatch b,
+            Rectangle bounds,
+            bool active,
+            Texture2D? useTextureIcon,
+            Rectangle? useCursorIcon,
+            int badgeCount)
+        {
+            Color boxColor = active
+                ? new Color(205, 235, 255, 235)
+                : new Color(255, 255, 255, 220);
+
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.menuTexture,
+                new Rectangle(0, 256, 60, 60),
+                bounds.X,
+                bounds.Y,
+                bounds.Width,
+                bounds.Height,
+                boxColor,
+                1f,
+                false);
+
+            Rectangle iconBounds = new Rectangle(
+                bounds.X + 8,
+                bounds.Y + 6,
+                Math.Max(16, bounds.Width - 16),
+                Math.Max(16, bounds.Height - 12));
+
+            if (useTextureIcon != null)
+            {
+                b.Draw(useTextureIcon, iconBounds, Color.White);
+            }
+            else if (useCursorIcon.HasValue)
+            {
+                b.Draw(Game1.mouseCursors, iconBounds, useCursorIcon.Value, Color.White);
+            }
+
+            if (badgeCount > 0)
+            {
+                string badgeText = Math.Min(ChatPhotoPickerMaxCount, badgeCount).ToString();
                 Rectangle badgeBounds = new Rectangle(bounds.Right - 2, bounds.Y - 10, 24, 18);
                 b.Draw(Game1.staminaRect, badgeBounds, new Color(215, 48, 48, 235));
 
@@ -1830,6 +2242,7 @@ namespace Smartphone
 
         private void OpenChatPhotoPicker()
         {
+            ResetChatQuickActionsState();
             EnsureChatPhotoCandidatesLoaded();
             chatPhotoPickerOpen = true;
         }

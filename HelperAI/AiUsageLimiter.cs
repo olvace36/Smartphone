@@ -13,7 +13,7 @@ namespace Smartphone
             public string QueueKey { get; init; } = string.Empty;
         }
 
-        private const int MaxAiCallsPerDay = 4;
+        private const int MaxAiCallsPerDay = 40;
         public static int AiCallsRemainingToday = MaxAiCallsPerDay;
         public static int SuccessfulAiCallsToday = 0;
 

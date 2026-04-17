@@ -14,7 +14,6 @@ namespace Smartphone
         public const string PostPerDayLow = "Low";
 
         public SButton ModKey { get; set; } = SButton.H;
-        public string HelperOption { get; set; } = "Always";
         public string NpcMessageRequirement { get; set; } = NpcRequirementFriend;
         public string PostPerDay { get; set; } = PostPerDayMedium;
 

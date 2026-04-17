@@ -31,16 +31,6 @@ namespace Smartphone
                 setValue: value => Config.ModKey = value
             );
 
-            configMenu.AddTextOption(
-                mod: ModManifest,
-                name: () => "Show event trigger helper menu.",
-                tooltip: () => "Only effective if you have Unlimited Event Expansion mod.\nOption to display side menu for quick event trigger.\nAlways: Always show.\nMinimal: Only show when last message contain sepecific keyword (e.g. Dinner).\nNever: Never show helper menu.",
-                getValue: () => Config.HelperOption,
-                setValue: value => Config.HelperOption = value,
-                allowedValues: new string[] { "Always", "Minimal", "Never" },
-                formatAllowedValue: value => value
-            );
-
             configMenu.AddParagraph(
                 mod: ModManifest,
                 text: () => "Controls which villagers appear in the Messages app."
