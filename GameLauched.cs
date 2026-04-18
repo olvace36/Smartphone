@@ -61,8 +61,8 @@ namespace Smartphone
 
 
             Textures.LoadTextures();
-            helper.Events.GameLoop.GameLaunched += OnGameLauched;
             helper.Events.Input.ButtonPressed += OnButtonPressed;
+            helper.Events.GameLoop.GameLaunched += OnGameLauched;
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
             helper.Events.GameLoop.Saving += OnSaving;
             helper.Events.GameLoop.DayEnding += OnDayEnding;
@@ -71,6 +71,7 @@ namespace Smartphone
             helper.Events.GameLoop.OneSecondUpdateTicked += OnOneSecondUpdateTicked;
             helper.Events.Player.Warped += OnWarped;
             helper.Events.Display.MenuChanged += OnMenuChanged;
+            helper.Events.Display.WindowResized += OnWindowResized;
             helper.Events.Display.Rendered += OnRendered;
 
 
@@ -283,6 +284,7 @@ namespace Smartphone
             // Reset daily variables
             ClearPendingRandomNpcSocialPost();
             ResetDailyAiUsageLimit();
+            HandleAiModelSettingTimeChanged(600);
             isTodayEventAdded = false;
             lastTimeReceiveMessage = 600;
             npcMessagesToday.Clear();
@@ -404,8 +406,10 @@ namespace Smartphone
 
         private void OnTimeChange(object sender, TimeChangedEventArgs e)
         {
-            
             HandleAiUsageTimeChanged(e.NewTime);
+            HandleAiModelSettingTimeChanged(e.NewTime);
+
+            CaptureNpcPhoto(Game1.getCharacterFromName("Abigail"), Game1.getCharacterFromName("Abigail").Tile, zoomLevel: 0.5f, captureTimeOfDay: 2300);
 
             if ((e.NewTime - 630) % GetSocialPostIntervalFromConfig() == 0 && Game1.timeOfDay >= 630 && Game1.timeOfDay <= 2400)
                 SetPendingRandomNpcSocialPost();
@@ -418,40 +422,6 @@ namespace Smartphone
 
             if (Game1.timeOfDay < 2300)
                 CheckSendNewMessage();
-
-            if (Config.OpenAIKey == "" && e.NewTime % 300 == 0)
-            {
-                // gpt-5.4 variant support reasoning effor: none, low, medium, high, xhigh
-                // gpt-5 variant support reasoning effort: minimal, low, medium, high
-                Task.Run(async () =>
-                {
-                    var (premium, regular) = await GetOpenAIUsage();
-                    if (regular > 15000000)
-                    {
-                        chatModel = "gpt-5-nano";
-                        chatReasoningEffort = new { effort = "minimal" };
-
-                        summaryModel = "gpt-5-nano";
-                        summaryReasoningEffort = new { effort = "minimal" };
-                    }
-                    else if (regular > 10000000)
-                    {
-                        chatModel = "gpt-5-mini";
-                        chatReasoningEffort = new { effort = "minimal" };
-
-                        summaryModel = "gpt-5-mini";
-                        summaryReasoningEffort = new { effort = "low" };
-                    }
-                    else
-                    {
-                        chatModel = "gpt-5.4-mini";
-                        chatReasoningEffort = new { effort = "none" };
-
-                        summaryModel = "gpt-5.4-mini";
-                        summaryReasoningEffort = new { effort = "low" };
-                    }
-                });
-            }
 
             if (pendingInitNotification && isPlayerFree())
             {
@@ -513,6 +483,14 @@ namespace Smartphone
 
             if (Game1.activeClickableMenu != null)
                 TryQueuePendingRandomNpcSocialPost();
+        }
+
+        private void OnWindowResized(object sender, WindowResizedEventArgs e)
+        {
+            if (phoneMenu == null)
+                return;
+
+            phoneMenu.ResetToDefaultPosition();
         }
 
         private void OnOneSecondUpdateTicked(object sender, OneSecondUpdateTickedEventArgs e)
@@ -635,17 +613,15 @@ namespace Smartphone
 
 
 
-        public static string TryCaptureNpcPhoto(string npcName)
-        {
-            return TryCaptureNpcPhoto(npcName, 1).FirstOrDefault() ?? string.Empty;
-        }
 
-        public static List<string> TryCaptureNpcPhoto(string npcName, int photoCount)
+        public static List<string> TryCaptureNpcPhoto(string npcName, int photoCount, int? captureTimeOfDay = null)
         {
             Game1.chatBox.addErrorMessage($"Attempting to capture {photoCount} photo(s) for NPC: {npcName}");
             var filePaths = new List<string>();
             if (photoCount <= 0)
                 return filePaths;
+
+            int effectiveCaptureTime = NormalizeCaptureTimeOfDay(captureTimeOfDay);
 
             Dictionary<string, Dictionary<string, AreaData>>? customAreaTags = Instance?.areaTags;
             if (customAreaTags == null || customAreaTags.Count == 0)
@@ -680,12 +656,13 @@ namespace Smartphone
                     continue;
                 }
 
-                shouldWearSwimming = string.Equals(locationName, "Beach", StringComparison.OrdinalIgnoreCase) && Game1.timeOfDay < 1830
-                    && (Game1.GetSeasonForLocation(selectedLocation) == Season.Summer || Game1.GetSeasonForLocation(selectedLocation) == Season.Fall);
-
                 GameLocation targetLocation = Game1.getLocationFromName(locationName);
                 if (targetLocation == null || targetLocation.farmers.Count > 0)
                     continue;
+
+                shouldWearSwimming = string.Equals(locationName, "Beach", StringComparison.OrdinalIgnoreCase)
+                    && effectiveCaptureTime < 1830
+                    && (Game1.GetSeasonForLocation(targetLocation) == Season.Summer || Game1.GetSeasonForLocation(targetLocation) == Season.Fall);
 
                 List<KeyValuePair<string, AreaData>> candidateAreas = areasByName
                     .Where(entry => entry.Value != null && !string.IsNullOrWhiteSpace(entry.Key))
@@ -788,8 +765,9 @@ namespace Smartphone
 
                         Vector2 captureCenterTile = DetermineGroupCaptureCenterTile(spawnedDummies, dummyNpc, selectedLocation);
                         ApplyGroupFacingDirections(spawnedDummies, dummyNpc, captureCenterTile);
+                        float zoomLevel = GetRandomNpcCaptureZoomLevel(spawnedDummies.Count);
 
-                        string filePath = CaptureNpcPhoto(dummyNpc, captureCenterTile, Game1.random.NextBool(), Game1.random.NextDouble() < 0.3, visibleNpcAtTarget);
+                        string filePath = CaptureNpcPhoto(dummyNpc, captureCenterTile, Game1.random.NextBool(), Game1.random.NextDouble() < 0.3, visibleNpcAtTarget, zoomLevel, effectiveCaptureTime);
                         if (!string.IsNullOrWhiteSpace(filePath))
                         {
                             filePaths.Add(filePath);
@@ -1093,6 +1071,18 @@ namespace Smartphone
                 return mainDummyNpc.Tile;
 
             return centerTile;
+        }
+
+        private static float GetRandomNpcCaptureZoomLevel(int totalNpcCount)
+        {
+            (double minZoom, double maxZoom) = totalNpcCount switch
+            {
+                <= 1 => (0.75, 1.25),
+                <= 3 => (0.75, 1.0),
+                _ => (0.7, 0.85)
+            };
+
+            return (float)(minZoom + (Game1.random.NextDouble() * (maxZoom - minZoom)));
         }
 
         private static void ApplyGroupFacingDirections(List<NPC> spawnedDummies, NPC mainDummyNpc, Vector2 groupCenterTile)

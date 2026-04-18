@@ -34,6 +34,44 @@ namespace Smartphone
         public static string summaryModel = "gpt-5.4-mini";
         public static object summaryReasoningEffort = new { effort = "low" };
 
+        internal static void HandleAiModelSettingTimeChanged(int newTime)
+        {
+            if (Config.OpenAIKey == "" && newTime % 300 == 0)
+            {
+                Task.Run(async () =>
+                {
+                    var (premium, regular) = await GetOpenAIUsage();
+                    if (regular > 13000000 && chatModel != "gpt-5-nano")
+                    {
+                        chatModel = "gpt-5-nano";
+                        chatReasoningEffort = new { effort = "minimal" };
+
+                        summaryModel = "gpt-5-mini";
+                        summaryReasoningEffort = new { effort = "minimal" };
+
+                        NotificationManager.addNotification("=== Smartphone ===^^Usage is very high today, AI quality is temporarily downgraded so I won't go bankrupt lol.^^This will be reset the next day in timezone UTC+0. HaPyke!");
+                    }
+                    else if (regular > 10000000)
+                    {
+                        chatModel = "gpt-5-mini";
+                        chatReasoningEffort = new { effort = "minimal" };
+
+                        summaryModel = "gpt-5-mini";
+                        summaryReasoningEffort = new { effort = "minimal" };
+                    }
+                    else
+                    {
+                        chatModel = "gpt-5.4-mini";
+                        chatReasoningEffort = new { effort = "none" };
+
+                        summaryModel = "gpt-5.4-mini";
+                        summaryReasoningEffort = new { effort = "none" };
+                    }
+                });
+            }
+        }
+
+
         private static string GetNpcCharacteristicForPrompt(NPC npc)
         {
             if (npc == null || string.IsNullOrWhiteSpace(npc.Name))

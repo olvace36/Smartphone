@@ -271,8 +271,10 @@ namespace Smartphone
         private const double TextInputRepeatInitialDelaySeconds = 0.45d;
         private const double TextInputRepeatIntervalSeconds = 0.05d;
         private const int TextUndoHistoryLimit = 128;
+        private const int DefaultMenuOffsetX = 400;
+        private const int DefaultMenuOffsetY = 500;
 
-        public PhoneMenu() : base(Game1.uiViewport.Width / 2 - 400, Game1.uiViewport.Height / 2 - 500, 600, 1000, true)
+        public PhoneMenu() : base(Game1.uiViewport.Width / 2 - DefaultMenuOffsetX, Game1.uiViewport.Height / 2 - DefaultMenuOffsetY, 600, 1000, true)
         {
             this.upperRightCloseButton = null;
 
@@ -2784,6 +2786,16 @@ namespace Smartphone
             yPositionOnScreen = minY > maxY
                 ? (minY + maxY) / 2
                 : Math.Clamp(yPositionOnScreen, minY, maxY);
+        }
+
+        public void ResetToDefaultPosition()
+        {
+            isDragging = false;
+            xPositionOnScreen = Game1.uiViewport.Width / 2 - DefaultMenuOffsetX;
+            yPositionOnScreen = Game1.uiViewport.Height / 2 - DefaultMenuOffsetY;
+            ClampPhoneMenuToViewport();
+            ModEntry.currentMenuX = xPositionOnScreen;
+            ModEntry.currentMenuY = yPositionOnScreen;
         }
 
         private bool IsCameraCaptureButtonPressed(int x, int y)

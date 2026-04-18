@@ -24,7 +24,8 @@ namespace Smartphone
         private const int SocialCommentPreviewCount = 2;
         private const int SocialCreateSelectionMaxCount = 3;
         private const int SocialImageNavButtonSize = 40;
-        private const float SocialImageScale = 0.5f;
+        private const int SocialImageMaxWidth = SocialPostCardWidth - 30;
+        private const int SocialImageMaxHeight = 810;
         private const float SocialImageTagScale = 0.68f;
         private const int SocialImageTagBottomPadding = 6;
         private const float SocialScrollPixelsPerWheelNotch = 52f;
@@ -1780,10 +1781,12 @@ namespace Smartphone
                 int attachmentIndex = Math.Clamp(selectedAttachmentIndex, 0, attachmentCount - 1);
                 if (TryGetSocialAttachmentTexture(post, attachmentIndex, out Texture2D attachmentTexture))
                 {
-                    int drawWidth = Math.Max(1, (int)Math.Round(attachmentTexture.Width * SocialImageScale));
-                    int drawHeight = Math.Max(1, (int)Math.Round(attachmentTexture.Height * SocialImageScale));
-
                     int imageAreaWidth = cardWidth - 30;
+                    (int drawWidth, int drawHeight) = GetAdaptiveSocialImageSize(
+                        attachmentTexture.Width,
+                        attachmentTexture.Height,
+                        imageAreaWidth,
+                        SocialImageMaxHeight);
                     int imageX = cardX + 15 + Math.Max(0, (imageAreaWidth - drawWidth) / 2);
                     int imageY = cursorY + Math.Max(0, (attachmentAreaHeight - drawHeight) / 2);
                     Rectangle imageBounds = new Rectangle(imageX, imageY, drawWidth, drawHeight);
@@ -2068,6 +2071,22 @@ namespace Smartphone
             return Math.Max(1, (int)Math.Ceiling(baseLineHeight * SocialImageTagScale));
         }
 
+        private static (int Width, int Height) GetAdaptiveSocialImageSize(int sourceWidth, int sourceHeight, int maxWidth, int maxHeight)
+        {
+            int safeSourceWidth = Math.Max(1, sourceWidth);
+            int safeSourceHeight = Math.Max(1, sourceHeight);
+            int safeMaxWidth = Math.Max(1, maxWidth);
+            int safeMaxHeight = Math.Max(1, maxHeight);
+
+            float scale = Math.Min(
+                safeMaxWidth / (float)safeSourceWidth,
+                safeMaxHeight / (float)safeSourceHeight);
+
+            int drawWidth = Math.Max(1, (int)Math.Round(safeSourceWidth * scale));
+            int drawHeight = Math.Max(1, (int)Math.Round(safeSourceHeight * scale));
+            return (drawWidth, drawHeight);
+        }
+
         private string GetSocialPostTagText(StardewConnectPost post)
         {
             if (!IsSocialImageTagVisible() || post == null)
@@ -2164,7 +2183,14 @@ namespace Smartphone
             int clampedSelectedIndex = Math.Clamp(selectedAttachmentIndex, 0, attachmentCount - 1);
 
             if (TryGetSocialAttachmentTexture(post, clampedSelectedIndex, out Texture2D selectedTexture))
-                maxHeight = Math.Max(1, (int)Math.Round(selectedTexture.Height * SocialImageScale));
+            {
+                (_, int selectedDrawHeight) = GetAdaptiveSocialImageSize(
+                    selectedTexture.Width,
+                    selectedTexture.Height,
+                    SocialImageMaxWidth,
+                    SocialImageMaxHeight);
+                maxHeight = Math.Max(1, selectedDrawHeight);
+            }
 
             for (int i = 0; i < attachmentCount; i++)
             {
@@ -2174,7 +2200,11 @@ namespace Smartphone
                 if (!TryGetSocialAttachmentTexture(post, i, out Texture2D attachmentTexture))
                     continue;
 
-                int drawHeight = Math.Max(1, (int)Math.Round(attachmentTexture.Height * SocialImageScale));
+                (_, int drawHeight) = GetAdaptiveSocialImageSize(
+                    attachmentTexture.Width,
+                    attachmentTexture.Height,
+                    SocialImageMaxWidth,
+                    SocialImageMaxHeight);
                 maxHeight = Math.Max(maxHeight, drawHeight);
             }
 

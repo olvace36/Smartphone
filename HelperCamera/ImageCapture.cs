@@ -10,11 +10,15 @@ using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Characters;
 using StardewValley.Extensions;
+using StardewValley.Locations;
 
 namespace Smartphone
 {
     public partial class ModEntry
     {
+        private const float NpcCaptureZoomMin = 0.5f;
+        private const float NpcCaptureZoomMax = 2f;
+
         public static Microsoft.Xna.Framework.Rectangle GetPhoneCameraViewportBounds(int menuX, int menuY)
         {
             return new Microsoft.Xna.Framework.Rectangle(
@@ -146,15 +150,18 @@ namespace Smartphone
             }
         }
 
-        private static string CaptureNpcPhoto(NPC npc, Vector2 captureCenter, bool landscape = false, bool square = false, List<NPC>? visibleNpcAtTarget = null)
+        private static string CaptureNpcPhoto(NPC npc, Vector2 captureCenter, bool landscape = false, bool square = false, List<NPC>? visibleNpcAtTarget = null, float zoomLevel = 1f, int? captureTimeOfDay = null)
         {
             if (!Context.IsWorldReady || npc == null || npc.currentLocation == null || Game1.graphics?.GraphicsDevice == null || Game1.game1 == null)
                 return "";
 
             GraphicsDevice graphics = Game1.graphics.GraphicsDevice;
             GameLocation targetLocation = npc.currentLocation;
+            int effectiveCaptureTime = NormalizeCaptureTimeOfDay(captureTimeOfDay);
             var renderStateSnapshot = new PhotoRenderStateSnapshot();
-            (int captureWidth, int captureHeight) = GetCaptureDimensions(landscape, square);
+            int temporarySpriteCount = targetLocation.temporarySprites.Count;
+            (int baseCaptureWidth, int baseCaptureHeight) = GetCaptureDimensions(landscape, square);
+            (int captureWidth, int captureHeight) = GetZoomedCaptureDimensions(baseCaptureWidth, baseCaptureHeight, zoomLevel);
             var captureBounds = new Microsoft.Xna.Framework.Rectangle(0, 0, captureWidth, captureHeight);
             List<string> tags = new List<string>();
 
@@ -164,7 +171,8 @@ namespace Smartphone
             {
                 Game1.currentLocation = targetLocation;
                 Game1.viewport = BuildNpcCaptureViewport(targetLocation, captureCenter, captureWidth, captureHeight);
-                PrepareLocationRenderState(targetLocation);
+                Game1.timeOfDay = effectiveCaptureTime;
+                PrepareLocationRenderState(targetLocation, captureWidth, captureHeight);
 
                 graphics.SetRenderTarget(renderTarget);
                 graphics.Clear(Color.Black);
@@ -181,6 +189,7 @@ namespace Smartphone
             finally
             {
                 graphics.SetRenderTarget(null);
+                RestoreTemporarySpritesAfterCapture(targetLocation, temporarySpriteCount);
                 renderStateSnapshot.Restore();
             }
 
@@ -195,26 +204,28 @@ namespace Smartphone
             return SaveCapturedPhoto(renderTarget, targetLocation.Name, tags, false);
         }
 
-        // public static List<string> CaptureNpcPhotosForMessage(string npcName, int count = 1)
-        // {
-        //     var photos = new List<string>();
-        //     if (string.IsNullOrWhiteSpace(npcName))
-        //         return photos;
+        private static (int Width, int Height) GetZoomedCaptureDimensions(int baseCaptureWidth, int baseCaptureHeight, float zoomLevel)
+        {
+            float safeZoomLevel = zoomLevel;
+            if (float.IsNaN(safeZoomLevel) || float.IsInfinity(safeZoomLevel))
+                safeZoomLevel = 1f;
 
-        //     NPC? npc = Game1.getCharacterFromName(npcName);
-        //     if (npc == null)
-        //         return photos;
+            safeZoomLevel = Math.Clamp(safeZoomLevel, NpcCaptureZoomMin, NpcCaptureZoomMax);
 
-        //     int safeCount = Math.Clamp(count, 1, 5);
-        //     for (int i = 0; i < safeCount; i++)
-        //     {
-        //         string photoPath = CaptureNpcPhoto(npc);
-        //         if (!string.IsNullOrWhiteSpace(photoPath))
-        //             photos.Add(photoPath);
-        //     }
+            int captureWidth = Math.Max(1, (int)Math.Round(baseCaptureWidth / safeZoomLevel));
+            int captureHeight = Math.Max(1, (int)Math.Round(baseCaptureHeight / safeZoomLevel));
+            return (captureWidth, captureHeight);
+        }
 
-        //     return photos;
-        // }
+        private static int NormalizeCaptureTimeOfDay(int? captureTimeOfDay)
+        {
+            int fallbackTime = Game1.timeOfDay > 0 ? Game1.timeOfDay : 600;
+            int rawTime = captureTimeOfDay ?? fallbackTime;
+
+            int hour = Math.Clamp(rawTime / 100, 6, 26);
+            int minute = Math.Clamp(rawTime % 100, 0, 59);
+            return (hour * 100) + minute;
+        }
 
         private static void RecoverWorldDrawStateAfterCaptureFailure()
         {
@@ -275,6 +286,30 @@ namespace Smartphone
             }
 
             return null;
+        }
+
+        private static bool TrySetStaticMemberValue(Type sourceType, object? value, params string[] memberNames)
+        {
+            const BindingFlags flags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase;
+
+            foreach (string memberName in memberNames)
+            {
+                PropertyInfo? property = sourceType.GetProperty(memberName, flags);
+                if (property?.CanWrite == true)
+                {
+                    property.SetValue(null, value);
+                    return true;
+                }
+
+                FieldInfo? field = sourceType.GetField(memberName, flags);
+                if (field != null)
+                {
+                    field.SetValue(null, value);
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool TryInvokeNoArgumentMethod(object source, string methodName)
@@ -414,17 +449,41 @@ namespace Smartphone
         private sealed class PhotoRenderStateSnapshot
         {
             private readonly xTile.Dimensions.Rectangle viewport;
+            private readonly Viewport graphicsViewport;
             private readonly GameLocation currentLocation;
+            private readonly int timeOfDay;
             private readonly Color ambientLight;
             private readonly Color outdoorLight;
+            private readonly bool drawLighting;
+            private readonly string? viewingLocation;
+            private readonly bool screenGlow;
+            private readonly bool screenGlowHold;
+            private readonly bool screenGlowUp;
+            private readonly float screenGlowAlpha;
+            private readonly float screenGlowRate;
+            private readonly float screenGlowMax;
+            private readonly Color screenGlowColor;
+            private readonly RenderTarget2D? lightmap;
             private readonly Dictionary<string, LightSource> lightSources = new Dictionary<string, LightSource>(StringComparer.Ordinal);
 
             public PhotoRenderStateSnapshot()
             {
                 viewport = Game1.viewport;
+                graphicsViewport = Game1.graphics.GraphicsDevice.Viewport;
                 currentLocation = Game1.currentLocation;
+                timeOfDay = Game1.timeOfDay;
                 ambientLight = Game1.ambientLight;
                 outdoorLight = Game1.outdoorLight;
+                drawLighting = Game1.drawLighting;
+                viewingLocation = Game1.player?.viewingLocation?.Value;
+                screenGlow = Game1.screenGlow;
+                screenGlowHold = Game1.screenGlowHold;
+                screenGlowUp = Game1.screenGlowUp;
+                screenGlowAlpha = Game1.screenGlowAlpha;
+                screenGlowRate = Game1.screenGlowRate;
+                screenGlowMax = Game1.screenGlowMax;
+                screenGlowColor = Game1.screenGlowColor;
+                lightmap = Game1.lightmap;
 
                 foreach (KeyValuePair<string, LightSource> lightSource in Game1.currentLightSources)
                     lightSources[lightSource.Key] = lightSource.Value;
@@ -432,10 +491,29 @@ namespace Smartphone
 
             public void Restore()
             {
+                RenderTarget2D? captureLightmap = Game1.lightmap;
+                if (!ReferenceEquals(captureLightmap, lightmap))
+                {
+                    if (TrySetStaticMemberValue(typeof(Game1), lightmap, "_lightmap") && captureLightmap != null)
+                        captureLightmap.Dispose();
+                }
+
+                Game1.graphics.GraphicsDevice.Viewport = graphicsViewport;
                 Game1.viewport = viewport;
                 Game1.currentLocation = currentLocation;
+                Game1.timeOfDay = timeOfDay;
                 Game1.ambientLight = ambientLight;
                 Game1.outdoorLight = outdoorLight;
+                Game1.drawLighting = drawLighting;
+                if (Game1.player?.viewingLocation != null)
+                    Game1.player.viewingLocation.Value = viewingLocation;
+                Game1.screenGlow = screenGlow;
+                Game1.screenGlowHold = screenGlowHold;
+                Game1.screenGlowUp = screenGlowUp;
+                Game1.screenGlowAlpha = screenGlowAlpha;
+                Game1.screenGlowRate = screenGlowRate;
+                Game1.screenGlowMax = screenGlowMax;
+                Game1.screenGlowColor = screenGlowColor;
 
                 Game1.currentLightSources.Clear();
                 foreach (KeyValuePair<string, LightSource> lightSource in lightSources)
@@ -443,13 +521,31 @@ namespace Smartphone
             }
         }
 
-        private static void PrepareLocationRenderState(GameLocation targetLocation)
+        private static void PrepareLocationRenderState(GameLocation targetLocation, int captureWidth, int captureHeight)
         {
+            SetViewingLocationForCapture(targetLocation);
+            targetLocation.setUpLocationSpecificFlair();
+            AllocateLightmapForCapture(captureWidth, captureHeight);
+
             Game1.currentLightSources.Clear();
 
             RefreshAmbientLightForCapture(targetLocation);
-            AddMapLightsForCapture(targetLocation);
+            RefreshOutdoorLightForCapture(targetLocation);
+            if (!targetLocation.ignoreLights.Value)
+                AddMapLightsForCapture(targetLocation);
             AddSharedLightsForCapture(targetLocation);
+            RefreshDrawLightingForCapture(targetLocation);
+        }
+
+        private static void SetViewingLocationForCapture(GameLocation targetLocation)
+        {
+            if (Game1.player?.viewingLocation == null)
+                return;
+
+            string targetViewName = string.IsNullOrWhiteSpace(targetLocation.Name)
+                ? targetLocation.NameOrUniqueName
+                : targetLocation.Name;
+            Game1.player.viewingLocation.Value = targetViewName;
         }
 
         private static void RefreshAmbientLightForCapture(GameLocation targetLocation)
@@ -464,6 +560,62 @@ namespace Smartphone
 
             if (targetLocation.IsOutdoors && !targetLocation.ignoreOutdoorLighting.Value)
                 Game1.ambientLight = targetLocation.IsRainingHere() ? new Color(255, 200, 80) : Color.White;
+        }
+
+        private static void RefreshOutdoorLightForCapture(GameLocation targetLocation)
+        {
+            if (Game1.timeOfDay >= Game1.getTrulyDarkTime(targetLocation))
+            {
+                int interpolatedTime = (int)((float)(Game1.timeOfDay - Game1.timeOfDay % 100) + ((Game1.timeOfDay % 100) / 10f) * 16.66f);
+                float darkness = Math.Min(0.93f, 0.75f + ((interpolatedTime - Game1.getTrulyDarkTime(targetLocation)) + ((float)Game1.gameTimeInterval / Game1.realMilliSecondsPerGameTenMinutes * 16.6f)) * 0.000625f);
+                Game1.outdoorLight = (targetLocation.IsRainingHere() ? Game1.ambientLight : Game1.eveningColor) * darkness;
+                return;
+            }
+
+            if (Game1.timeOfDay >= Game1.getStartingToGetDarkTime(targetLocation))
+            {
+                int interpolatedTime = (int)((float)(Game1.timeOfDay - Game1.timeOfDay % 100) + ((Game1.timeOfDay % 100) / 10f) * 16.66f);
+                float darkness = Math.Min(0.93f, 0.3f + ((interpolatedTime - Game1.getStartingToGetDarkTime(targetLocation)) + ((float)Game1.gameTimeInterval / Game1.realMilliSecondsPerGameTenMinutes * 16.6f)) * 0.00225f);
+                Game1.outdoorLight = (targetLocation.IsRainingHere() ? Game1.ambientLight : Game1.eveningColor) * darkness;
+                return;
+            }
+
+            Game1.outdoorLight = targetLocation.IsRainingHere()
+                ? Game1.ambientLight * 0.3f
+                : Game1.ambientLight;
+        }
+
+        private static void RefreshDrawLightingForCapture(GameLocation targetLocation)
+        {
+            bool shouldDrawLighting = (targetLocation.IsOutdoors && !Game1.outdoorLight.Equals(Color.White))
+                || !Game1.ambientLight.Equals(Color.White);
+
+            if (targetLocation is MineShaft mineShaft && !mineShaft.getLightingColor(Game1.currentGameTime).Equals(Color.White))
+                shouldDrawLighting = true;
+
+            if (Game1.player.hasBuff("26"))
+                shouldDrawLighting = true;
+
+            Game1.drawLighting = shouldDrawLighting;
+        }
+
+        private static void AllocateLightmapForCapture(int captureWidth, int captureHeight)
+        {
+            const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+            MethodInfo? allocateLightmap = typeof(Game1).GetMethod("allocateLightmap", flags);
+            if (allocateLightmap == null)
+                return;
+
+            if (Game1.lightmap != null && !TrySetStaticMemberValue(typeof(Game1), null, "_lightmap"))
+                return;
+
+            allocateLightmap.Invoke(null, new object[] { captureWidth, captureHeight });
+        }
+
+        private static void RestoreTemporarySpritesAfterCapture(GameLocation targetLocation, int temporarySpriteCount)
+        {
+            while (targetLocation.temporarySprites.Count > temporarySpriteCount)
+                targetLocation.temporarySprites.RemoveAt(targetLocation.temporarySprites.Count - 1);
         }
 
         private static void AddMapLightsForCapture(GameLocation targetLocation)
