@@ -39,6 +39,11 @@ namespace Smartphone
 
         public static void HandleAiUsageTimeChanged(int newTime)
         {
+            if (IsMaxedLimit)
+            {
+                AiCallsRemainingToday = 0;
+                return;
+            }
             if (!IsAiUsageLimitEnabled())
             {
                 TriggerQueuedAiActions();

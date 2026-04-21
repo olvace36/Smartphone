@@ -12,13 +12,27 @@ namespace Smartphone
     public partial class ModEntry
     {
         // Social simulation tuning (edit these values to tweak behavior).
-        private static double SocialEventCreatePostChance = 0.30;
-        private static double SocialEventEngagementChance = 0.90;
         private static int SocialActionMaxDelayMilliseconds = 1000; // 10s = 10000ms
         private static int SocialPostMaxDelayMilliseconds = 3000; // 30s = 30000ms
         private static double SocialRepeatCommentChance = 0.30;
-        private static bool PendingRandomNpcSocialPost = false;
-        private static int PendingRandomNpcSocialPostTime = -1;
+        private static readonly List<DailySocialPostPlan> DailyScheduledSocialPosts = new();
+        private static bool DailySocialPostTextGenerationRequested = false;
+        private static int DailySocialPostTextGenerationTime = -1;
+
+        private sealed class DailySocialPostPlan
+        {
+            public string PlanId { get; set; } = Guid.NewGuid().ToString("N").Substring(0, 8);
+            public string AuthorName { get; set; } = string.Empty;
+            public int ScheduledTime { get; set; } = 900;
+            public bool IncludeText { get; set; }
+            public int ImageCount { get; set; }
+            public List<string> Attachments { get; set; } = new();
+            public List<List<string>> AttachmentTags { get; set; } = new();
+            public string NpcCharacteristic { get; set; } = string.Empty;
+            public string GeneratedText { get; set; } = string.Empty;
+            public bool IsTextReady { get; set; }
+            public bool IsPosted { get; set; }
+        }
 
         // Engagement limits for random posts
         private static int SocialLikesWithin1DayMax = 8;
@@ -29,8 +43,6 @@ namespace Smartphone
         // Engagement limits for most popular posts
         private static int SocialLikesMostPopularWithin2DayMax = 7;
         private static int SocialCommentsMostPopularWithin2DayMax = 3;
-        private static int SocialLikesMostPopularWithin4DaysMax = 5;
-        private static int SocialCommentsMostPopularWithin4DaysMax = 3;
 
 
         // Social post weights. Keep total 100
@@ -44,6 +56,29 @@ namespace Smartphone
         private static int SocialPostWeightNoText3Images = 5;
 
 
+        internal static void UpdatePostInteractionLimit()
+        {
+            int totalNpcs = Utility.getAllVillagers().Count(npc => npc.CanSocialize);
+
+            if (totalNpcs > 60)
+            {
+                SocialLikesWithin1DayMax = 13;
+                SocialCommentsWithin1DayMax = 7;
+                SocialLikesWithin3DaysMax = 11;
+                SocialCommentsWithin3DaysMax = 6;
+                SocialLikesMostPopularWithin2DayMax = 11;
+                SocialCommentsMostPopularWithin2DayMax = 5;
+            }
+            else if (totalNpcs > 40)
+            {
+                SocialLikesWithin1DayMax = 10;
+                SocialCommentsWithin1DayMax = 6;
+                SocialLikesWithin3DaysMax = 9;
+                SocialCommentsWithin3DaysMax = 5;
+                SocialLikesMostPopularWithin2DayMax = 9;
+                SocialCommentsMostPopularWithin2DayMax = 4;
+            }
+        }
         private static NPC? getRandomWeightedNPC()
         {
             List<NPC> candidates = Utility.getAllVillagers()
@@ -85,28 +120,6 @@ namespace Smartphone
             return null;
         }
 
-        // private static void RandomStardewSocialEvent()
-        // {
-        //     if (!Context.IsWorldReady)
-        //         return;
-
-        //     if (Game1.random.NextDouble() < SocialEventCreatePostChance)
-        //         SetPendingRandomNpcSocialPost();
-
-        //     if (Game1.random.NextDouble() < SocialEventEngagementChance)
-        //         QueueRandomNpcEngagement();
-        // }
-
-        private static int GetSocialPostIntervalFromConfig()
-        {
-            return Config?.PostPerDay switch
-            {
-                ModConfig.PostPerDayHigh => 500,
-                ModConfig.PostPerDayLow => 700,
-                _ => 600
-            };
-        }
-
         private static int GetSocialEngagementIntervalFromConfig()
         {
             return Config?.PostPerDay switch
@@ -117,81 +130,196 @@ namespace Smartphone
             };
         }
 
-        private static void SetPendingRandomNpcSocialPost()
-        {
-            PendingRandomNpcSocialPost = true;
-            PendingRandomNpcSocialPostTime = Game1.timeOfDay;
-            Game1.chatBox.addErrorMessage("Called SetPendingRandomNpcSocialPost at " + PendingRandomNpcSocialPostTime);
-        }
-
         private static void ClearPendingRandomNpcSocialPost()
         {
-            PendingRandomNpcSocialPost = false;
-            PendingRandomNpcSocialPostTime = -1;
+            DailyScheduledSocialPosts.Clear();
+            DailySocialPostTextGenerationRequested = false;
+            DailySocialPostTextGenerationTime = -1;
         }
 
-        private static void TryQueuePendingRandomNpcSocialPost()
+        private static void PrepareDailyRandomNpcSocialPosts()
         {
-            if (!PendingRandomNpcSocialPost)
-                return;
-
-            Game1.chatBox.addErrorMessage("Called TryQueuePendingRandomNpcSocialPost at " + Game1.timeOfDay);
             ClearPendingRandomNpcSocialPost();
-            QueueRandomNpcSocialPost();
-        }
-
-        private static bool ShouldForceQueuePendingRandomNpcSocialPost(int currentTime)
-        {
-            if (!PendingRandomNpcSocialPost)
-                return false;
-
-            return GetElapsedInGameMinutes(PendingRandomNpcSocialPostTime, currentTime) >= 200;
-        }
-
-        private static int GetElapsedInGameMinutes(int startTime, int endTime)
-        {
-            if (startTime < 0 || endTime < 0)
-                return 0;
-
-            int startHour = Math.Max(0, startTime / 100);
-            int startMinute = Math.Clamp(startTime % 100, 0, 59);
-            int endHour = Math.Max(0, endTime / 100);
-            int endMinute = Math.Clamp(endTime % 100, 0, 59);
-
-            int startTotalMinutes = (startHour * 60) + startMinute;
-            int endTotalMinutes = (endHour * 60) + endMinute;
-            return Math.Max(0, endTotalMinutes - startTotalMinutes);
-        }
-
-        // Create posts
-        private static void QueueRandomNpcSocialPost()
-        {
-            NPC? selectedNpc = getRandomWeightedNPC() ?? GetRandomVillagerNpc();
-            if (selectedNpc == null || string.IsNullOrWhiteSpace(selectedNpc.Name))
+            if (!Context.IsWorldReady || Game1.player == null)
                 return;
 
-            (bool includeText, int imageCount) = ChooseRandomSocialPostFormat();
-            Game1.chatBox.addErrorMessage($"{selectedNpc.Name} includeText={includeText}, imageCount={imageCount}");
-            int safeImageCount = Math.Clamp(imageCount, 0, 3);
-            List<string> attachments = TryCaptureNpcPhoto(selectedNpc.Name, safeImageCount);
+            (int minGapMinutes, int maxGapMinutes, int minPosts, int maxPosts) = GetSocialPostSchedulingConfig();
+            int desiredPostCount = Game1.random.Next(minPosts, maxPosts + 1);
+            List<int> scheduledTimes = BuildDailySocialPostTimes(desiredPostCount, minGapMinutes, maxGapMinutes);
 
-            string npcCharacteristic = GetNpcCharacteristicForPrompt(selectedNpc);
-            List<List<string>> attachmentTags = attachments.Select(GetAttachmentTagsForPrompt).ToList();
-            string authorName = selectedNpc.Name;
+            foreach (int scheduledTime in scheduledTimes)
+            {
+                NPC? selectedNpc = getRandomWeightedNPC() ?? GetRandomVillagerNpc();
+                if (selectedNpc == null || string.IsNullOrWhiteSpace(selectedNpc.Name))
+                    continue;
+
+                (bool includeText, int imageCount) = ChooseRandomSocialPostFormat(scheduledTime);
+                int safeImageCount = Math.Clamp(imageCount, 0, 3);
+                List<string> attachments = TryCaptureNpcPhoto(selectedNpc.Name, safeImageCount, captureTimeOfDay: scheduledTime);
+
+                DailyScheduledSocialPosts.Add(new DailySocialPostPlan
+                {
+                    PlanId = Guid.NewGuid().ToString("N").Substring(0, 8),
+                    AuthorName = selectedNpc.Name,
+                    ScheduledTime = scheduledTime,
+                    IncludeText = includeText,
+                    ImageCount = safeImageCount,
+                    Attachments = attachments,
+                    AttachmentTags = attachments.Select(GetAttachmentTagsForPrompt).ToList(),
+                    NpcCharacteristic = GetNpcCharacteristicForPrompt(selectedNpc),
+                    IsTextReady = !includeText,
+                    IsPosted = false
+                });
+            }
+
+            DailyScheduledSocialPosts.Sort((left, right) => left.ScheduledTime.CompareTo(right.ScheduledTime));
+            DailySocialPostTextGenerationTime = DailyScheduledSocialPosts.Count > 0
+                ? DailyScheduledSocialPosts[0].ScheduledTime
+                : -1;
+        }
+
+        private static void HandleScheduledSocialPostsOnTimeChanged(int currentTime)
+        {
+            if (DailyScheduledSocialPosts.Count == 0)
+                return;
+
+            TryGenerateScheduledSocialPostTexts(currentTime);
+            TryPublishDueScheduledSocialPosts(currentTime);
+        }
+
+        private static void TryGenerateScheduledSocialPostTexts(int currentTime)
+        {
+            if (DailySocialPostTextGenerationRequested)
+                return;
+
+            if (DailySocialPostTextGenerationTime < 0 || currentTime < DailySocialPostTextGenerationTime)
+                return;
+
+            List<DailySocialPostPlan> postsNeedingText = DailyScheduledSocialPosts
+                .Where(plan => plan.IncludeText && !plan.IsTextReady)
+                .ToList();
+
+            DailySocialPostTextGenerationRequested = true;
+
+            if (postsNeedingText.Count == 0)
+                return;
+
             QueueDelayedSocialFuncActionWithLimit(async () =>
             {
-                if (!includeText)
-                {
-                    StardewConnectManager.AddNpcPostWithAttachments(authorName, string.Empty, attachments);
-                    return;
-                }
-
                 await RunAiActionWithQueueAsync(async () =>
                 {
-                    string postText = await GenerateNpcSocialPostText(authorName, npcCharacteristic, attachmentTags);
-                    StardewConnectManager.AddNpcPostWithAttachments(authorName, postText, attachments);
+                    Dictionary<string, string> generatedTexts = await GenerateNpcSocialPostTextsBatch(postsNeedingText);
+
+                    foreach (DailySocialPostPlan plan in postsNeedingText)
+                    {
+                        string generatedText = generatedTexts.TryGetValue(plan.PlanId, out string? text)
+                            ? text
+                            : string.Empty;
+
+                        plan.GeneratedText = NormalizeGeneratedSocialCommentText(plan.AuthorName, generatedText);
+                        plan.IsTextReady = true;
+                    }
+
+                    TryPublishDueScheduledSocialPosts(Game1.timeOfDay);
                 });
             }, SocialPostMaxDelayMilliseconds);
+        }
+
+        private static void TryPublishDueScheduledSocialPosts(int currentTime)
+        {
+            List<DailySocialPostPlan> duePlans = DailyScheduledSocialPosts
+                .Where(plan => !plan.IsPosted && plan.ScheduledTime <= currentTime)
+                .OrderBy(plan => plan.ScheduledTime)
+                .ToList();
+
+            foreach (DailySocialPostPlan plan in duePlans)
+            {
+                if (plan.IncludeText && !plan.IsTextReady)
+                    continue;
+
+                string postText = plan.IncludeText ? plan.GeneratedText : string.Empty;
+
+                string? postId = StardewConnectManager.AddNpcPostWithAttachments(plan.AuthorName, postText, plan.Attachments);
+                plan.IsPosted = true;
+
+                if (string.IsNullOrWhiteSpace(postId))
+                {
+                    SMonitor.Log($"Unable to publish scheduled social post for '{plan.AuthorName}' at {plan.ScheduledTime}.", LogLevel.Trace);
+                }
+            }
+        }
+
+        private static (int MinGapMinutes, int MaxGapMinutes, int MinPosts, int MaxPosts) GetSocialPostSchedulingConfig()
+        {
+            return Config?.PostPerDay switch
+            {
+                ModConfig.PostPerDayHigh => (210, 300, 2, 4),
+                ModConfig.PostPerDayLow => (330, 420, 1, 3),
+                _ => (270, 360, 2, 3)
+            };
+        }
+
+        private static List<int> BuildDailySocialPostTimes(int desiredPostCount, int minGapMinutes, int maxGapMinutes)
+        {
+            const int firstPostEarliestMinute = 9 * 60 + 10;
+            const int latestPostMinute = 23 * 60 + 40;
+
+            int attemptPostCount = Math.Max(1, desiredPostCount);
+            while (attemptPostCount > 0)
+            {
+                int latestFirstMinute = latestPostMinute - ((attemptPostCount - 1) * minGapMinutes);
+                if (latestFirstMinute < firstPostEarliestMinute)
+                {
+                    attemptPostCount--;
+                    continue;
+                }
+
+                int firstUpperBound = Math.Min(latestFirstMinute, firstPostEarliestMinute + 180);
+                if (firstUpperBound < firstPostEarliestMinute)
+                    firstUpperBound = latestFirstMinute;
+
+                int firstMinute = RoundDownToTenMinutes(Game1.random.Next(firstPostEarliestMinute, firstUpperBound + 1));
+                var minutes = new List<int> { firstMinute };
+
+                bool validSchedule = true;
+                int currentMinute = firstMinute;
+                for (int i = 1; i < attemptPostCount; i++)
+                {
+                    int gap = Game1.random.Next(minGapMinutes, maxGapMinutes + 1);
+                    currentMinute = RoundDownToTenMinutes(currentMinute + gap);
+
+                    if (currentMinute > latestPostMinute)
+                    {
+                        validSchedule = false;
+                        break;
+                    }
+
+                    minutes.Add(currentMinute);
+                }
+
+                if (!validSchedule)
+                {
+                    attemptPostCount--;
+                    continue;
+                }
+
+                return minutes.Select(ConvertMinutesToTimeOfDay).ToList();
+            }
+
+            return new List<int>();
+        }
+
+        private static int RoundDownToTenMinutes(int totalMinutes)
+        {
+            return Math.Max(0, (totalMinutes / 10) * 10);
+        }
+
+        private static int ConvertMinutesToTimeOfDay(int totalMinutes)
+        {
+            int safeMinutes = Math.Max(0, totalMinutes);
+            int hour = safeMinutes / 60;
+            int minute = safeMinutes % 60;
+            return (hour * 100) + minute;
         }
 
         private static List<string> GetAttachmentTagsForPrompt(string imagePath)
@@ -214,11 +342,14 @@ namespace Smartphone
                 .ToList();
         }
 
-        private static (bool IncludeText, int ImageCount) ChooseRandomSocialPostFormat()
+        private static (bool IncludeText, int ImageCount) ChooseRandomSocialPostFormat(int scheduledTime)
         {
-            if (Game1.timeOfDay >= 2130 ||
-               (Game1.currentSeason == "winter" && Game1.timeOfDay >= 1900) ||
-               ((Game1.currentLocation.IsRainingHere() || Game1.currentLocation.IsGreenRainingHere()) && Game1.timeOfDay >= 1800))
+            bool badWeather = Game1.currentLocation != null
+                && (Game1.currentLocation.IsRainingHere() || Game1.currentLocation.IsGreenRainingHere());
+
+            if (scheduledTime >= 2130
+               || (Game1.currentSeason == "winter" && scheduledTime >= 1900)
+               || (badWeather && scheduledTime >= 1800))
                 return (true, 0);
 
             var weightedFormats = new List<(bool IncludeText, int ImageCount, int Weight)>
@@ -255,33 +386,50 @@ namespace Smartphone
 
         private static void QueueRandomNpcEngagement()
         {
+            var commentAttemptsByPostId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
             List<string> randomPostsWithin1Day = GetDistinctRandomPostIds(
                 count => StardewConnectManager.GetRandomPostIdWithinDayRange(count, 0, 1),
                 desiredCount: 3);
-            QueueLikesAndCommentsForPosts(randomPostsWithin1Day, SocialLikesWithin1DayMax, SocialCommentsWithin1DayMax);
+            QueueLikesAndCommentsForPosts(randomPostsWithin1Day, SocialLikesWithin1DayMax, SocialCommentsWithin1DayMax, commentAttemptsByPostId);
 
             List<string> randomPostsWithin3Days = GetDistinctRandomPostIds(
                 count => StardewConnectManager.GetRandomPostIdWithinDayRange(count, 1, 3),
                 desiredCount: 2);
-            QueueLikesAndCommentsForPosts(randomPostsWithin3Days, SocialLikesWithin3DaysMax, SocialCommentsWithin3DaysMax);
+            QueueLikesAndCommentsForPosts(randomPostsWithin3Days, SocialLikesWithin3DaysMax, SocialCommentsWithin3DaysMax, commentAttemptsByPostId);
 
-            string mostPopularWithin1Day = StardewConnectManager.GetOnePopularPostIdWithinDayRange(1, 2);
-            if (!string.IsNullOrWhiteSpace(mostPopularWithin1Day))
-                QueueLikesAndCommentsForPosts(new List<string> { mostPopularWithin1Day }, SocialLikesMostPopularWithin2DayMax, SocialCommentsMostPopularWithin2DayMax);
+            string mostPopularWithin2Day = StardewConnectManager.GetOnePopularPostIdWithinDayRange(0, 2);
+            if (!string.IsNullOrWhiteSpace(mostPopularWithin2Day))
+                QueueLikesAndCommentsForPosts(new List<string> { mostPopularWithin2Day }, SocialLikesMostPopularWithin2DayMax, SocialCommentsMostPopularWithin2DayMax, commentAttemptsByPostId);
 
-            string mostPopularWithin3Days = StardewConnectManager.GetOnePopularPostIdWithinDayRange(2, 4);
-            if (!string.IsNullOrWhiteSpace(mostPopularWithin3Days))
-                QueueLikesAndCommentsForPosts(new List<string> { mostPopularWithin3Days }, SocialLikesMostPopularWithin4DaysMax, SocialCommentsMostPopularWithin4DaysMax);
+            QueueCommentsForPosts(commentAttemptsByPostId);
         }
 
-        private static void QueueLikesAndCommentsForPosts(IEnumerable<string> postIds, int maxLikes, int maxComments)
+        private static void QueueLikesAndCommentsForPosts(IEnumerable<string> postIds, int maxLikes, int maxComments, IDictionary<string, int> commentAttemptsByPostId)
         {
+            if (postIds == null)
+                return;
+
             foreach (string postId in postIds)
             {
                 QueueLikesForPost(postId, maxLikes);
-                // if (Game1.random.NextBool())
-                QueueCommentsForPost(postId, maxComments);
+                QueueCommentAttemptsForPost(postId, maxComments, commentAttemptsByPostId);
             }
+        }
+
+        private static void QueueCommentAttemptsForPost(string postId, int maxComments, IDictionary<string, int> commentAttemptsByPostId)
+        {
+            if (string.IsNullOrWhiteSpace(postId) || maxComments <= 0 || commentAttemptsByPostId == null)
+                return;
+
+            int commentAttempts = Game1.random.Next(maxComments + 1);
+            if (commentAttempts <= 0)
+                return;
+
+            if (commentAttemptsByPostId.TryGetValue(postId, out int existingAttempts))
+                commentAttemptsByPostId[postId] = existingAttempts + commentAttempts;
+            else
+                commentAttemptsByPostId[postId] = commentAttempts;
         }
 
         private static void QueueLikesForPost(string postId, int maxLikes)
@@ -307,43 +455,59 @@ namespace Smartphone
             }
         }
 
-        // Post comments for posts
-        private static void QueueCommentsForPost(string postId, int maxComments)
+        // Post comments for selected posts using one AI request.
+        private static void QueueCommentsForPosts(IReadOnlyDictionary<string, int> commentAttemptsByPostId)
         {
-            if (string.IsNullOrWhiteSpace(postId) || maxComments <= 0)
-                return;
-
-            int commentAttempts = Game1.random.Next(maxComments + 1);
-            if (commentAttempts <= 0)
+            if (commentAttemptsByPostId == null || commentAttemptsByPostId.Count == 0)
                 return;
 
             QueueDelayedSocialFuncAction(async () =>
             {
                 await RunAiActionWithQueueAsync(async () =>
                 {
-                    StardewConnectPost? post = StardewConnectManager.GetPost(postId);
-                    if (post == null)
-                        return;
-
-                    List<string> actorNames = PickRandomNpcActorNamesForCommentBatch(post, commentAttempts);
-                    if (actorNames.Count == 0)
-                        return;
-
-                    Dictionary<string, string> generatedComments = await GenerateNpcSocialPostComments(post, actorNames);
-                    if (generatedComments.Count == 0)
-                        return;
-
-                    foreach (string actorName in actorNames)
+                    var commenterNamesByPost = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+                    foreach (KeyValuePair<string, int> entry in commentAttemptsByPostId)
                     {
-                        if (!generatedComments.TryGetValue(actorName, out string? commentText) || string.IsNullOrWhiteSpace(commentText))
+                        if (string.IsNullOrWhiteSpace(entry.Key) || entry.Value <= 0)
                             continue;
 
-                        string commentAuthorName = actorName;
-                        string generatedComment = commentText.Trim();
-                        QueueDelayedSocialAction(() =>
+                        StardewConnectPost? post = StardewConnectManager.GetPost(entry.Key);
+                        if (post == null)
+                            continue;
+
+                        List<string> actorNames = PickRandomNpcActorNamesForCommentBatch(post, entry.Value);
+                        if (actorNames.Count == 0)
+                            continue;
+
+                        commenterNamesByPost[entry.Key] = actorNames;
+                    }
+
+                    if (commenterNamesByPost.Count == 0)
+                        return;
+
+                    Dictionary<string, Dictionary<string, string>> generatedCommentsByPost = await GenerateNpcSocialPostCommentsBatch(commenterNamesByPost);
+                    if (generatedCommentsByPost.Count == 0)
+                        return;
+
+                    foreach (KeyValuePair<string, Dictionary<string, string>> postEntry in generatedCommentsByPost)
+                    {
+                        string postId = postEntry.Key;
+                        Dictionary<string, string> postComments = postEntry.Value;
+                        if (string.IsNullOrWhiteSpace(postId) || postComments == null || postComments.Count == 0)
+                            continue;
+
+                        foreach (KeyValuePair<string, string> commentEntry in postComments)
                         {
-                            StardewConnectManager.AddNpcComment(postId, commentAuthorName, generatedComment);
-                        });
+                            string commentAuthorName = commentEntry.Key?.Trim() ?? string.Empty;
+                            string generatedComment = commentEntry.Value?.Trim() ?? string.Empty;
+                            if (string.IsNullOrWhiteSpace(commentAuthorName) || string.IsNullOrWhiteSpace(generatedComment))
+                                continue;
+
+                            QueueDelayedSocialAction(() =>
+                            {
+                                StardewConnectManager.AddNpcComment(postId, commentAuthorName, generatedComment);
+                            });
+                        }
                     }
                 });
             });
@@ -382,7 +546,7 @@ namespace Smartphone
             List<NPC> candidates = Utility.getAllVillagers()
                 .OfType<NPC>()
                 .Where(npc => npc.CanSocialize && Game1.player.friendshipData.ContainsKey(npc.Name))
-                .Where(npc => !string.Equals(npc.Name, post.AuthorName, StringComparison.OrdinalIgnoreCase))
+                .Where(npc => IsEligibleNpcCommentAuthorForPost(post, npc))
                 .Where(npc => excludedNpcNames == null || !excludedNpcNames.Contains(npc.Name))
                 .ToList();
 
@@ -430,6 +594,28 @@ namespace Smartphone
                 return false;
 
             return post.Comments.Any(comment => comment != null && string.Equals(comment.AuthorName, npcName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool IsEligibleNpcCommentAuthorForPost(StardewConnectPost post, NPC npc)
+        {
+            if (post == null || npc == null)
+                return false;
+
+            if (!string.Equals(npc.Name, post.AuthorName, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return CanPostAuthorNpcCommentOwnPost(post, npc.Name);
+        }
+
+        private static bool CanPostAuthorNpcCommentOwnPost(StardewConnectPost post, string postAuthorName)
+        {
+            if (post?.Comments == null || post.Comments.Count == 0 || string.IsNullOrWhiteSpace(postAuthorName))
+                return false;
+
+            return post.Comments.Any(comment =>
+                comment != null
+                && !comment.AuthorIsPlayer
+                && !string.Equals(comment.AuthorName, postAuthorName, StringComparison.OrdinalIgnoreCase));
         }
 
         private static NPC? GetRandomVillagerNpc(string excludedNpcName = "")

@@ -74,6 +74,7 @@ namespace Smartphone
             public string PostId { get; init; } = "";
             public string Message { get; init; } = "";
             public long SortKey { get; init; }
+            public long TotalGameTime { get; init; }
             public SocialNotificationType Type { get; init; }
         }
 
@@ -490,6 +491,7 @@ namespace Smartphone
             return allEntries
                 .Where(entry => !StardewConnectManager.IsSocialNotificationDismissed(entry.Key))
                 .OrderByDescending(entry => entry.SortKey)
+                .ThenByDescending(entry => entry.TotalGameTime)
                 .ThenBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
@@ -565,7 +567,7 @@ namespace Smartphone
             StardewConnectComment latestUnread = unreadNpcComments[unreadNpcComments.Count - 1];
             int unreadCount = unreadNpcComments.Count;
 
-            string authorName = ResolveSocialProfileActorName(firstUnread.AuthorName, firstUnread.AuthorIsPlayer);
+            string authorName = ResolveSocialActorDisplayName(firstUnread.AuthorName, firstUnread.AuthorIsPlayer);
             if (string.IsNullOrWhiteSpace(authorName))
                 authorName = "Someone";
 
@@ -579,6 +581,7 @@ namespace Smartphone
                 PostId = post.Id,
                 Message = message,
                 SortKey = BuildSocialChronologicalSortKey(latestUnread.Season, latestUnread.Day, latestUnread.Year, latestUnread.TimeOfDay),
+                TotalGameTime = Math.Max(0L, latestUnread.TotalGameTime),
                 Type = SocialNotificationType.PlayerPostComment
             };
         }
@@ -588,7 +591,7 @@ namespace Smartphone
             if (!IsFavouriteNpcPostNotification(post))
                 return null;
 
-            string authorName = ResolveSocialProfileActorName(post.AuthorName, post.AuthorIsPlayer);
+            string authorName = ResolveSocialActorDisplayName(post.AuthorName, post.AuthorIsPlayer);
             if (string.IsNullOrWhiteSpace(authorName))
                 authorName = "Someone";
 
@@ -611,6 +614,7 @@ namespace Smartphone
                 PostId = post.Id,
                 Message = message,
                 SortKey = BuildSocialChronologicalSortKey(post.Season, post.Day, post.Year, post.TimeOfDay),
+                TotalGameTime = Math.Max(0L, post.TotalGameTime),
                 Type = SocialNotificationType.FavouriteNpcPost
             };
         }
@@ -623,7 +627,7 @@ namespace Smartphone
             if (!PostTagsPlayer(post))
                 return null;
 
-            string authorName = ResolveSocialProfileActorName(post.AuthorName, post.AuthorIsPlayer);
+            string authorName = ResolveSocialActorDisplayName(post.AuthorName, post.AuthorIsPlayer);
             if (string.IsNullOrWhiteSpace(authorName))
                 authorName = "Someone";
 
@@ -633,6 +637,7 @@ namespace Smartphone
                 PostId = post.Id,
                 Message = $"{authorName} tagged you in a post",
                 SortKey = BuildSocialChronologicalSortKey(post.Season, post.Day, post.Year, post.TimeOfDay),
+                TotalGameTime = Math.Max(0L, post.TotalGameTime),
                 Type = SocialNotificationType.TaggedInPost
             };
         }
@@ -659,7 +664,7 @@ namespace Smartphone
             if (latestTaggedComment == null)
                 return null;
 
-            string authorName = ResolveSocialProfileActorName(latestTaggedComment.AuthorName, latestTaggedComment.AuthorIsPlayer);
+            string authorName = ResolveSocialActorDisplayName(latestTaggedComment.AuthorName, latestTaggedComment.AuthorIsPlayer);
             if (string.IsNullOrWhiteSpace(authorName))
                 authorName = "Someone";
 
@@ -673,6 +678,7 @@ namespace Smartphone
                     latestTaggedComment.Day,
                     latestTaggedComment.Year,
                     latestTaggedComment.TimeOfDay),
+                TotalGameTime = Math.Max(0L, latestTaggedComment.TotalGameTime),
                 Type = SocialNotificationType.TaggedInComment
             };
         }
@@ -788,6 +794,44 @@ namespace Smartphone
             int totalMinutes = (hour * 60) + minute;
 
             return ((long)dayIndex * 2000L) + totalMinutes;
+        }
+
+        private static int CompareSocialChronologicalPosition(
+            string leftSeason,
+            int leftDay,
+            int leftYear,
+            int leftTimeOfDay,
+            long leftTotalGameTime,
+            string rightSeason,
+            int rightDay,
+            int rightYear,
+            int rightTimeOfDay,
+            long rightTotalGameTime)
+        {
+            long leftKey = BuildSocialChronologicalSortKey(leftSeason, leftDay, leftYear, leftTimeOfDay);
+            long rightKey = BuildSocialChronologicalSortKey(rightSeason, rightDay, rightYear, rightTimeOfDay);
+
+            int primaryComparison = leftKey.CompareTo(rightKey);
+            if (primaryComparison != 0)
+                return primaryComparison;
+
+            return CompareSocialTotalGameTime(leftTotalGameTime, rightTotalGameTime);
+        }
+
+        private static int CompareSocialTotalGameTime(long left, long right)
+        {
+            long safeLeft = Math.Max(0L, left);
+            long safeRight = Math.Max(0L, right);
+            bool hasLeft = safeLeft > 0;
+            bool hasRight = safeRight > 0;
+
+            if (hasLeft && hasRight)
+                return safeLeft.CompareTo(safeRight);
+
+            if (hasLeft == hasRight)
+                return 0;
+
+            return hasLeft ? 1 : -1;
         }
 
         private static int GetSocialAbsoluteDayIndex(string season, int day, int year)
@@ -1512,10 +1556,11 @@ namespace Smartphone
 
             string birthdayLabel = GetSocialProfileBirthdayLabel(selectedSocialProfileActorName, selectedSocialProfileActorIsPlayer);
             string ageLabel = GetSocialProfileAgeLabel(selectedSocialProfileActorName, selectedSocialProfileActorIsPlayer);
+            string actorDisplayName = ResolveSocialActorDisplayName(selectedSocialProfileActorName, selectedSocialProfileActorIsPlayer);
 
             string[] infoLines =
             {
-                $"Name: {selectedSocialProfileActorName}",
+                $"Name: {actorDisplayName}",
                 $"Age: {ageLabel}",
                 $"Birthday: {birthdayLabel}"
             };
@@ -1680,7 +1725,11 @@ namespace Smartphone
             for (int i = 0; i < interactions.Count && i < 3; i++)
             {
                 StardewConnectProfileInteraction row = interactions[i];
-                string line = $"{i + 1}. {row.ActorName} ({row.Count})";
+                string actorDisplayName = ResolveSocialActorDisplayNameGuess(row.ActorName);
+                if (string.IsNullOrWhiteSpace(actorDisplayName))
+                    actorDisplayName = "Someone";
+
+                string line = $"{i + 1}. {actorDisplayName} ({row.Count})";
                 b.DrawString(Game1.smallFont, line, new Vector2(bounds.X, y), Color.Black);
                 y += lineHeight;
             }
@@ -1729,6 +1778,7 @@ namespace Smartphone
             DrawSocialHeaderWithSmallMeta(
                 b,
                 post.AuthorName,
+                post.AuthorIsPlayer,
                 $"at {FormatSocialPostDateTime(post.Season, post.Day, post.TimeOfDay)}",
                 new Vector2(actorIconBounds.Right + 10, cursorY + 10),
                 Color.Black,
@@ -1926,6 +1976,7 @@ namespace Smartphone
             DrawSocialHeaderWithSmallMeta(
                 b,
                 comment.AuthorName,
+                comment.AuthorIsPlayer,
                 $"at {FormatSocialPostDateTime(comment.Season, comment.Day, comment.TimeOfDay)}",
                 new Vector2(textX, y),
                 Color.DarkSlateGray,
@@ -1971,12 +2022,13 @@ namespace Smartphone
         private void DrawSocialHeaderWithSmallMeta(
             SpriteBatch b,
             string actorName,
+            bool actorIsPlayer,
             string metaText,
             Vector2 position,
             Color nameColor,
             Color metaColor)
         {
-            string safeName = actorName ?? "";
+            string safeName = ResolveSocialActorDisplayName(actorName, actorIsPlayer);
             b.DrawString(Game1.smallFont, safeName, position, nameColor);
 
             if (string.IsNullOrWhiteSpace(metaText))
@@ -2271,8 +2323,9 @@ namespace Smartphone
             b.Draw(Game1.staminaRect, new Rectangle(bounds.X - 2, bounds.Y + 2, bounds.Width, bounds.Height), new Color(65, 95, 135, 220));
 
             string fallbackLetter = "P";
-            if (!string.IsNullOrWhiteSpace(actorName))
-                fallbackLetter = actorName.Trim()[0].ToString().ToUpperInvariant();
+            string fallbackName = ResolveSocialActorDisplayName(actorName, actorIsPlayer);
+            if (!string.IsNullOrWhiteSpace(fallbackName))
+                fallbackLetter = fallbackName.Trim()[0].ToString().ToUpperInvariant();
 
             Vector2 letterSize = Game1.smallFont.MeasureString(fallbackLetter);
             Vector2 letterPos = new Vector2(
@@ -2373,7 +2426,8 @@ namespace Smartphone
 
             List<string> likerNames = post.LikedBy
                 .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(name => name.Trim())
+                .Select(name => ResolveSocialActorDisplayNameGuess(name.Trim()))
+                .Where(name => !string.IsNullOrWhiteSpace(name))
                 .ToList();
 
             if (likerNames.Count == 0)
@@ -3277,11 +3331,11 @@ namespace Smartphone
 
         private int FindSocialOpenTargetPostIndexByLastVisit(List<StardewConnectPost> posts, StardewConnectVisitSnapshot lastVisit)
         {
-            long lastVisitKey = BuildSocialChronologicalSortKey(
-                lastVisit?.Season ?? "spring",
-                lastVisit?.Day ?? 1,
-                lastVisit?.Year ?? 1,
-                lastVisit?.TimeOfDay ?? 600);
+            string lastVisitSeason = lastVisit?.Season ?? "spring";
+            int lastVisitDay = lastVisit?.Day ?? 1;
+            int lastVisitYear = lastVisit?.Year ?? 1;
+            int lastVisitTimeOfDay = lastVisit?.TimeOfDay ?? 600;
+            long lastVisitTotalGameTime = Math.Max(0L, lastVisit?.TotalGameTime ?? 0L);
 
             for (int i = 0; i < posts.Count; i++)
             {
@@ -3289,9 +3343,20 @@ namespace Smartphone
                 if (post == null)
                     continue;
 
-                long postKey = BuildSocialChronologicalSortKey(post.Season, post.Day, post.Year, post.TimeOfDay);
-                if (postKey >= lastVisitKey)
-                   {Game1.chatBox.addErrorMessage("Post key" + postKey + "last visit key" + lastVisitKey); return i;}
+                int comparison = CompareSocialChronologicalPosition(
+                    post.Season,
+                    post.Day,
+                    post.Year,
+                    post.TimeOfDay,
+                    post.TotalGameTime,
+                    lastVisitSeason,
+                    lastVisitDay,
+                    lastVisitYear,
+                    lastVisitTimeOfDay,
+                    lastVisitTotalGameTime);
+
+                if (comparison >= 0)
+                    return i;
             }
 
             return -1;
@@ -3344,39 +3409,47 @@ namespace Smartphone
             return resolved;
         }
 
+        private string ResolveSocialActorDisplayName(string actorName, bool actorIsPlayer)
+        {
+            string resolvedActorName = ResolveSocialProfileActorName(actorName, actorIsPlayer);
+            if (string.IsNullOrWhiteSpace(resolvedActorName))
+                return actorIsPlayer ? (Game1.player?.Name ?? "Player") : "";
+
+            if (actorIsPlayer)
+                return resolvedActorName;
+
+            return GetNpcDisplayName(resolvedActorName);
+        }
+
+        private string ResolveSocialActorDisplayNameGuess(string actorName)
+        {
+            string resolved = (actorName ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(resolved))
+                return "";
+
+            string playerName = (Game1.player?.Name ?? "Player").Trim();
+            if (!string.IsNullOrWhiteSpace(playerName)
+                && string.Equals(resolved, playerName, StringComparison.OrdinalIgnoreCase))
+            {
+                return playerName;
+            }
+
+            return GetNpcDisplayName(resolved);
+        }
+
         private string GetSocialProfileAgeLabel(string actorName, bool actorIsPlayer)
         {
             if (actorIsPlayer)
                 return "Adult";
 
             string resolvedName = ResolveSocialProfileActorName(actorName, actorIsPlayer);
-            if (string.IsNullOrWhiteSpace(resolvedName) || ModEntry.npcToAgeGroup == null)
+            NPC? npc = Game1.getCharacterFromName(resolvedName);
+            if (npc == null)
                 return "Unknown";
 
-            if (!ModEntry.npcToAgeGroup.TryGetValue(resolvedName, out string? group) || string.IsNullOrWhiteSpace(group))
-            {
-                KeyValuePair<string, string> fallback = ModEntry.npcToAgeGroup
-                    .FirstOrDefault(pair => string.Equals(pair.Key, resolvedName, StringComparison.OrdinalIgnoreCase));
-                group = fallback.Value;
-            }
-
-            if (string.IsNullOrWhiteSpace(group))
-                return "Unknown";
-
-            if (group.StartsWith("0", StringComparison.OrdinalIgnoreCase))
-                return "Child";
-
-            if (group.StartsWith("16", StringComparison.OrdinalIgnoreCase))
-                return "Teen";
-
-            if (group.StartsWith("36", StringComparison.OrdinalIgnoreCase))
-                return "Adult";
-
-            if (group.StartsWith("55", StringComparison.OrdinalIgnoreCase))
-                return "Elder";
-
-            return group;
+            return npc.Age == 0 ? "adult" : npc.Age == 1 ? "teens" : npc.Age == 2 ? "child" : "adult";
         }
+
 
         private string GetSocialProfileBirthdayLabel(string actorName, bool actorIsPlayer)
         {

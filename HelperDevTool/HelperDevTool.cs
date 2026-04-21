@@ -14,6 +14,9 @@ using StardewValley.Menus;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI.Events;
+using System.Text.Json;
+using Microsoft.Xna.Framework.Content;
+using xTile.Dimensions;
 namespace Smartphone
 {
     public partial class ModEntry
@@ -197,10 +200,10 @@ namespace Smartphone
 
                     // 2. Make lines 4 times thicker by passing 'lineThickness' to the Rectangle
                     // Top edge
-                    spriteBatch.Draw(solidPixel, new Rectangle((int)screenPos.X, (int)screenPos.Y, tileSize, lineThickness), gridColor); 
+                    spriteBatch.Draw(solidPixel, new Microsoft.Xna.Framework.Rectangle((int)screenPos.X, (int)screenPos.Y, tileSize, lineThickness), gridColor); 
 
                     // Left edge
-                    spriteBatch.Draw(solidPixel, new Rectangle((int)screenPos.X, (int)screenPos.Y, lineThickness, tileSize), gridColor);
+                    spriteBatch.Draw(solidPixel, new Microsoft.Xna.Framework.Rectangle((int)screenPos.X, (int)screenPos.Y, lineThickness, tileSize), gridColor);
 
                     // 3. Draw X coordinates on the Y0 row, with new formatting
                     if (y == 0)
@@ -214,6 +217,87 @@ namespace Smartphone
                         // Shifted the Y text down a bit (screenPos.Y + 36) so X-0 and Y-0 don't overlap each other in the top left corner!
                         spriteBatch.DrawString(Game1.dialogueFont, $"{y}", new Vector2(screenPos.X + 8, screenPos.Y + 36), Color.Yellow, 0f, Vector2.Zero, textSize, SpriteEffects.None, 0.99f);
                     }
+                }
+            }
+        }
+
+        private void LogOutNPCDialogue()
+        {
+            // 1. Core Mods
+            SMonitor.Log("\n\n\nCALLINGGGGGGGGGGGGGG**********************************************************************************\n\n\n", LogLevel.Error);
+            var vanillaNPCs = new HashSet<string> { "Abigail", "Alex", "Caroline", "Clint", "Demetrius", "Dwarf", "Elliott", "Emily", "Evelyn", "George", "Gus", "Haley", "Harvey", "Jas", "Jodi", "Kent", "Krobus", "Leah", "Leo", "Lewis", "Linus", "Marnie", "Maru", "Pam", "Penny", "Pierre", "Robin", "Sam", "Sandy", "Sebastian", "Shane", "Vincent", "Willy", "Wizard" };
+            var sveNPCs = new HashSet<string> { "Sophia", "Victor", "Olivia", "Susan", "MarlonFay", "Andy", "Apples", "Lance", "Morgan", "Gunther", "MorrisTod", "Scarlett", "Claire", "Martin", "Alesia", "Isaac", "Camilla" };
+            var rsvNPCs = new HashSet<string> { "Jeric", "Kenneth", "Kiwi", "Lenny", "Maddie", "Pika", "Shiro", "Ysabelle", "Alissa", "Anton", "Ariana", "Blair", "Carmen", "Corine", "Daia", "Ezekiel", "Faye", "Flor", "Freddie", "Ian", "Jio", "Keahi", "Kiarra", "Kimpo", "Kurane", "Lola", "Maive", "Malaya", "Olga", "Paula", "Philip", "Raeriyala", "Richard", "Sable", "Sean", "Trinnie", "Undine", "Yuuma" };
+
+            // 2. Extracted Expansion Mods
+            var sunberryNPCs = new HashSet<string> { "Aicha", "Amina", "Ari", "Blake", "Derya", "Diala", "Elias", "Ezra", "Iman", "Jumana", "Lyenne", "Maia", "Miyoung", "Moon", "Nadia", "Ophelia", "Pan", "Raccoon", "Reihana", "Silas", "Ripley", "Lani", "Wren", "Jonghyuk", "Spanner", "Sterling" };
+            var vmvNPCs = new HashSet<string> { "Abdon", "Adelaide", "Aloise", "Aster", "Celestine", "Chandra", "Charline", "Chloe", "Claretie", "Djamel", "Felicity", "Gavin", "Helia", "Lotti", "Maddy", "Maelle", "Mariam", "Moira", "Naveen", "Odalis", "Priya", "Rayan" };
+            var lunaNPCs = new HashSet<string> { "Bianka", "Dianna", "Esmeralda", "Lunna", "Raphael", "Salvador" };
+            var eastScarpNPCs = new HashSet<string> { "Aideen", "Beatrice", "Cameron", "Corwin", "CorwinLK", "Dale", "Eyvinder", "Jacob", "Eloise", "Jade", "Jasper", "Jessie", "Juliet", "Kataryna", "Keanu", "Kennedy", "Lexi", "Oliver", "Josephine", "Rosa", "Tori", "ToriLK", "Tristan", "Vivienne", "VivienneLK", "Mateo", "Sen", "Hector", "Nora" };
+            var zuzuNPCs = new HashSet<string> { "Bill", "Buddy", "Cal", "David", "Giovanni", "Gwen", "Hazel", "Kristoff", "Max", "Sadie", "Selena" };
+
+            // 3. Local Routing Function
+            string GetModFolderName(string npcName)
+            {
+                // Check custom mods first
+                if (sunberryNPCs.Contains(npcName)) return "SunberryVillage";
+                if (vmvNPCs.Contains(npcName)) return "VisitMountVapius";
+                if (lunaNPCs.Contains(npcName)) return "LunaAstray";
+                if (eastScarpNPCs.Contains(npcName)) return "EastScarp";
+                if (zuzuNPCs.Contains(npcName)) return "DowntownZuzu";
+
+                // Check core/large expansions
+                if (sveNPCs.Contains(npcName)) return "SVE";
+                if (rsvNPCs.Contains(npcName)) return "RSV";
+                if (vanillaNPCs.Contains(npcName)) return "Vanilla";
+
+                return "OtherCustomMods";
+            }
+
+            // 4. Execution Loop
+            // 4. Execution Loop
+            foreach (var npc in Utility.getAllVillagers().OfType<NPC>().Where(n => n.IsVillager))
+            {
+                string folderName = GetModFolderName(npc.Name);
+
+                // Use local variables instead of an anonymous object to store the data temporarily
+                Dictionary<string, string> stdDialogue = new Dictionary<string, string>();
+                Dictionary<string, string> marDialogue = new Dictionary<string, string>();
+                bool hasAnyDialogue = false;
+
+                // Fetch Standard Dialogue
+                try
+                {
+                    stdDialogue = SHelper.GameContent.Load<Dictionary<string, string>>($"Characters\\Dialogue\\{npc.Name}");
+                    hasAnyDialogue = true;
+                }
+                catch (ContentLoadException)
+                {
+                    // Silently ignore if they don't have standard dialogue
+                }
+
+                // Fetch Marriage Dialogue
+                try
+                {
+                    marDialogue = SHelper.GameContent.Load<Dictionary<string, string>>($"Characters\\Dialogue\\MarriageDialogue{npc.Name}");
+                    hasAnyDialogue = true;
+                }
+                catch (ContentLoadException)
+                {
+                    // Silently ignore if they aren't marriageable
+                }
+
+                // Save into JSON file only if we actually found something
+                if (hasAnyDialogue)
+                {
+                    // Create the anonymous object right here, using the populated dictionaries
+                    var extractedData = new
+                    {
+                        StandardDialogue = stdDialogue,
+                        MarriageDialogue = marDialogue
+                    };
+
+                    SHelper.Data.WriteJsonFile($"NpcDialogue/{folderName}/{npc.Name}.json", extractedData);
                 }
             }
         }

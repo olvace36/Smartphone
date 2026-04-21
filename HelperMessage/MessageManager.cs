@@ -141,8 +141,13 @@ namespace Smartphone
 
             if (!isFromPlayer && notify)
             {
+                string npcDisplayName = npc;
+                NPC? targetNpc = Game1.getCharacterFromName(npc, mustBeVillager: false);
+                if (targetNpc != null && !string.IsNullOrWhiteSpace(targetNpc.displayName))
+                    npcDisplayName = targetNpc.displayName;
+
                 if (ModEntry.Config?.notifyMessage ?? true)
-                    Game1.addHUDMessage(new HUDMessage($"A new message from {npc}", HUDMessage.newQuest_type));
+                    Game1.addHUDMessage(new HUDMessage($"A new message from {npcDisplayName}", HUDMessage.newQuest_type));
 
                 DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 0);
                 DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 1500);

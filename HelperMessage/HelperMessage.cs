@@ -23,6 +23,23 @@ namespace Smartphone
             return currentApp == TextAppState;
         }
 
+        private bool IsTextChatInputEnabledForSelectedNpc()
+        {
+            if (string.IsNullOrWhiteSpace(selectedNpc))
+                return false;
+
+            if (ModEntry.Config.DisableDailyMessage)
+                return true;
+
+            if (!ModEntry.npcMessagesToday.TryGetValue(selectedNpc, out List<string>? todaysMessages)
+                || todaysMessages == null)
+            {
+                return false;
+            }
+
+            return todaysMessages.Count > 0;
+        }
+
         private void DrawTextApp(SpriteBatch b)
         {
             b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
@@ -115,10 +132,13 @@ namespace Smartphone
                         effects: SpriteEffects.None,
                         layerDepth: 0f
                     );
-                    var realNpc = Game1.getCharacterFromName(npc.name);
+                    var realNpc = Game1.getCharacterFromName(npc.name, mustBeVillager: false);
+                    string npcDisplayName = GetNpcDisplayNameOrFallback(realNpc);
+                    if (string.IsNullOrWhiteSpace(npcDisplayName))
+                        npcDisplayName = GetNpcDisplayName(npc.name);
 
                     // === Draw NPC portrait ===
-                    if (realNpc.Portrait != null)
+                    if (realNpc?.Portrait != null)
                     {
                         Rectangle portraitRect = new Rectangle((int)boxPosition.X + 9, (int)boxPosition.Y + 10, 67, 67);
                         Rectangle sourceRect = new Rectangle(0, 0, 64, 64);
@@ -128,7 +148,7 @@ namespace Smartphone
                     // === Draw NPC name ===
                     int nameX = (int)boxPosition.X + portraitSize + 40;
                     npc.bounds = new Rectangle(nameX, y, 200, portraitSize);
-                    b.DrawString(Game1.dialogueFont, npc.name, new Vector2(nameX, y + 15), Color.Black);
+                    b.DrawString(Game1.dialogueFont, npcDisplayName, new Vector2(nameX, y + 15), Color.Black);
 
 
                     var rect = new Rectangle(218, 428, 7, 7);
@@ -174,7 +194,8 @@ namespace Smartphone
             }
             else
             {
-                b.DrawString(Game1.dialogueFont, $"{selectedNpc}", new Vector2(xPositionOnScreen + 105, yPositionOnScreen + 65), Color.Black);
+                string selectedNpcDisplayName = GetNpcDisplayName(selectedNpc ?? "");
+                b.DrawString(Game1.dialogueFont, selectedNpcDisplayName, new Vector2(xPositionOnScreen + 105, yPositionOnScreen + 65), Color.Black);
 
                 backButton.draw(b);
                 b.Draw(
@@ -372,8 +393,9 @@ namespace Smartphone
                 b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
                 DrawChatImageTagTooltipIfHovered(b, chatClipRect);
 
-                if (selectedNpc != null && (ModEntry.npcMessagesToday.ContainsKey(selectedNpc) && ModEntry.npcMessagesToday[selectedNpc].Count > 0 || ModEntry.Config.DisableDailyMessage))
+                if (IsTextChatInputEnabledForSelectedNpc())
                 {
+                    firstMessageBounds = Rectangle.Empty;
                     bool hasPendingChoice = PhoneDialogueRuntime.HasPendingChoice(selectedNpc);
                     if (!hasPendingChoice)
                         okButton.draw(b);
@@ -430,7 +452,16 @@ namespace Smartphone
                 {
                     chatPhotoButtonBounds = Rectangle.Empty;
                     ResetChatQuickActionsState();
-                    string firstMessage = Game1.timeOfDay < 1200 ? $"Good morning {selectedNpc}" : Game1.timeOfDay < 1800 ? $"Good afternoon {selectedNpc}" : $"Good evening {selectedNpc}";
+                    textBox.Selected = false;
+                    if (Game1.keyboardDispatcher.Subscriber == textBox)
+                        Game1.keyboardDispatcher.Subscriber = null;
+
+                    string firstMessageNpcDisplayName = GetNpcDisplayName(selectedNpc ?? "");
+                    string firstMessage = Game1.timeOfDay < 1200
+                        ? $"Good morning {firstMessageNpcDisplayName}"
+                        : Game1.timeOfDay < 1800
+                            ? $"Good afternoon {firstMessageNpcDisplayName}"
+                            : $"Good evening {firstMessageNpcDisplayName}";
                     float maxWidth = Game1.smallFont.MeasureString(firstMessage).X + 20f;
                     int firstMessageLineHeight = (int)(Game1.smallFont.MeasureString("A").Y + 20);
 
@@ -638,6 +669,9 @@ namespace Smartphone
             if (selectedNpc == null || currentSuggestion.Item1 == "" || !messageSuggestionBounds.Contains(x, y))
                 return false;
 
+            if (!IsTextChatInputEnabledForSelectedNpc())
+                return false;
+
             string suggestedMessage = currentSuggestion.Item2.Replace("\n", " ");
             SetEditableTextFieldState(EditableTextFieldKind.Chat, suggestedMessage, suggestedMessage.Length, suggestedMessage.Length);
             currentSuggestion = new("", "");
@@ -652,14 +686,18 @@ namespace Smartphone
             if (selectedNpc == null || !firstMessageBounds.Contains(x, y))
                 return false;
 
+            if (IsTextChatInputEnabledForSelectedNpc())
+                return false;
+
             if (ModEntry.npcMessagesToday.ContainsKey(selectedNpc) && ModEntry.npcMessagesToday[selectedNpc].Count > 0)
                 return false;
 
+            string selectedNpcDisplayName = GetNpcDisplayName(selectedNpc ?? "");
             string firstMessage = Game1.timeOfDay < 1200
-                ? $"Good morning {selectedNpc}"
+                ? $"Good morning {selectedNpcDisplayName}"
                 : Game1.timeOfDay < 1800
-                    ? $"Good afternoon {selectedNpc}"
-                    : $"Good evening {selectedNpc}";
+                    ? $"Good afternoon {selectedNpcDisplayName}"
+                    : $"Good evening {selectedNpcDisplayName}";
 
             MessageManager.AddMessage(selectedNpc, $"PLAYER: {firstMessage}", isFromPlayer: true);
             ModEntry.FirstDailyText(selectedNpc, firstMessage);
@@ -777,6 +815,9 @@ namespace Smartphone
             if (TryHandleChatPhotoNavigationClick(x, y))
                 return true;
 
+            if (!IsTextChatInputEnabledForSelectedNpc())
+                return false;
+
             if (TryHandleChatQuickActionClick(x, y))
                 return true;
 
@@ -890,7 +931,10 @@ namespace Smartphone
             if (chatPhotoPickerOpen)
                 return true;
 
-                return HandleChatInputKey(key, isRepeat: false);
+            if (!IsTextChatInputEnabledForSelectedNpc())
+                return true;
+
+            return HandleChatInputKey(key, isRepeat: false);
         }
 
         private bool ApplyRepeatableTextInputKey(EditableTextFieldKind field, Keys key)
@@ -946,6 +990,9 @@ namespace Smartphone
 
         private bool HandleChatInputKey(Keys key, bool isRepeat)
         {
+            if (!IsTextChatInputEnabledForSelectedNpc())
+                return true;
+
             if (!string.IsNullOrWhiteSpace(selectedNpc) && PhoneDialogueRuntime.HasPendingChoice(selectedNpc))
             {
                 if (!isRepeat && key != Keys.Escape)
@@ -1256,6 +1303,9 @@ namespace Smartphone
         private void onPlayerSend()
         {
             if (string.IsNullOrWhiteSpace(selectedNpc))
+                return;
+
+            if (!IsTextChatInputEnabledForSelectedNpc())
                 return;
 
             if (PhoneDialogueRuntime.HasPendingChoice(selectedNpc))

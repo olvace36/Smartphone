@@ -71,7 +71,7 @@ namespace Smartphone
             configMenu.AddTextOption(
                 mod: ModManifest,
                 name: () => "OpenAI API Key",
-                tooltip: () => "You can provide your own key to avoid usage limit and able to customize conversation summary limit below.",
+                tooltip: () => "You can provide your own key to avoid usage limit. Cost are expected to be very low (1 to 8 cents per game day depending on your settings).\nYou can get your API key from https://platform.openai.com/account/api-keys.\nRestart your game after changing the key. ",
                 getValue: () => Config.OpenAIKey,
                 setValue: value => Config.OpenAIKey = value.Trim()
             );

@@ -502,7 +502,7 @@ namespace Smartphone
                 .ToList();
 
             if (forageNames.Count > 0)
-                tags.Add($"forageable: {string.Join(", ", forageNames)}");
+                tags.Add($"#forageable: {string.Join(", ", forageNames)}");
         }
 
         private static bool IsForageObject(StardewValley.Object locationObject, GameLocation currentLocation)
@@ -1265,9 +1265,9 @@ namespace Smartphone
                 location = Game1.currentLocation;
 
             if(npc != null && location?.Name == npc.DefaultMap)
-                return $"#at {npc.Name}'s home";
+                return $"#at {npc.displayName}'s home";
 
-            return $"#visiting {location?.Name}";
+            return $"#visiting {location?.DisplayName}";
         }
     }
 }

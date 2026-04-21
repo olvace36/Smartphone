@@ -249,7 +249,6 @@ namespace Smartphone
 
 
         public static Dictionary<string, List<string>> npcAges;
-        public static Dictionary<string, string> npcToAgeGroup;
 
         public static PhoneMenu phoneMenu;
         private Dictionary<string, Dictionary<string, AreaData>> areaTags;

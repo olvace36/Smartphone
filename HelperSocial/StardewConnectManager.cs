@@ -17,6 +17,7 @@ namespace Smartphone
         public int Day { get; set; } = 1;
         public int Year { get; set; } = 1;
         public int TimeOfDay { get; set; } = 600;
+        public long TotalGameTime { get; set; }
     }
 
     public sealed class StardewConnectPost
@@ -32,6 +33,7 @@ namespace Smartphone
         public int Day { get; set; } = 1;
         public int Year { get; set; } = 1;
         public int TimeOfDay { get; set; } = 600;
+        public long TotalGameTime { get; set; }
         public List<string> LikedBy { get; set; } = new();
         public List<StardewConnectComment> Comments { get; set; } = new();
         public int PlayerReadCommentCount { get; set; }
@@ -51,6 +53,7 @@ namespace Smartphone
         public int Day { get; set; } = 1;
         public int Year { get; set; } = 1;
         public int TimeOfDay { get; set; } = 600;
+        public long TotalGameTime { get; set; }
     }
 
     public sealed class StardewConnectProfileStats
@@ -102,7 +105,8 @@ namespace Smartphone
                 Season = LastSocialVisitSnapshot.Season,
                 Day = LastSocialVisitSnapshot.Day,
                 Year = LastSocialVisitSnapshot.Year,
-                TimeOfDay = LastSocialVisitSnapshot.TimeOfDay
+                TimeOfDay = LastSocialVisitSnapshot.TimeOfDay,
+                TotalGameTime = LastSocialVisitSnapshot.TotalGameTime
             };
         }
 
@@ -189,7 +193,7 @@ namespace Smartphone
             if (post == null)
                 return false;
 
-            return IsOnOrAfterLastSocialVisit(post.Season, post.Day, post.Year, post.TimeOfDay);
+            return IsOnOrAfterLastSocialVisit(post.Season, post.Day, post.Year, post.TimeOfDay, post.TotalGameTime);
         }
 
         public static bool IsCommentOnOrAfterLastSocialVisit(StardewConnectComment comment)
@@ -197,19 +201,22 @@ namespace Smartphone
             if (comment == null)
                 return false;
 
-            return IsOnOrAfterLastSocialVisit(comment.Season, comment.Day, comment.Year, comment.TimeOfDay);
+            return IsOnOrAfterLastSocialVisit(comment.Season, comment.Day, comment.Year, comment.TimeOfDay, comment.TotalGameTime);
         }
 
-        public static bool IsOnOrAfterLastSocialVisit(string season, int day, int year, int timeOfDay)
+        public static bool IsOnOrAfterLastSocialVisit(string season, int day, int year, int timeOfDay, long totalGameTime = 0L)
         {
-            long compareKey = BuildChronologicalSortKey(season, day, year, timeOfDay);
-            long visitKey = BuildChronologicalSortKey(
+            return CompareChronologicalPosition(
+                season,
+                day,
+                year,
+                timeOfDay,
+                totalGameTime,
                 LastSocialVisitSnapshot.Season,
                 LastSocialVisitSnapshot.Day,
                 LastSocialVisitSnapshot.Year,
-                LastSocialVisitSnapshot.TimeOfDay);
-
-            return compareKey > visitKey;
+                LastSocialVisitSnapshot.TimeOfDay,
+                LastSocialVisitSnapshot.TotalGameTime) > 0;
         }
 
         public static StardewConnectPost? GetPost(string postId)
@@ -379,7 +386,7 @@ namespace Smartphone
 
             var post = new StardewConnectPost
             {
-                Id = Guid.NewGuid().ToString("N"),
+                Id = Guid.NewGuid().ToString("N").Substring(0, 8),
                 AuthorName = resolvedAuthorName,
                 AuthorIsPlayer = authorIsPlayer,
                 Text = text,
@@ -390,6 +397,7 @@ namespace Smartphone
                 Day = Math.Max(1, Game1.dayOfMonth),
                 Year = Math.Max(1, Game1.year),
                 TimeOfDay = NormalizeTimeOfDay(Game1.timeOfDay),
+                TotalGameTime = GetCurrentTotalGameTime(),
                 LikedBy = new List<string>(),
                 Comments = new List<StardewConnectComment>(),
                 PlayerReadCommentCount = 0
@@ -486,16 +494,24 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(text))
                 return false;
 
+            if (!authorIsPlayer
+                && string.Equals(post.AuthorName, resolvedAuthorName, StringComparison.OrdinalIgnoreCase)
+                && !CanNpcPostAuthorCommentOnOwnPost(post, resolvedAuthorName))
+            {
+                return false;
+            }
+
             var comment = new StardewConnectComment
             {
-                Id = Guid.NewGuid().ToString("N"),
+                Id = Guid.NewGuid().ToString("N").Substring(0, 8),
                 AuthorName = resolvedAuthorName,
                 AuthorIsPlayer = authorIsPlayer,
                 Text = text,
                 Season = GetCurrentSeason(),
                 Day = Math.Max(1, Game1.dayOfMonth),
                 Year = Math.Max(1, Game1.year),
-                TimeOfDay = NormalizeTimeOfDay(Game1.timeOfDay)
+                TimeOfDay = NormalizeTimeOfDay(Game1.timeOfDay),
+                TotalGameTime = GetCurrentTotalGameTime()
             };
 
             post.Comments ??= new List<StardewConnectComment>();
@@ -761,7 +777,7 @@ namespace Smartphone
         {
             foreach (StardewConnectPost post in Posts)
             {
-                post.Id = string.IsNullOrWhiteSpace(post.Id) ? Guid.NewGuid().ToString("N") : post.Id;
+                post.Id = string.IsNullOrWhiteSpace(post.Id) ? Guid.NewGuid().ToString("N").Substring(0, 8) : post.Id;
                 post.AuthorName = post.AuthorName ?? "";
                 post.Text = post.Text ?? "";
                 post.AttachedImageFile = post.AttachedImageFile ?? "";
@@ -769,6 +785,7 @@ namespace Smartphone
                 post.Day = Math.Max(1, post.Day);
                 post.Year = Math.Max(1, post.Year);
                 post.TimeOfDay = NormalizeTimeOfDay(post.TimeOfDay);
+                post.TotalGameTime = NormalizeTotalGameTime(post.TotalGameTime);
 
                 post.LikedBy ??= new List<string>();
                 post.Comments ??= new List<StardewConnectComment>();
@@ -794,13 +811,14 @@ namespace Smartphone
 
                 foreach (StardewConnectComment comment in post.Comments)
                 {
-                    comment.Id = string.IsNullOrWhiteSpace(comment.Id) ? Guid.NewGuid().ToString("N") : comment.Id;
+                    comment.Id = string.IsNullOrWhiteSpace(comment.Id) ? Guid.NewGuid().ToString("N").Substring(0, 8) : comment.Id;
                     comment.AuthorName = comment.AuthorName ?? "";
                     comment.Text = comment.Text ?? "";
                     comment.Season = string.IsNullOrWhiteSpace(comment.Season) ? "spring" : comment.Season;
                     comment.Day = Math.Max(1, comment.Day);
                     comment.Year = Math.Max(1, comment.Year);
                     comment.TimeOfDay = NormalizeTimeOfDay(comment.TimeOfDay);
+                    comment.TotalGameTime = NormalizeTotalGameTime(comment.TotalGameTime);
                 }
 
                 post.PlayerReadCommentCount = Math.Clamp(post.PlayerReadCommentCount, 0, post.Comments.Count);
@@ -856,7 +874,8 @@ namespace Smartphone
                 Season = GetCurrentSeason(),
                 Day = Math.Max(1, Game1.dayOfMonth),
                 Year = Math.Max(1, Game1.year),
-                TimeOfDay = NormalizeTimeOfDay(Game1.timeOfDay)
+                TimeOfDay = NormalizeTimeOfDay(Game1.timeOfDay),
+                TotalGameTime = GetCurrentTotalGameTime()
             };
         }
 
@@ -872,6 +891,7 @@ namespace Smartphone
             snapshot.Day = Math.Max(1, snapshot.Day);
             snapshot.Year = Math.Max(1, snapshot.Year);
             snapshot.TimeOfDay = NormalizeTimeOfDay(snapshot.TimeOfDay);
+            snapshot.TotalGameTime = NormalizeTotalGameTime(snapshot.TotalGameTime);
         }
 
         private static void SaveLastSocialVisitSnapshot()
@@ -968,6 +988,55 @@ namespace Smartphone
             int totalMinutes = (hour * 60) + minute;
 
             return ((long)dayIndex * DaySortKeyMultiplier) + totalMinutes;
+        }
+
+        private static int CompareChronologicalPosition(
+            string leftSeason,
+            int leftDay,
+            int leftYear,
+            int leftTimeOfDay,
+            long leftTotalGameTime,
+            string rightSeason,
+            int rightDay,
+            int rightYear,
+            int rightTimeOfDay,
+            long rightTotalGameTime)
+        {
+            long leftKey = BuildChronologicalSortKey(leftSeason, leftDay, leftYear, leftTimeOfDay);
+            long rightKey = BuildChronologicalSortKey(rightSeason, rightDay, rightYear, rightTimeOfDay);
+
+            int primaryComparison = leftKey.CompareTo(rightKey);
+            if (primaryComparison != 0)
+                return primaryComparison;
+
+            return CompareTotalGameTime(leftTotalGameTime, rightTotalGameTime);
+        }
+
+        private static int CompareTotalGameTime(long left, long right)
+        {
+            long safeLeft = NormalizeTotalGameTime(left);
+            long safeRight = NormalizeTotalGameTime(right);
+
+            bool hasLeft = safeLeft > 0;
+            bool hasRight = safeRight > 0;
+
+            if (hasLeft && hasRight)
+                return safeLeft.CompareTo(safeRight);
+
+            if (hasLeft == hasRight)
+                return 0;
+
+            return hasLeft ? 1 : -1;
+        }
+
+        private static long GetCurrentTotalGameTime()
+        {
+            return NormalizeTotalGameTime(Game1.currentGameTime?.TotalGameTime.Ticks ?? 0L);
+        }
+
+        private static long NormalizeTotalGameTime(long totalGameTime)
+        {
+            return Math.Max(0L, totalGameTime);
         }
 
         private static string NormalizeAttachmentFileName(string attachedImageFile)
@@ -1504,6 +1573,17 @@ namespace Smartphone
 
             return ContainsTag(post.PostTag, "#Player")
                 || ContainsPlayerMention(post.Text);
+        }
+
+        private static bool CanNpcPostAuthorCommentOnOwnPost(StardewConnectPost post, string postAuthorName)
+        {
+            if (post?.Comments == null || post.Comments.Count == 0 || string.IsNullOrWhiteSpace(postAuthorName))
+                return false;
+
+            return post.Comments.Any(comment =>
+                comment != null
+                && !comment.AuthorIsPlayer
+                && !string.Equals(comment.AuthorName, postAuthorName, StringComparison.OrdinalIgnoreCase));
         }
 
         private static bool ContainsTag(string tagText, string expectedTag)

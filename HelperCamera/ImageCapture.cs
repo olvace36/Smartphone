@@ -160,6 +160,7 @@ namespace Smartphone
             int effectiveCaptureTime = NormalizeCaptureTimeOfDay(captureTimeOfDay);
             var renderStateSnapshot = new PhotoRenderStateSnapshot();
             int temporarySpriteCount = targetLocation.temporarySprites.Count;
+            CaptureMapAppearanceSnapshot? mapAppearanceSnapshot = null;
             (int baseCaptureWidth, int baseCaptureHeight) = GetCaptureDimensions(landscape, square);
             (int captureWidth, int captureHeight) = GetZoomedCaptureDimensions(baseCaptureWidth, baseCaptureHeight, zoomLevel);
             var captureBounds = new Microsoft.Xna.Framework.Rectangle(0, 0, captureWidth, captureHeight);
@@ -172,7 +173,7 @@ namespace Smartphone
                 Game1.currentLocation = targetLocation;
                 Game1.viewport = BuildNpcCaptureViewport(targetLocation, captureCenter, captureWidth, captureHeight);
                 Game1.timeOfDay = effectiveCaptureTime;
-                PrepareLocationRenderState(targetLocation, captureWidth, captureHeight);
+                mapAppearanceSnapshot = PrepareLocationRenderState(targetLocation, captureWidth, captureHeight);
 
                 graphics.SetRenderTarget(renderTarget);
                 graphics.Clear(Color.Black);
@@ -189,6 +190,7 @@ namespace Smartphone
             finally
             {
                 graphics.SetRenderTarget(null);
+                mapAppearanceSnapshot?.Restore();
                 RestoreTemporarySpritesAfterCapture(targetLocation, temporarySpriteCount);
                 renderStateSnapshot.Restore();
             }
@@ -521,20 +523,110 @@ namespace Smartphone
             }
         }
 
-        private static void PrepareLocationRenderState(GameLocation targetLocation, int captureWidth, int captureHeight)
+        private sealed class CaptureMapAppearanceSnapshot
+        {
+            private readonly GameLocation location;
+            private readonly List<CaptureTileState> tileStates = new List<CaptureTileState>();
+            private readonly List<Vector2> lightGlows = new List<Vector2>();
+
+            public CaptureMapAppearanceSnapshot(GameLocation location)
+            {
+                this.location = location;
+
+                var savedTiles = new HashSet<string>(StringComparer.Ordinal);
+                CaptureTileStates("DayTiles", savedTiles);
+                CaptureTileStates("NightTiles", savedTiles);
+
+                foreach (Vector2 lightGlow in location.lightGlows)
+                    lightGlows.Add(lightGlow);
+            }
+
+            public void Restore()
+            {
+                foreach (CaptureTileState tileState in tileStates)
+                {
+                    xTile.Tiles.Tile? tile = location.Map.RequireLayer(tileState.LayerId).Tiles[tileState.Position.X, tileState.Position.Y];
+                    if (tile != null)
+                        tile.TileIndex = tileState.TileIndex;
+                }
+
+                location.lightGlows.Clear();
+                foreach (Vector2 lightGlow in lightGlows)
+                    location.lightGlows.Add(lightGlow);
+            }
+
+            private void CaptureTileStates(string propertyName, HashSet<string> savedTiles)
+            {
+                string[] propertyValues = location.GetMapPropertySplitBySpaces(propertyName);
+                for (int i = 0; i + 3 < propertyValues.Length; i += 4)
+                {
+                    string layerId = propertyValues[i];
+                    if (!int.TryParse(propertyValues[i + 1], out int tileX)
+                        || !int.TryParse(propertyValues[i + 2], out int tileY))
+                    {
+                        continue;
+                    }
+
+                    string tileKey = $"{layerId}\u001f{tileX}\u001f{tileY}";
+                    if (!savedTiles.Add(tileKey))
+                        continue;
+
+                    xTile.Tiles.Tile? tile = location.Map.RequireLayer(layerId).Tiles[tileX, tileY];
+                    if (tile != null)
+                        tileStates.Add(new CaptureTileState(layerId, new Point(tileX, tileY), tile.TileIndex));
+                }
+            }
+
+            private readonly struct CaptureTileState
+            {
+                public CaptureTileState(string layerId, Point position, int tileIndex)
+                {
+                    LayerId = layerId;
+                    Position = position;
+                    TileIndex = tileIndex;
+                }
+
+                public string LayerId { get; }
+
+                public Point Position { get; }
+
+                public int TileIndex { get; }
+            }
+        }
+
+        private static CaptureMapAppearanceSnapshot PrepareLocationRenderState(GameLocation targetLocation, int captureWidth, int captureHeight)
         {
             SetViewingLocationForCapture(targetLocation);
             targetLocation.setUpLocationSpecificFlair();
+            CaptureMapAppearanceSnapshot mapAppearanceSnapshot = ApplyMapAppearanceForCapture(targetLocation);
             AllocateLightmapForCapture(captureWidth, captureHeight);
 
             Game1.currentLightSources.Clear();
 
             RefreshAmbientLightForCapture(targetLocation);
             RefreshOutdoorLightForCapture(targetLocation);
+            string lightIdPrefix = $"{targetLocation.NameOrUniqueName}_MapLight_";
+            AddSharedLightsForCapture(targetLocation, lightIdPrefix);
             if (!targetLocation.ignoreLights.Value)
-                AddMapLightsForCapture(targetLocation);
-            AddSharedLightsForCapture(targetLocation);
+                AddMapLightsForCapture(targetLocation, lightIdPrefix);
             RefreshDrawLightingForCapture(targetLocation);
+            return mapAppearanceSnapshot;
+        }
+
+        private static CaptureMapAppearanceSnapshot ApplyMapAppearanceForCapture(GameLocation targetLocation)
+        {
+            CaptureMapAppearanceSnapshot snapshot = new CaptureMapAppearanceSnapshot(targetLocation);
+
+            int nightTileTime = Game1.getTrulyDarkTime(targetLocation) - 100;
+            bool useDayTiles = Game1.timeOfDay < nightTileTime
+                && (!targetLocation.IsRainingHere() || string.Equals(targetLocation.Name, "SandyHouse", StringComparison.Ordinal));
+
+            if (useDayTiles)
+                targetLocation.addLightGlows();
+            else
+                targetLocation.switchOutNightTiles();
+
+            return snapshot;
         }
 
         private static void SetViewingLocationForCapture(GameLocation targetLocation)
@@ -618,9 +710,8 @@ namespace Smartphone
                 targetLocation.temporarySprites.RemoveAt(targetLocation.temporarySprites.Count - 1);
         }
 
-        private static void AddMapLightsForCapture(GameLocation targetLocation)
+        private static void AddMapLightsForCapture(GameLocation targetLocation, string lightIdPrefix)
         {
-            string lightIdPrefix = $"{targetLocation.NameOrUniqueName}_MapLight_";
             AddMapPropertyLights(targetLocation, lightIdPrefix, "Light", LightSource.LightContext.MapLight);
 
             if (!Game1.isTimeToTurnOffLighting(targetLocation) && !targetLocation.IsRainingHere())
@@ -667,10 +758,15 @@ namespace Smartphone
             }
         }
 
-        private static void AddSharedLightsForCapture(GameLocation targetLocation)
+        private static void AddSharedLightsForCapture(GameLocation targetLocation, string lightIdPrefix)
         {
             foreach (KeyValuePair<string, LightSource> sharedLight in targetLocation.sharedLights.Pairs)
+            {
+                if (sharedLight.Key.StartsWith(lightIdPrefix, StringComparison.Ordinal))
+                    continue;
+
                 Game1.currentLightSources[sharedLight.Key] = sharedLight.Value;
+            }
         }
 
         private static Texture2D CreateOpaqueTexture(Texture2D source)

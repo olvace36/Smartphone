@@ -345,7 +345,7 @@ namespace Smartphone
                     if (addNpcConfirmationMessage)
                     {
                         string finalNpcResponse = BuildScheduledEventNpcResponse(npcResponseTemplate, normalizedEventTime);
-                        MessageManager.AddMessage(npcDisplayName, $"{npcDisplayName}: {finalNpcResponse}");
+                        MessageManager.AddMessage(eventNpcName, $"{npcDisplayName}: {finalNpcResponse}");
                     }
                     else
                     {
@@ -364,8 +364,10 @@ namespace Smartphone
 
         internal static bool TryOpenManualScheduleEventTimeMenu(string npcName, string eventType)
         {
-            if (Game1.getCharacterFromName(npcName) is null)
+            NPC? npc = Game1.getCharacterFromName(npcName, mustBeVillager: false);
+            if (npc is null)
                 return false;
+
             string normalizedNpcName = (npcName ?? string.Empty).Trim();
             string normalizedEventType = (eventType ?? string.Empty).Trim();
 
@@ -375,11 +377,15 @@ namespace Smartphone
             if (!TryGetRegisteredUnlimitedEvent(normalizedEventType, out RegisteredUnlimitedEvent? registeredEvent) || registeredEvent == null)
                 return false;
 
+            string npcDisplayName = string.IsNullOrWhiteSpace(npc.displayName)
+                ? normalizedNpcName
+                : npc.displayName;
+
             OpenScheduleEventTimeMenu(
                 normalizedNpcName,
                 registeredEvent.EventType,
                 registeredEvent.DisplayName,
-                normalizedNpcName,
+                npcDisplayName,
                 npcResponseTemplate: null,
                 addNpcConfirmationMessage: false);
 

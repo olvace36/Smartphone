@@ -284,7 +284,8 @@ namespace Smartphone
             .Where(n => !n.IsInvisible && n.CanSocialize && CanMessageNpc(n))
             .OrderByDescending(npc => MessageManager.favouriteNpc.Contains(npc.Name))
             .ThenByDescending(npc => latestTimestamps.TryGetValue(npc.Name, out long ts) ? ts : 0)
-            .ThenBy(npc => npc.Name)
+            .ThenBy(npc => GetNpcDisplayNameOrFallback(npc), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(npc => npc.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
             for (int i = 0; i < villagers.Count; i++)
@@ -1387,7 +1388,14 @@ namespace Smartphone
                 return EditableTextFieldKind.None;
 
             if (currentApp == TextAppState)
-                return selectedNpc == null ? EditableTextFieldKind.Search : EditableTextFieldKind.Chat;
+            {
+                if (selectedNpc == null)
+                    return EditableTextFieldKind.Search;
+
+                return IsTextChatInputEnabledForSelectedNpc()
+                    ? EditableTextFieldKind.Chat
+                    : EditableTextFieldKind.None;
+            }
 
             if (currentApp == SocialAppState)
             {
@@ -2293,11 +2301,12 @@ namespace Smartphone
 
             List<NPC> villagers = Utility.getAllVillagers()
             .Where(n => !n.IsInvisible && n.CanSocialize && CanMessageNpc(n) 
-                && (bypassFilter || n.Name.ToLower().Contains(filter))
+                && (bypassFilter || DoesNpcMatchTextFilter(n, filter))
             )
             .OrderByDescending(npc => MessageManager.favouriteNpc.Contains(npc.Name))
             .ThenByDescending(npc => latestTimestamps.TryGetValue(npc.Name, out long ts) ? ts : 0)
-            .ThenBy(npc => npc.Name)
+            .ThenBy(npc => GetNpcDisplayNameOrFallback(npc), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(npc => npc.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
             for (int i = 0; i < villagers.Count; i++)
@@ -2320,6 +2329,42 @@ namespace Smartphone
                 return Game1.player.friendshipData.ContainsKey(npc.Name);
 
             return Game1.player.getFriendshipHeartLevelForNPC(npc.Name) >= 1;
+        }
+
+        private static string GetNpcDisplayNameOrFallback(NPC? npc)
+        {
+            if (npc == null)
+                return "";
+
+            if (!string.IsNullOrWhiteSpace(npc.displayName))
+                return npc.displayName;
+
+            return npc.Name ?? "";
+        }
+
+        private static string GetNpcDisplayName(string npcName)
+        {
+            string normalizedName = (npcName ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(normalizedName))
+                return "";
+
+            NPC? npc = Game1.getCharacterFromName(normalizedName, mustBeVillager: false);
+            string displayName = GetNpcDisplayNameOrFallback(npc);
+            return string.IsNullOrWhiteSpace(displayName)
+                ? normalizedName
+                : displayName;
+        }
+
+        private static bool DoesNpcMatchTextFilter(NPC npc, string filter)
+        {
+            if (string.IsNullOrWhiteSpace(filter))
+                return true;
+
+            string internalName = npc?.Name ?? "";
+            string displayName = GetNpcDisplayNameOrFallback(npc);
+
+            return internalName.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                || displayName.Contains(filter, StringComparison.OrdinalIgnoreCase);
         }
 
         private Texture2D CropTexture(Texture2D source, int x = 0, int y = 0, int width = 520, int height = 810)
