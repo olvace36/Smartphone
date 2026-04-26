@@ -6,7 +6,6 @@ namespace Smartphone
     {
         public string OwnerModId { get; init; } = "";
         public string EventType { get; init; } = "";
-        public string DisplayName { get; init; } = "";
         public int MinimumHeartLevel { get; init; }
         public string ToolDescription { get; init; } = "";
         public Action<string> TriggerEvent { get; init; } = null!;
@@ -27,17 +26,15 @@ namespace Smartphone
         internal static bool RegisterUnlimitedEventInternal(
             string ownerModId,
             string eventType,
-            string displayName,
             Action<string> triggerEvent,
             int minimumHeartLevel,
             string toolDescription)
         {
             if (string.IsNullOrWhiteSpace(ownerModId)
                 || string.IsNullOrWhiteSpace(eventType)
-                || string.IsNullOrWhiteSpace(displayName)
                 || triggerEvent == null)
             {
-                SMonitor?.Log("RegisterUnlimitedEvent failed: ownerModId, eventType, displayName, and triggerEvent are required.", LogLevel.Warn);
+                SMonitor?.Log("RegisterUnlimitedEvent failed: ownerModId, eventType, and triggerEvent are required.", LogLevel.Warn);
                 return false;
             }
 
@@ -49,7 +46,6 @@ namespace Smartphone
             {
                 OwnerModId = normalizedOwnerModId,
                 EventType = normalizedEventType,
-                DisplayName = displayName.Trim(),
                 MinimumHeartLevel = normalizedMinimumHeartLevel,
                 ToolDescription = toolDescription?.Trim() ?? "",
                 TriggerEvent = triggerEvent
@@ -119,7 +115,6 @@ namespace Smartphone
                 return RegisteredUnlimitedEventsByType.Values
                     .Where(evt => heartLevel >= evt.MinimumHeartLevel)
                     .OrderBy(evt => evt.MinimumHeartLevel)
-                    .ThenBy(evt => evt.DisplayName, StringComparer.OrdinalIgnoreCase)
                     .ThenBy(evt => evt.EventType, StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }

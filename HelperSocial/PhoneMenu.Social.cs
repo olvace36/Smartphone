@@ -26,6 +26,7 @@ namespace Smartphone
         private const int SocialImageNavButtonSize = 40;
         private const int SocialImageMaxWidth = SocialPostCardWidth - 30;
         private const int SocialImageMaxHeight = 810;
+        private const float SocialPortraitImageMaxWidthRatio = 2f / 3f;
         private const float SocialImageTagScale = 0.68f;
         private const int SocialImageTagBottomPadding = 6;
         private const float SocialScrollPixelsPerWheelNotch = 52f;
@@ -2129,6 +2130,10 @@ namespace Smartphone
             int safeSourceHeight = Math.Max(1, sourceHeight);
             int safeMaxWidth = Math.Max(1, maxWidth);
             int safeMaxHeight = Math.Max(1, maxHeight);
+
+            // Portrait photos are capped to a narrower width to avoid overly tall post cards.
+            if (safeSourceHeight > safeSourceWidth)
+                safeMaxWidth = Math.Max(1, (int)Math.Round(safeMaxWidth * SocialPortraitImageMaxWidthRatio));
 
             float scale = Math.Min(
                 safeMaxWidth / (float)safeSourceWidth,

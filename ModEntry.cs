@@ -92,7 +92,6 @@ namespace Smartphone
         public bool RegisterUnlimitedEvent(
             string ownerModId,
             string eventType,
-            string displayName,
             Action<string> triggerEvent,
             int minimumHeartLevel = 0,
             string toolDescription = "")
@@ -100,7 +99,6 @@ namespace Smartphone
             return ModEntry.RegisterUnlimitedEventInternal(
                 ownerModId,
                 eventType,
-                displayName,
                 triggerEvent,
                 minimumHeartLevel,
                 toolDescription);
@@ -209,7 +207,7 @@ namespace Smartphone
 
         public static IMonitor SMonitor;
         public static IModHelper SHelper;
-        private static IUnlimitedEventExpansionApi iUnlimitedEventExpansionApi;
+        public static IUnlimitedEventExpansionApi iUnlimitedEventExpansionApi;
 
         private ModApi apiInstance;
 
@@ -233,11 +231,11 @@ namespace Smartphone
 
         public static Dictionary<string, GiftMemory> GiftMemories = new();
         public static List<RecentEvent> RecentEvents = new();
-        public static List<(string NpcName, string EventType, string TimeOfDay)> PendingUnlimitedEvents = new();
-
         public static bool isTodayEventAdded = false;
         public static Dictionary<(string season, int day), List<NPC>> NpcBirthdaysByDate = new();
-        public static Dictionary<string, string> NpcCharacteristics = new();
+        public static Dictionary<string, string> NpcCharacteristicsShort = new();
+        public static Dictionary<string, string> NpcCharacteristicsMinimal = new();
+        public static Dictionary<string, string> NpcCharacteristicsLong = new();
 
         public static int lastTimeReceiveMessage = 300;
 
@@ -246,9 +244,6 @@ namespace Smartphone
 
         public static Dictionary<string, List<string>> npcMessagesToday = new();
         public static Dictionary<string, string> npcConversationSummary = new();
-
-
-        public static Dictionary<string, List<string>> npcAges;
 
         public static PhoneMenu phoneMenu;
         private Dictionary<string, Dictionary<string, AreaData>> areaTags;

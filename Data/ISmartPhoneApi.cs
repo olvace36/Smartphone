@@ -103,7 +103,6 @@ namespace Smartphone
         bool RegisterUnlimitedEvent(
             string ownerModId,
             string eventType,
-            string displayName,
             Action<string> triggerEvent,
             int minimumHeartLevel = 0,
             string toolDescription = ""

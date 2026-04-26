@@ -25,6 +25,7 @@ namespace Smartphone
         public static string xk3 = "";
 
         public static bool IsMaxedLimit = false;
+        public static bool IsReducedQuality = false;
         public static int totalFailedCheck = 0;
 
 
@@ -39,30 +40,69 @@ namespace Smartphone
 
         internal static void HandleAiModelSettingTimeChanged(int newTime)
         {
+            if (!string.IsNullOrWhiteSpace(Config.OpenAIKey))
+            {
+                chatModel = Config.OpenAIModel;
+                summaryModel = Config.OpenAIModel;
+
+                switch (chatModel)
+                {
+                    case ModConfig.OpenAIModel_51:
+                        chatReasoningEffort = new { effort = "none" };
+                        summaryReasoningEffort = new { effort = "none" };
+                        break;
+                    case ModConfig.OpenAIModel_5mini:
+                        chatReasoningEffort = new { effort = "minimal" };
+                        summaryReasoningEffort = new { effort = "minimal" };
+                        break;
+                    case ModConfig.OpenAIModel_5nano:
+                        chatReasoningEffort = new { effort = "minimal" };
+                        summaryReasoningEffort = new { effort = "minimal" };
+                        break;
+                    case ModConfig.OpenAIModel_54mini:
+                        chatReasoningEffort = new { effort = "none" };
+                        summaryReasoningEffort = new { effort = "none" };
+                        break;
+                    case ModConfig.OpenAIModel_54nano:
+                        chatReasoningEffort = new { effort = "none" };
+                        summaryReasoningEffort = new { effort = "none" };
+                        break;
+                    default:
+                        chatReasoningEffort = new { effort = "minimal" };
+                        summaryReasoningEffort = new { effort = "minimal" };
+                        break;
+                }
+                return;
+            }
+
+
             if (Config.OpenAIKey == "" && newTime % 300 == 0)
             {
                 Task.Run(async () =>
                 {
                     var (premium, regular) = await GetOpenAIUsage();
-                    if (premium == regular && premium == -1)
+                    if (regular == -1 || premium == -1)
                     {
                         totalFailedCheck += 1;
                         if (totalFailedCheck >= 3)
                         {
                             IsMaxedLimit = true;
-                            NotificationManager.addNotification("=== Smartphone ===^^Failed to check AI usage for 3 times in a row, AI usage is temporarily disabled.^^Please check mod page for support. HaPyke!");
+                            NotificationManager.addNotification("=== Smartphone ===^^Failed to check AI usage for 3 times in a row, AI usage is temporarily disabled.^^Try restart your game and check mod page for support. HaPyke!");
                             return;
                         }
                     }
 
 
-                    if (regular > 50000000)
+                    if (regular > 30000000)
                     {
                         IsMaxedLimit = true;
                         NotificationManager.addNotification("=== Smartphone ===^^AI usage reached its limit. Chat and StardewSocial are temporarily disabled.^^This will be reset the next day in timezone UTC+0. HaPyke!");
                         return;
                     }
-                    else if (regular > 14000000 && chatModel != "gpt-5-nano")
+
+
+                    IsMaxedLimit = false;
+                    if (regular > 14000000 && chatModel != "gpt-5-nano")
                     {
                         chatModel = "gpt-5-nano";
                         chatReasoningEffort = new { effort = "minimal" };
@@ -70,18 +110,13 @@ namespace Smartphone
                         summaryModel = "gpt-5-mini";
                         summaryReasoningEffort = new { effort = "minimal" };
 
-                        string npc_characteristic = SHelper.ModContent.GetInternalAssetName("assets/npc_characteristics_minimal.json").BaseName;
-
-                        int maxCharacteristicLength = 400;
-                        NpcCharacteristics = SHelper.ModContent.Load<Dictionary<string, string>>(npc_characteristic)
-                            .ToDictionary(
-                                kvp => kvp.Key,
-                                kvp => TruncateCharacteristicValue(kvp.Value, maxCharacteristicLength));
+                        IsReducedQuality = true;
 
                         NotificationManager.addNotification("=== Smartphone ===^^Usage is very high today, AI quality is temporarily downgraded so I won't go bankrupt lol.^^This will be reset the next day in timezone UTC+0. HaPyke!");
                     }
                     else if (regular > 10000000)
                     {
+                        IsReducedQuality = false;
                         chatModel = "gpt-5-mini";
                         chatReasoningEffort = new { effort = "minimal" };
 
@@ -90,6 +125,7 @@ namespace Smartphone
                     }
                     else
                     {
+                        IsReducedQuality = false;
                         chatModel = "gpt-5.4-mini";
                         chatReasoningEffort = new { effort = "none" };
 
@@ -103,7 +139,7 @@ namespace Smartphone
 
         private static string GetNpcCharacteristicForPrompt(NPC npc)
         {
-            if (npc == null || string.IsNullOrWhiteSpace(npc.Name))
+            if (npc is null)
                 return string.Empty;
 
             string npcAge = npc.Age == 0 ? "adult" : npc.Age == 1 ? "teens" : npc.Age == 2 ? "child" : "adult";
@@ -112,19 +148,37 @@ namespace Smartphone
 
             string npcCharacteristic = $" {npc.Name} is {npcAge}, {npcManner}, and is {npcSocial}";
 
-            if (NpcCharacteristics.TryGetValue(npc.Name, out string? customCharacteristic) && !string.IsNullOrWhiteSpace(customCharacteristic))
+            // CUSTOM CHARACTERISTIC OVERRIDE
+            if (!string.IsNullOrWhiteSpace(Config.OpenAIKey))
             {
-                npcCharacteristic = customCharacteristic;
-
-                var maxCharacteristicCharacterCount = 1300;
-                if (Config.OpenAIKey != "" && Config.MaxCharacteristicCharacterCount != 0)
-                    maxCharacteristicCharacterCount = Config.MaxCharacteristicCharacterCount;
-
-                if (npcCharacteristic.Length > maxCharacteristicCharacterCount)
-                    npcCharacteristic = npcCharacteristic.Substring(0, maxCharacteristicCharacterCount);
+                if (Config.CharacteristicMode == ModConfig.CharacteristicModeLong && NpcCharacteristicsLong.TryGetValue(npc.Name, out string? customCharacteristicLong) && !string.IsNullOrWhiteSpace(customCharacteristicLong))
+                {
+                    npcCharacteristic = customCharacteristicLong;
+                }
+                else if (Config.CharacteristicMode == ModConfig.CharacteristicModeShort && NpcCharacteristicsShort.TryGetValue(npc.Name, out string? customCharacteristic) && !string.IsNullOrWhiteSpace(customCharacteristic))
+                {
+                    npcCharacteristic = customCharacteristic;
+                }
+                else if (Config.CharacteristicMode == ModConfig.CharacteristicModeMinimal && NpcCharacteristicsMinimal.TryGetValue(npc.Name, out string? customCharacteristicMinimal) && !string.IsNullOrWhiteSpace(customCharacteristicMinimal))
+                {
+                    npcCharacteristic = customCharacteristicMinimal;
+                }
+                return npcCharacteristic.Trim();
             }
+            // DEFAULT CHARACTERISTIC
+            else
+            {
+                if (NpcCharacteristicsShort.TryGetValue(npc.Name, out string? customCharacteristic) && !string.IsNullOrWhiteSpace(customCharacteristic) && !IsReducedQuality)
+                {
+                    npcCharacteristic = customCharacteristic;
+                }
+                else if (NpcCharacteristicsMinimal.TryGetValue(npc.Name, out string? customCharacteristicMinimal) && !string.IsNullOrWhiteSpace(customCharacteristicMinimal))
+                {
+                    npcCharacteristic = customCharacteristicMinimal;
+                }
 
-            return npcCharacteristic.Trim();
+                return npcCharacteristic.Trim();
+            }
         }
 
         /// <summary>Call to OpenAI to generate a response</summary>
@@ -246,13 +300,12 @@ namespace Smartphone
                                         : npc.displayName;
 
                                     Game1.activeClickableMenu = new ConfirmationDialog(
-                                        $"Schedule {registeredEvent.DisplayName} event with {npcDisplayName}?",
+                                        $"Schedule {registeredEvent.EventType} event with {npcDisplayName}?",
                                         onConfirm: (Farmer who) =>
                                         {
-                                            OpenScheduleEventTimeMenu(
+                                            iUnlimitedEventExpansionApi.OpenScheduleEventTimeMenu(
                                                 eventNpcName.Trim(),
                                                 registeredEvent.EventType,
-                                                registeredEvent.DisplayName,
                                                 npcDisplayName,
                                                 textResponse);
 
@@ -394,14 +447,14 @@ namespace Smartphone
             if (isPlayerPhoto)
             {
                 if (string.IsNullOrWhiteSpace(normalizedTags))
-                    return "PLAYER: [Attached photo]";
+                    return "";
 
                 return $"PLAYER: [Attached photo tags: {normalizedTags}]";
             }
 
             string speaker = string.IsNullOrWhiteSpace(npcName) ? "NPC" : npcName;
             if (string.IsNullOrWhiteSpace(normalizedTags))
-                return $"{speaker}: [Sent photo]";
+                return $"";
 
             return $"{speaker}: [Sent photo tags: {normalizedTags}]";
         }
@@ -416,15 +469,19 @@ namespace Smartphone
 
                 string relation = heartLevel <= 2 ? "stranger" : heartLevel <= 4 ? "acquaintance" : heartLevel <= 6 ? "close friend" : "best friend";
                 bool isDating = Game1.player.friendshipData.TryGetValue(npc.Name, out Friendship friendship) && friendship.IsDating();
+                bool isRoommate = friendship != null && friendship.IsRoommate();
                 bool isMarried = friendship != null && friendship.IsMarried();
-                if (isDating) relation = "dating";
-                else if (isMarried) relation = "married";
+                bool isEngaged = friendship != null && friendship.IsEngaged();
+                bool isDivorced = friendship != null && friendship.IsDivorced();
 
-                string playerLocation = Game1.player.currentLocation.Name;
-                string npcLocation = npc.currentLocation.Name;
-                if (Game1.CurrentEvent != null && Game1.CurrentEvent.isFestival)
-                    playerLocation = npcLocation = Game1.CurrentEvent.FestivalName;
-                else if (npcLocation == npc.DefaultMap)
+                if (isDivorced) relation = "divorced";
+                else if (isRoommate) relation = "roommate";
+                else if (isMarried) relation = "married";
+                else if (isEngaged) relation = "engaged";
+                else if (isDating) relation = "dating";
+
+                string npcLocation = npc.currentLocation.DisplayName;
+                if (npc.currentLocation.Name == npc.DefaultMap)
                     npcLocation = $"{npc.Name} home";
 
                 int time = Game1.timeOfDay;
@@ -443,10 +500,10 @@ namespace Smartphone
                             ? FarmTreeNames[Game1.random.Next(FarmTreeNames.Count)]
                             : FarmCropNames[Game1.random.Next(FarmCropNames.Count)]);
 
-                string data = @$"Player location: {playerLocation}; {npc.Name} location: {npcLocation}; Today weather: {Game1.currentLocation.GetWeather().Weather}; Tomorrow weather: {Game1.weatherForTomorrow};  Time: {timeFormatted}, day {Game1.dayOfMonth} {Game1.currentLocation.GetSeason()};";
+                string data = @$"{npc.Name} currently at {npcLocation}; Today weather: {Game1.currentLocation.GetWeather().Weather}; Tomorrow weather: {Game1.weatherForTomorrow};  Time: {timeFormatted}, day {Game1.dayOfMonth} {Game1.currentLocation.GetSeason()};";
 
                 if (planting != "")
-                    data += $"Player planting some {planting} on the farm";
+                    data += $"\nPlayer planting some {planting} on the farm";
 
                 string latestGift = "";
                 var dayAgo = 0;
@@ -467,8 +524,7 @@ namespace Smartphone
                 var npcBirthdayTmr = GetNpcsWithBirthdayToday();
                 if (npcBirthdayTmr.Count > 0)
                 {
-                    string birthdayNames = "NPC " + string.Join(", ", npcBirthdayTmr.Select(n => n.Name)) + " having birthday.";
-                    data += $"\n{birthdayNames}";
+                    data += "It is " + string.Join(", ", npcBirthdayTmr.Select(n => n.Name)) + " birthday today.";
                 }
 
                 var messages_history = npcMessagesToday.ContainsKey(npc.Name) ? npcMessagesToday[npc.Name] : new List<string>();
@@ -560,24 +616,6 @@ namespace Smartphone
             {
                 return "";
             }
-        }
-
-        /// <summary> Summary the conversation between a NPC and player </summary>
-        public static async Task<string> SummaryConversation(string npcName, string messageList)
-        {
-            if (string.IsNullOrWhiteSpace(npcName))
-                return "error";
-
-            var singleConversation = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                [npcName] = messageList ?? string.Empty
-            };
-
-            Dictionary<string, string> batchSummaries = await SummaryConversationsBatch(singleConversation);
-            if (batchSummaries.TryGetValue(npcName, out string? summary) && !string.IsNullOrWhiteSpace(summary))
-                return summary;
-
-            return "SYSTEM: ---Got an error---";
         }
 
         public static async Task<Dictionary<string, string>> SummaryConversationsBatch(Dictionary<string, string> conversationsByNpc, bool bypassAiLimit = false)
@@ -728,156 +766,6 @@ namespace Smartphone
                     SMonitor.Log($"Unable to receive AI content. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
                     return parsedSummaries;
                 }
-            }
-        }
-
-        public static async Task<string> GenerateNpcSocialPostText(string npcName, string npcCharacteristic, IEnumerable<IEnumerable<string>> attachmentTags)
-        {
-            return "";
-            string resolvedNpcName = (npcName ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(resolvedNpcName) || IsMaxedLimit)
-                return string.Empty;
-
-            try
-            {
-                var key = k1 + k2 + k3;
-
-                if (Config.OpenAIKey != "")
-                    key = Config.OpenAIKey;
-
-                string sanitizedNpcCharacteristic = (npcCharacteristic ?? string.Empty).Trim();
-                var normalizedAttachmentTags = (attachmentTags ?? Enumerable.Empty<IEnumerable<string>>())
-                    .Select(tags => (tags ?? Enumerable.Empty<string>())
-                        .Where(tag => !string.IsNullOrWhiteSpace(tag))
-                        .Select(tag => tag.Trim())
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToArray())
-                    .ToList();
-
-                int time = Game1.timeOfDay;
-                string timeFormatted = "night";
-                switch (time)
-                {
-                    case int t when t >= 600 && t < 1200:
-                        timeFormatted = "morning";
-                        break;
-                    case int t when t >= 1200 && t < 1700:
-                        timeFormatted = "afternoon";
-                        break;
-                    case int t when t >= 1700 && t < 2200:
-                        timeFormatted = "evening";
-                        break;
-                    default:
-                        timeFormatted = "night";
-                        break;
-                }
-
-                int heartLevel = 0;
-                if (Game1.player.friendshipData.ContainsKey(npcName)) heartLevel = (int)Game1.player.friendshipData[npcName].Points / 250;
-                string npcCharacteristicState = heartLevel <= 2 ? "very early" : heartLevel <= 4 ? "early" : heartLevel <= 6 ? "middle" : "late";
-
-                var developerMessage = $@"
-                You will roleplay as NPC {resolvedNpcName} from Stardew Valley writing a post for the StardewSocial social media channel.
-                You are provided with the characteristics of your NPC self. Currently, the game is at {npcCharacteristicState} stage of your character development.
-                Write a post that fits the personality of {resolvedNpcName}, the stage of characteristic development and is relevant to the photo and world context.
-                Invent random topic such as daily life, something happened, something fun, something strange, some drama, some topic to debate,... Be creative and dynamics so the post is not repetitive!
-                Return only the post text < 40 words, with no markdown, no quotes, and no label.";
-
-                if (attachmentTags == null || !attachmentTags.Any())
-                {
-                    developerMessage = $@"
-                You will roleplay as NPC {resolvedNpcName} from Stardew Valley writing a post for the StardewSocial social media channel.
-                You are provided with the photo tags describing where, when, what and who can be seen in the photo that will be attached to your post. In most case, the photo is taken by {resolvedNpcName} when they are visiting others, hanging out or just doing something.
-                The characteristics of your NPC self is given too. Currently, the game is at {npcCharacteristicState} stage of your character development.
-                Write a post that fits the personality of {resolvedNpcName}, the stage of characteristic development and is relevant to the photo and world context.
-                Invent random topic such as daily life, something happened, something fun, something strange, some drama, some topic to debate,... Be creative and dynamics so the post is not repetitive!
-                Return only the post text < 40 words, with no markdown, no quotes, and no label.";
-                }
-
-                var userPayload = new
-                {
-                    npcCharacteristic = sanitizedNpcCharacteristic,
-                    imageTags = normalizedAttachmentTags,
-                    worldContext = $"Weather: {Game1.currentLocation.GetWeather().Weather}. Time: {timeFormatted} of day {Game1.dayOfMonth} {Game1.currentLocation.GetSeason()}"
-                };
-
-                var requestBody = new
-                {
-                    model = chatModel,
-                    input = new object[]
-                    {
-                        new
-                        {
-                            role = "developer",
-                            content = new object[]
-                            {
-                                new { type = "input_text", text = developerMessage }
-                            }
-                        },
-                        new
-                        {
-                            role = "user",
-                            content = new object[]
-                            {
-                                new { type = "input_text", text = JsonConvert.SerializeObject(userPayload, Formatting.Indented) }
-                            }
-                        }
-                    },
-                    text = new { format = new { type = "text" }, verbosity = "medium" },
-                    reasoning = chatReasoningEffort
-                };
-
-                using (var httpClient = new HttpClient())
-                {
-                    httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
-
-                    var jsonRequest = JsonConvert.SerializeObject(requestBody);
-                    var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
-                    var httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/responses", httpContent);
-                    if (httpResponse.IsSuccessStatusCode)
-                    {
-                        var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
-                        RegisterSuccessfulAiCall();
-                        JObject json = JObject.Parse(jsonResponse);
-                        SMonitor.Log(json.ToString(), LogLevel.Error);
-                        string postText = GetResponseOutputText(json).Trim();
-
-                        if (postText.StartsWith($"{resolvedNpcName}:", StringComparison.OrdinalIgnoreCase))
-                            postText = postText.Substring(resolvedNpcName.Length + 1).TrimStart();
-
-                        postText = string.Join(" ", postText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)).Trim();
-                        if (postText.StartsWith("\"") && postText.EndsWith("\"") && postText.Length > 1)
-                            postText = postText.Substring(1, postText.Length - 2).Trim();
-
-                        return postText;
-                    }
-
-                    var statusCode = (int)httpResponse.StatusCode;
-                    string errorMessage = "Check for mod update";
-                    switch (statusCode)
-                    {
-                        case 403:
-                            errorMessage = "Country, region, or territory not supported.";
-                            break;
-                        case 429:
-                            errorMessage = "Please try again in a few minutes. If not work, then total AI usage for all players has passed the limit set by OpenAI. This will be reset the next day in timezone UTC+0";
-                            break;
-                        case 500:
-                            errorMessage = "Server Error: The server had an issue while processing your request. Please try again.";
-                            break;
-                        case 503:
-                            errorMessage = "Server Overload: The server is experiencing high traffic. Please try again later.";
-                            break;
-                    }
-
-                    SMonitor.Log($"Unable to generate social post content. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
-                    return string.Empty;
-                }
-            }
-            catch (Exception ex)
-            {
-                SMonitor.Log($"Unable to generate social post content for {resolvedNpcName}: {ex}", LogLevel.Trace);
-                return string.Empty;
             }
         }
 
@@ -1062,171 +950,6 @@ namespace Smartphone
             };
         }
 
-        public static async Task<Dictionary<string, string>> GenerateNpcSocialPostComments(StardewConnectPost post, IEnumerable<string> commenterNames)
-        {
-            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var generatedComments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (post == null || IsMaxedLimit)
-                return generatedComments;
-
-            string[] normalizedCommenters = (commenterNames ?? Enumerable.Empty<string>())
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(name => name.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-
-            if (normalizedCommenters.Length == 0)
-                return generatedComments;
-
-            try
-            {
-                var key = k1 + k2 + k3;
-
-                if (Config.OpenAIKey != "")
-                    key = Config.OpenAIKey;
-
-                string postAuthor = (post.AuthorName ?? string.Empty).Trim();
-                string postText = (post.Text ?? string.Empty).Trim();
-                string postTag = StardewConnectManager.GetPostTag(post).Trim();
-                var latestComments = (post.Comments ?? Enumerable.Empty<StardewConnectComment>())
-                    .Where(comment => comment != null)
-                    .TakeLast(3)
-                    .Select(comment => new
-                    {
-                        authorName = (comment!.AuthorName ?? string.Empty).Trim(),
-                        text = (comment.Text ?? string.Empty).Trim()
-                    })
-                    .Where(comment => !string.IsNullOrWhiteSpace(comment.authorName) || !string.IsNullOrWhiteSpace(comment.text))
-                    .ToArray();
-
-                string weatherText = Game1.currentLocation?.GetWeather().Weather.ToString() ?? "Unknown";
-                string seasonText = Game1.currentLocation?.GetSeason().ToString() ?? "Unknown";
-                int time = Game1.timeOfDay;
-                string timeFormatted = time switch
-                {
-                    >= 600 and < 1200 => "morning",
-                    >= 1200 and < 1700 => "afternoon",
-                    >= 1700 and < 2200 => "evening",
-                    _ => "night"
-                };
-
-                var commenterPayload = normalizedCommenters
-                    .Select(name =>
-                    {
-                        NPC? commenterNpc = Game1.getCharacterFromName(name, mustBeVillager: true);
-                        int heartLevel = 0;
-                        if (Game1.player.friendshipData.ContainsKey(name)) heartLevel = (int)Game1.player.friendshipData[name].Points / 250;
-                        string npcCharacteristicState = heartLevel <= 2 ? "very early" : heartLevel <= 4 ? "early" : heartLevel <= 6 ? "middle" : "late";
-                        return new
-                        {
-                            npc = name,
-                            // characteristic = commenterNpc != null ? GetNpcCharacteristicForPrompt(commenterNpc) : string.Empty,
-                            characteristicDevelopmentState = npcCharacteristicState
-                        };
-                    })
-                    .ToArray();
-
-                var developerMessage = $@"
-                You are roleplaying as Stardew Valley NPCs writing comments to a post from {postAuthor} or your own on StardewSocial, a social media platform.
-                Each requested NPC is leaving exactly one short in-character comment reply to the post or other commenters.
-                Use the post author, post description, the comments, tags for the post photos (if any), and each NPC's characteristic development state to decide how they react.
-                Some world context is provided for you to know more about what's going on.
-                You can tag another NPC in your comment with @Name if you want to mention them. To tag the PLAYER, use @{Game1.player.Name}.
-                Keep every comment concise, casual, and suitable for a social media reply, under 20 words.
-                Return only one valid JSON object in the format below with no markdown, no quotes, and no label.
-                Include every requested NPC exactly once.
-                Example:
-                    {{
-                    ""NPC name"": ""Comment"",
-                    }}
-                ";
-
-                var userPayload = new
-                {
-                    postDescription = postText,
-                    imageTag = postTag,
-                    recentComments = latestComments,
-                    commenters = commenterPayload,
-                    worldContext = $"Weather: {weatherText}. Time: {timeFormatted} of day {Game1.dayOfMonth} {seasonText}"
-                };
-
-                var requestBody = new
-                {
-                    model = chatModel,
-                    input = new object[]
-                    {
-                        new
-                        {
-                            role = "developer",
-                            content = new object[]
-                            {
-                                new { type = "input_text", text = developerMessage }
-                            }
-                        },
-                        new
-                        {
-                            role = "user",
-                            content = new object[]
-                            {
-                                new { type = "input_text", text = JsonConvert.SerializeObject(userPayload, Formatting.Indented) }
-                            }
-                        }
-                    },
-                    text = new { format = new { type = "json_object" }, verbosity = "low" },
-                    reasoning = chatReasoningEffort
-                };
-
-                using (var httpClient = new HttpClient())
-                {
-                    httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
-
-                    var jsonRequest = JsonConvert.SerializeObject(requestBody);
-                    var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
-                    var httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/responses", httpContent);
-                    if (httpResponse.IsSuccessStatusCode)
-                    {
-                        var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
-                        RegisterSuccessfulAiCall();
-                        JObject json = JObject.Parse(jsonResponse);
-                        SMonitor.Log(json.ToString(), LogLevel.Error);
-                        string responseText = GetResponseOutputText(json).Trim();
-
-                        if (TryParseGeneratedNpcSocialComments(responseText, normalizedCommenters, out Dictionary<string, string> parsedComments))
-                            return parsedComments;
-
-                        SMonitor.Log($"Unable to parse generated social comments for post {post.Id}: {responseText}", LogLevel.Trace);
-                        return generatedComments;
-                    }
-
-                    var statusCode = (int)httpResponse.StatusCode;
-                    string errorMessage = "Check for mod update";
-                    switch (statusCode)
-                    {
-                        case 403:
-                            errorMessage = "Country, region, or territory not supported.";
-                            break;
-                        case 429:
-                            errorMessage = "Please try again in a few minutes. If not work, then total AI usage for all players has passed the limit set by OpenAI. This will be reset the next day in timezone UTC+0";
-                            break;
-                        case 500:
-                            errorMessage = "Server Error: The server had an issue while processing your request. Please try again.";
-                            break;
-                        case 503:
-                            errorMessage = "Server Overload: The server is experiencing high traffic. Please try again later.";
-                            break;
-                    }
-
-                    SMonitor.Log($"Unable to generate social comments. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
-                    return generatedComments;
-                }
-            }
-            catch (Exception ex)
-            {
-                SMonitor.Log($"Unable to generate social comments for post {post.Id}: {ex}", LogLevel.Trace);
-                return generatedComments;
-            }
-        }
-
         public static async Task<Dictionary<string, Dictionary<string, string>>> GenerateNpcSocialPostCommentsBatch(IReadOnlyDictionary<string, IReadOnlyList<string>> commenterNamesByPostId)
         {
             var generatedCommentsByPost = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
@@ -1325,21 +1048,6 @@ namespace Smartphone
                     >= 1700 and < 2200 => "evening",
                     _ => "night"
                 };
-
-//  var developerMessage = $@"
-//                 You are roleplaying as Stardew Valley NPCs writing comments to a post from {postAuthor} or your own on StardewSocial, a social media platform.
-//                 Each requested NPC is leaving exactly one short in-character comment reply to the post or other commenters.
-//                 Use the post author, post description, the comments, tags for the post photos (if any), and each NPC's characteristic development state to decide how they react.
-//                 Some world context is provided for you to know more about what's going on.
-//                 You can tag another NPC in your comment with @Name if you want to mention them. To tag the PLAYER, use @{Game1.player.Name}.
-//                 Keep every comment concise, casual, and suitable for a social media reply, under 20 words.
-//                 Return only one valid JSON object in the format below with no markdown, no quotes, and no label.
-//                 Include every requested NPC exactly once.
-//                 Example:
-//                     {{
-//                     ""NPC name"": ""Comment"",
-//                     }}
-//                 ";
 
                 var developerMessage = $@"
                 You are roleplaying as Stardew Valley NPCs writing comments to posts on a social media platform.
@@ -1457,6 +1165,7 @@ namespace Smartphone
                     .Select(evt => evt.EventType)
                     .ToArray();
 
+                // Get list of all event only, exclude Birthday for invitation type
                 if (listOnly)
                 {
                     if (!ignoreBirthdayEvent)
@@ -1468,7 +1177,6 @@ namespace Smartphone
                     .ToArray();
                 }
 
-                // var readableEventNames = string.Join(", ", registeredEvents.Select(evt => evt.DisplayName));
                 var extraToolDescriptions = string.Join(
                     " ",
                     registeredEvents
@@ -1477,7 +1185,6 @@ namespace Smartphone
                         .Distinct(StringComparer.OrdinalIgnoreCase));
 
                 string scheduleToolDescription = "Schedule an event for NPC and PLAYER, specifying the event type, and NPC response message.";
-                // scheduleToolDescription += $" Available event types: {readableEventNames}.";
                 if (!string.IsNullOrWhiteSpace(extraToolDescriptions))
                     scheduleToolDescription += $" {extraToolDescriptions}";
 
@@ -1693,34 +1400,6 @@ namespace Smartphone
             }
 
             return normalizedText;
-        }
-
-        private static bool TryParseGeneratedNpcSocialComments(string responseText, IEnumerable<string> expectedNpcNames, out Dictionary<string, string> comments)
-        {
-            comments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            string[] normalizedNpcNames = (expectedNpcNames ?? Enumerable.Empty<string>())
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(name => name.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-
-            if (normalizedNpcNames.Length == 0)
-                return false;
-
-            string jsonPayload = ExtractJsonPayload(responseText);
-            if (string.IsNullOrWhiteSpace(jsonPayload))
-                return false;
-
-            try
-            {
-                JToken token = JToken.Parse(jsonPayload);
-                return TryPopulateGeneratedNpcSocialComments(token, normalizedNpcNames, comments);
-            }
-            catch (JsonReaderException)
-            {
-                return false;
-            }
         }
 
         private static bool TryPopulateGeneratedNpcSocialComments(JToken token, IReadOnlyCollection<string> expectedNpcNames, Dictionary<string, string> comments)
@@ -2227,5 +1906,21 @@ namespace Smartphone
                 return (-1, -1);
             }
         }
+        public static string BuildResponseConversationUserInput(NPC npc, string fallbackText)
+        {
+            if (npc == null || string.IsNullOrWhiteSpace(npc.Name))
+                return (fallbackText ?? string.Empty).Trim();
+
+            var messagesHistory = npcMessagesToday.ContainsKey(npc.Name)
+                ? npcMessagesToday[npc.Name]
+                : new List<string>();
+            string conversation = BuildConversationPreviewForAi(messagesHistory, npc.Name, maxLines: 12);
+
+            if (!string.IsNullOrWhiteSpace(conversation))
+                return conversation;
+
+            return (fallbackText ?? string.Empty).Trim();
+        }
+
     }
 }

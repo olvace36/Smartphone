@@ -125,7 +125,6 @@ namespace Smartphone
         private const string PlayerPhotoTagPrefix = "PlayerPhotoTag:";
         private const string NpcPhotoPrefix = "NpcPhoto:";
         private const string NpcPhotoTagPrefix = "NpcPhotoTag:";
-        private const string NpcPhotoCommandPrefix = "[NPC_SEND_PHOTO";
 
         private const int ChatViewportYOffset = 125;
         private const int ChatViewportHeight = 715;
@@ -2321,9 +2320,6 @@ namespace Smartphone
                 return false;
 
             string requirement = ModEntry.Config?.NpcMessageRequirement ?? ModConfig.NpcRequirementFriend;
-
-            if (string.Equals(requirement, ModConfig.NpcRequirementNoRequirement, StringComparison.OrdinalIgnoreCase))
-                return true;
 
             if (string.Equals(requirement, ModConfig.NpcRequirementMeet, StringComparison.OrdinalIgnoreCase))
                 return Game1.player.friendshipData.ContainsKey(npc.Name);

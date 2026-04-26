@@ -127,37 +127,6 @@ namespace Smartphone
                 return;
             }
 
-        }       // **** Config Handle ****
-
-        private bool CanTriggerScheduledUnlimitedEvents()
-        {
-            return iUnlimitedEventExpansionApi == null || !iUnlimitedEventExpansionApi.IsAnEventPending();
-        }
-
-        private static bool TryNormalizeEventTime(string? eventTime, out string normalizedTime)
-        {
-            normalizedTime = string.Empty;
-            if (string.IsNullOrWhiteSpace(eventTime))
-                return false;
-
-            if (!int.TryParse(eventTime.Trim(), out int parsedTime))
-                return false;
-
-            int hour = parsedTime / 100;
-            int minute = parsedTime % 100;
-
-            // Validation: 6am to 11pm (2300)
-            if (hour < 6 || hour > 23 || minute > 59)
-                return false;
-
-            // Round the minutes down to the nearest 10 (e.g., 15 becomes 10)
-            int normalizedMinute = (minute / 10) * 10;
-
-            // Reconstruct the time (e.g., 600 + 10 = 610)
-            int finalTime = (hour * 100) + normalizedMinute;
-
-            normalizedTime = $"{finalTime:0000}";
-            return true;
         }
 
         private void OnButtonPressed(object sender, ButtonPressedEventArgs e)
@@ -200,11 +169,14 @@ namespace Smartphone
 
             if (phoneMenu != null)
                 phoneMenu.ClosePhoneMenu();
-            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/RecentEventMemory", RecentEvents);
+            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/recent_event_memory", RecentEvents);
         }
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
+            npcConversationSummary = Helper.Data.ReadJsonFile<Dictionary<string, string>>($"./userdata/{Constants.SaveFolderName}/npcConversationSummary")
+                   ?? new Dictionary<string, string>();
+                   
             IndoorAreasByLocation = SHelper.Data.ReadJsonFile<Dictionary<string, Dictionary<string, AreaData>>>("assets/indoor_area.json")
                         ?? new Dictionary<string, Dictionary<string, AreaData>>();
 
@@ -221,18 +193,24 @@ namespace Smartphone
             UpdatePostInteractionLimit();
             PhoneDialogueRuntime.ClearDailyState();
 
-            string npc_characteristic = "";
-            if (!string.IsNullOrEmpty(Config.OpenAIKey))
-                npc_characteristic = Helper.ModContent.GetInternalAssetName("assets/npc_characteristics_long.json").BaseName;
-            else
-                npc_characteristic = Helper.ModContent.GetInternalAssetName("assets/npc_characteristics_short.json").BaseName;
+            string npc_characteristic_minimal = Helper.ModContent.GetInternalAssetName("assets/npc_characteristics_minimal.json").BaseName;
+            string npc_characteristic_short = Helper.ModContent.GetInternalAssetName("assets/npc_characteristics_short.json").BaseName;
+            string npc_characteristic_long = Helper.ModContent.GetInternalAssetName("assets/npc_characteristics_long.json").BaseName;
 
-
-            int maxCharacteristicLength = string.IsNullOrEmpty(Config.OpenAIKey) ? 800 : 1500;
-            NpcCharacteristics = Helper.ModContent.Load<Dictionary<string, string>>(npc_characteristic)
+            NpcCharacteristicsMinimal = Helper.ModContent.Load<Dictionary<string, string>>(npc_characteristic_minimal)
                 .ToDictionary(
                     kvp => kvp.Key,
-                    kvp => TruncateCharacteristicValue(kvp.Value, maxCharacteristicLength));
+                    kvp => TruncateCharacteristicValue(kvp.Value, 400));
+
+            NpcCharacteristicsShort = Helper.ModContent.Load<Dictionary<string, string>>(npc_characteristic_short)
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => TruncateCharacteristicValue(kvp.Value, 800));
+
+            NpcCharacteristicsLong = Helper.ModContent.Load<Dictionary<string, string>>(npc_characteristic_long)
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => TruncateCharacteristicValue(kvp.Value, 1500));
 
 
             foreach (var npc in Utility.getAllVillagers()
@@ -257,7 +235,7 @@ namespace Smartphone
             {
                 Task.Run(async () =>
                 {
-                    bool hasNewerVersion = await HasNewerVersion(modInfo);
+                    bool hasNewerVersion = await CheckForNewerVersion(modInfo);
 
                     if (hasNewerVersion)
                     {
@@ -306,7 +284,6 @@ namespace Smartphone
             PhoneDialogueRuntime.ClearDailyState();
             FarmCropNames.Clear();
             FarmTreeNames.Clear();
-            PendingUnlimitedEvents.Clear();
             ResetTriggeredUnlimitedEventTag();
 
             MessageManager.LoadData();
@@ -315,10 +292,8 @@ namespace Smartphone
             StardewConnectManager.LoadData();
             GiftMemories = Helper.Data.ReadJsonFile<Dictionary<string, GiftMemory>>($"./userdata/{Constants.SaveFolderName}/GiftMemoryData")
                    ?? new Dictionary<string, GiftMemory>();
-            RecentEvents = Helper.Data.ReadJsonFile<List<RecentEvent>>($"./userdata/{Constants.SaveFolderName}/RecentEventMemory")
+            RecentEvents = Helper.Data.ReadJsonFile<List<RecentEvent>>($"./userdata/{Constants.SaveFolderName}/recent_event_memory")
                    ?? new List<RecentEvent>();
-            npcConversationSummary = Helper.Data.ReadJsonFile<Dictionary<string, string>>($"./userdata/{Constants.SaveFolderName}/npcConversationSummary")
-                   ?? new Dictionary<string, string>();
 
 
             foreach (var terrainFeature in Game1.getFarm().terrainFeatures.Values)
@@ -423,6 +398,7 @@ namespace Smartphone
 
         private void OnTimeChange(object sender, TimeChangedEventArgs e)
         {
+
             HandleAiUsageTimeChanged(e.NewTime);
             HandleAiModelSettingTimeChanged(e.NewTime);
 
@@ -446,36 +422,6 @@ namespace Smartphone
                     "Smartphone costs $real money$ to maintain. To keep this mod available for everyone, please use it responsibly!!!^^Really really really like the mod and like to help keep the lights on? Check out the mod page for ways to contribute.^^Thanks for trying out the mod, HaPyke");
 
                 pendingInitNotification = false;
-            }
-
-            if (PendingUnlimitedEvents.Count > 0 && isPlayerFree() && e.NewTime < 2500 && CanTriggerScheduledUnlimitedEvents())
-            {
-                foreach (var scheduledEvent in PendingUnlimitedEvents.ToList())
-                {
-                    if (!int.TryParse(scheduledEvent.TimeOfDay, out int eventTime))
-                    {
-                        PendingUnlimitedEvents.Remove(scheduledEvent);
-                        continue;
-                    }
-
-                    if (e.NewTime >= eventTime)
-                    {
-                        bool eventTriggered = TryTriggerRegisteredUnlimitedEvent(scheduledEvent.EventType, scheduledEvent.NpcName);
-                        if (!eventTriggered)
-                        {
-                            SMonitor.Log(
-                                $"Unable to trigger event '{scheduledEvent.EventType}' for '{scheduledEvent.NpcName}'.",
-                                LogLevel.Warn);
-                        }
-                        else
-                        {
-                            RememberTriggeredUnlimitedEvent(scheduledEvent.EventType, scheduledEvent.NpcName);
-                        }
-
-                        PendingUnlimitedEvents.Remove(scheduledEvent);
-                        break;
-                    }
-                }
             }
         }
 
@@ -506,8 +452,6 @@ namespace Smartphone
             if (e.IsMultipleOf(6000))
                 CheckCurrentEvent();
 
-            // SMonitor.Log(StardewConnectManager.GetLastSocialVisitSnapshot().TimeOfDay.ToString(), LogLevel.Error);
-
         }
 
 
@@ -527,7 +471,7 @@ namespace Smartphone
         }
 
 
-        private static async Task<(bool IsLatest, string? LatestVersion, string? LatestUrl)> CheckLatestAsync(IModInfo modInfo)
+        private static async Task<(bool IsLatest, string? LatestVersion, string? LatestUrl)> CheckForModUpdate(IModInfo modInfo)
         {
             if (modInfo?.Manifest == null)
                 return (true, null, null);
@@ -579,12 +523,12 @@ namespace Smartphone
             return (true, null, null);
         }
 
-        public static async Task<bool> HasNewerVersion(IModInfo? modInfo)
+        public static async Task<bool> CheckForNewerVersion(IModInfo? modInfo)
         {
             if (modInfo?.Manifest == null)
                 return false;
 
-            var update = await CheckLatestAsync(modInfo);
+            var update = await CheckForModUpdate(modInfo);
             return !update.IsLatest;
         }
 

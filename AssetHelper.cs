@@ -5,7 +5,7 @@ using System.Linq;
 
 public class AssetHelper
 {
-    public const string DefaultPhoneThemeName = "Default";
+    public const string DefaultPhoneThemeName = "default";
 
     private static string currentPhoneThemeName = DefaultPhoneThemeName;
 
@@ -13,7 +13,7 @@ public class AssetHelper
 
     public static string GetPhoneThemesRootPath()
     {
-        return "PhoneTheme";
+        return "phone_themes";
     }
 
     public static string GetPhoneThemeFolderPath()
@@ -86,20 +86,20 @@ public class AssetHelper
         public const string PhoneEmpty = "phone_empty.png";
         public const string Background = "background.png";
 
-        public const string AppText = "appText.png";
-        public const string AppCamera = "appCamera.png";
-        public const string AppPhoto = "appPhoto.png";
-        public const string AppSocial = "appSocial.png";
-        public const string AppSetting = "appSetting.png";
-        public const string AppGame = "appGame.png";
-        public const string AppNotification = "appNotification.png";
+        public const string AppText = "app_text.png";
+        public const string AppCamera = "app_camera.png";
+        public const string AppPhoto = "app_photo.png";
+        public const string AppSocial = "app_social.png";
+        public const string AppSetting = "app_setting.png";
+        public const string AppGame = "app_game.png";
+        public const string AppNotification = "app_notification.png";
 
-        public const string GameDarts = "gameDarts.png";
-        public const string GameCart = "gameCart.png";
-        public const string GameCrane = "gameCrane.png";
-        public const string GamePirate = "gamePirate.png";
-        public const string GameJack = "gameJack.png";
-        public const string GameSpin = "gameSpin.png";
+        public const string GameDarts = "game_darts.png";
+        public const string GameCart = "game_cart.png";
+        public const string GameCrane = "game_crane.png";
+        public const string GamePirate = "game_pirate.png";
+        public const string GameJack = "game_jack.png";
+        public const string GameSpin = "game_spin.png";
     }
 
 }

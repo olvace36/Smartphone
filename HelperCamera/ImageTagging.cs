@@ -17,9 +17,10 @@ namespace Smartphone
         private const int MaxFruitTreeTagsPerImage = 10;
         private const int MaxAnimalTagsPerImage = 10;
         private const int MaxForageTagsPerImage = 10;
+        private const int MaxFurnitureTagsPerImage = 5;
+        private const int MaxDisplayedItemTagsPerImage = 5;
+        private const int MaxPetNamesPerTypeTag = 3;
         private const string PlayerTag = "#Player";
-        // private const string IndoorAreaMapAssetPath = "assets/indoor_area.json";
-        // private const string OutdoorAreaMapAssetPath = "assets/outdoor_area.json";
         private const int BuildingFrontTilesLeftRight = 2;
         private const int BuildingFrontTilesUp = 3;
         private const int BuildingFrontTilesDown = 1;
@@ -27,7 +28,6 @@ namespace Smartphone
         private static int LastTriggeredUnlimitedEventYear = -1;
         private static string LastTriggeredUnlimitedEventSeason = string.Empty;
         private static int LastTriggeredUnlimitedEventDay = -1;
-        // private static readonly object AreaMapLoadLock = new();
         private static readonly Point[] AreaSampleOffsets =
         {
             new Point(0, 0),
@@ -151,17 +151,244 @@ namespace Smartphone
                 BuildLocationTag(npc?.currentLocation, npc: npc)
             };
 
-            AddAreaTags(tags, captureBounds);
             AddBuildingFrontTags(tags, captureBounds);
+            AddAreaTags(tags, captureBounds);
             AddWeatherTags(tags);
             AddCurrentEventTags(tags);
             AddCharacterTags(tags, captureBounds);
             AddHeldFishTag(tags);
             AddCropAndFruitTreeTags(tags, captureBounds);
             AddForageTags(tags, captureBounds);
+            AddFurnitureAndDisplayedTags(tags, captureBounds);
+            AddPetTags(tags, captureBounds);
             AddFarmAnimalTags(tags, captureBounds);
 
             return tags;
+        }
+
+        private static void AddFurnitureAndDisplayedTags(HashSet<string> tags, Rectangle captureBounds)
+        {
+            GameLocation? currentLocation = Game1.currentLocation;
+            if (currentLocation == null)
+                return;
+
+            var furnitureNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var displayedItemNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach ((Vector2 tile, Furniture furniture) in GetLocationFurniture(currentLocation))
+            {
+                if (!IsFurnitureInsideCapture(tile, furniture, captureBounds))
+                    continue;
+
+                string furnitureName = GetFurnitureDisplayName(furniture);
+                if (!string.IsNullOrWhiteSpace(furnitureName))
+                    furnitureNames.Add(furnitureName);
+
+                if (TryGetTableDisplayedItemName(furniture, out string displayedItemName))
+                    displayedItemNames.Add(displayedItemName);
+            }
+
+            List<string> selectedFurnitureNames = SelectRandomUniqueNames(furnitureNames, MaxFurnitureTagsPerImage);
+            if (selectedFurnitureNames.Count > 0)
+                tags.Add($"#furniture: {string.Join(", ", selectedFurnitureNames)}");
+
+            List<string> selectedDisplayedItemNames = SelectRandomUniqueNames(displayedItemNames, MaxDisplayedItemTagsPerImage);
+            if (selectedDisplayedItemNames.Count > 0)
+                tags.Add($"#displaying: {string.Join(", ", selectedDisplayedItemNames)}");
+        }
+
+        private static IEnumerable<(Vector2 Tile, Furniture Furniture)> GetLocationFurniture(GameLocation location)
+        {
+            var furnitureByTile = new Dictionary<Vector2, Furniture>();
+            AppendFurnitureFromUnknownCollection(GetMemberValue(location, "furniture", "Furniture"), furnitureByTile);
+
+            return furnitureByTile.Select(pair => (pair.Key, pair.Value));
+        }
+
+        private static void AppendFurnitureFromUnknownCollection(object? collection, Dictionary<Vector2, Furniture> furnitureByTile)
+        {
+            if (collection == null)
+                return;
+
+            if (collection is IEnumerable enumerable)
+                AppendFurnitureFromEnumerable(enumerable, furnitureByTile);
+
+            if (GetMemberValue(collection, "Pairs", "pairs") is IEnumerable pairs)
+                AppendFurnitureFromEnumerable(pairs, furnitureByTile);
+
+            if (GetMemberValue(collection, "Entries", "entries") is IEnumerable entries)
+                AppendFurnitureFromEnumerable(entries, furnitureByTile);
+
+            if (GetMemberValue(collection, "Values") is IEnumerable values)
+                AppendFurnitureFromEnumerable(values, furnitureByTile);
+        }
+
+        private static void AppendFurnitureFromEnumerable(IEnumerable entries, Dictionary<Vector2, Furniture> furnitureByTile)
+        {
+            foreach (object? entry in entries)
+            {
+                if (TryExtractFurnitureEntry(entry, out Vector2 tile, out Furniture furniture))
+                    furnitureByTile[tile] = furniture;
+            }
+        }
+
+        private static bool TryExtractFurnitureEntry(object? entry, out Vector2 tile, out Furniture furniture)
+        {
+            tile = Vector2.Zero;
+            furniture = null!;
+
+            if (entry == null)
+                return false;
+
+            if (entry is Furniture directFurniture)
+            {
+                if (!TryExtractFurnitureTile(directFurniture, out tile))
+                    return false;
+
+                furniture = directFurniture;
+                return true;
+            }
+
+            object? key;
+            object? value;
+
+            if (entry is DictionaryEntry dictionaryEntry)
+            {
+                key = dictionaryEntry.Key;
+                value = dictionaryEntry.Value;
+            }
+            else
+            {
+                Type entryType = entry.GetType();
+                PropertyInfo? keyProperty = entryType.GetProperty("Key");
+                PropertyInfo? valueProperty = entryType.GetProperty("Value");
+                if (keyProperty == null || valueProperty == null)
+                    return false;
+
+                key = keyProperty.GetValue(entry);
+                value = valueProperty.GetValue(entry);
+            }
+
+            Furniture? extractedFurniture = value as Furniture;
+            if (extractedFurniture == null && value != null)
+                extractedFurniture = GetMemberValue(value, "Value") as Furniture;
+
+            if (extractedFurniture == null)
+                return false;
+
+            if (!TryExtractVector2FromUnknownValue(key, out tile)
+                && !TryExtractFurnitureTile(extractedFurniture, out tile))
+                return false;
+
+            furniture = extractedFurniture;
+            return true;
+        }
+
+        private static bool TryExtractFurnitureTile(Furniture furniture, out Vector2 tile)
+        {
+            if (TryExtractVector2FromUnknownValue(GetMemberValue(furniture, "tileLocation", "TileLocation"), out tile))
+                return true;
+
+            tile = Vector2.Zero;
+            return false;
+        }
+
+        private static bool IsFurnitureInsideCapture(Vector2 tile, Furniture furniture, Rectangle captureBounds)
+        {
+            int tilesWide = GetFurnitureTileSize(furniture, "tilesWide", "TilesWide", "getTilesWide", "GetTilesWide");
+            int tilesHigh = GetFurnitureTileSize(furniture, "tilesHigh", "TilesHigh", "getTilesHigh", "GetTilesHigh");
+
+            return IsTileAreaInsideCapture(tile, captureBounds, 0, 0, tilesWide * Game1.tileSize, tilesHigh * Game1.tileSize);
+        }
+
+        private static int GetFurnitureTileSize(Furniture furniture, string fieldName, string propertyName, string methodName, string alternateMethodName)
+        {
+            int tileSize = TryReadIntMember(furniture, fieldName, propertyName);
+            if (tileSize > 0)
+                return tileSize;
+
+            if (TryInvokeIntMethod(furniture, methodName, out int methodTileSize) && methodTileSize > 0)
+                return methodTileSize;
+
+            if (TryInvokeIntMethod(furniture, alternateMethodName, out methodTileSize) && methodTileSize > 0)
+                return methodTileSize;
+
+            return 1;
+        }
+
+        private static string GetFurnitureDisplayName(Furniture furniture)
+        {
+            string displayName = furniture.DisplayName?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(displayName))
+                return displayName;
+
+            string name = furniture.Name?.Trim() ?? string.Empty;
+            return name;
+        }
+
+        private static bool TryGetTableDisplayedItemName(Furniture furniture, out string displayedItemName)
+        {
+            displayedItemName = string.Empty;
+            if (!IsTableFurniture(furniture))
+                return false;
+
+            Item? heldItem = TryGetFurnitureHeldItem(furniture);
+            if (heldItem == null)
+                return false;
+
+            displayedItemName = heldItem.DisplayName?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(displayedItemName))
+                displayedItemName = heldItem.Name?.Trim() ?? string.Empty;
+
+            return !string.IsNullOrWhiteSpace(displayedItemName);
+        }
+
+        private static Item? TryGetFurnitureHeldItem(Furniture furniture)
+        {
+            object? rawHeldItem = GetMemberValue(furniture, "heldObject", "HeldObject");
+            if (rawHeldItem is Item directHeldItem)
+                return directHeldItem;
+
+            if (rawHeldItem == null)
+                return null;
+
+            return GetMemberValue(rawHeldItem, "Value") as Item;
+        }
+
+        private static bool IsTableFurniture(Furniture furniture)
+        {
+            if (TryInvokeBooleanMember(furniture, "isTable"))
+                return true;
+
+            if (TryInvokeBooleanMethod(furniture, "isTable", out bool isTableMethodResult) && isTableMethodResult)
+                return true;
+
+            string furnitureName = GetFurnitureDisplayName(furniture);
+            return furnitureName.Contains("table", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static List<string> SelectRandomUniqueNames(IEnumerable<string> sourceNames, int maxCount)
+        {
+            var names = sourceNames
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (names.Count == 0 || maxCount <= 0)
+                return new List<string>();
+
+            Random random = Game1.random ?? Random.Shared;
+            for (int i = names.Count - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                (names[i], names[j]) = (names[j], names[i]);
+            }
+
+            if (names.Count > maxCount)
+                names.RemoveRange(maxCount, names.Count - maxCount);
+
+            return names;
         }
 
         private static void AddAreaTags(HashSet<string> tags, Rectangle captureBounds)
@@ -204,7 +431,9 @@ namespace Smartphone
                 string areaTag = string.IsNullOrWhiteSpace(description)
                     ? $"#area: {areaName}"
                     : $"#area: {areaName}, has {description}";
-                tags.Add(areaTag);
+
+                if (!tags.Contains($"#front of {areaName}"))
+                    tags.Add(areaTag);
                 return;
             }
         }
@@ -317,8 +546,12 @@ namespace Smartphone
                     if (string.IsNullOrWhiteSpace(npc.Name) || npc.IsInvisible)
                         continue;
 
-                    if (IsCharacterInsideCapture(npc, captureBounds) && !tags.Contains($"#{npc.Name}"))
-                        tags.Add($"#{npc.Name}");
+                    // Pet/horse names are emitted by #cat/#dog/#horse pet tags.
+                    if (npc is Pet || npc is Horse)
+                        continue;
+
+                    if (IsCharacterInsideCapture(npc, captureBounds) && !tags.Contains($"#{npc.displayName}"))
+                        tags.Add($"#{npc.displayName}");
                 }
             }
         }
@@ -341,23 +574,23 @@ namespace Smartphone
         {
             if (Game1.player == null)
                 return;
-                Game1.player.shirtItem?.Value?.Name.Trim();
-                Game1.player.pantsItem?.Value?.Name.Trim();
-                Game1.player.boots?.Value?.Name.Trim();
-                Game1.player.hat?.Value?.Name.Trim(); 
+            Game1.player.shirtItem?.Value?.Name.Trim();
+            Game1.player.pantsItem?.Value?.Name.Trim();
+            Game1.player.boots?.Value?.Name.Trim();
+            Game1.player.hat?.Value?.Name.Trim();
 
-                string outfitTag = $"player outfit: ";
-                if (Game1.player.shirtItem?.Value != null && !string.IsNullOrWhiteSpace(Game1.player.shirtItem.Value.Name))
-                    outfitTag += $"shirt {Game1.player.shirtItem.Value.Name.Trim()} ";
-                if (Game1.player.pantsItem?.Value != null && !string.IsNullOrWhiteSpace(Game1.player.pantsItem.Value.Name))
-                    outfitTag += $"pants {Game1.player.pantsItem.Value.Name.Trim()} ";
-                if (Game1.player.boots?.Value != null && !string.IsNullOrWhiteSpace(Game1.player.boots.Value.Name))
-                    outfitTag += $"boots {Game1.player.boots.Value.Name.Trim()} ";
-                if (Game1.player.hat?.Value != null && !string.IsNullOrWhiteSpace(Game1.player.hat.Value.Name))
-                    outfitTag += $"hat {Game1.player.hat.Value.Name.Trim()} ";
+            string outfitTag = $"player outfit: ";
+            if (Game1.player.shirtItem?.Value != null && !string.IsNullOrWhiteSpace(Game1.player.shirtItem.Value.Name))
+                outfitTag += $"shirt {Game1.player.shirtItem.Value.Name.Trim()} ";
+            if (Game1.player.pantsItem?.Value != null && !string.IsNullOrWhiteSpace(Game1.player.pantsItem.Value.Name))
+                outfitTag += $"pants {Game1.player.pantsItem.Value.Name.Trim()} ";
+            if (Game1.player.boots?.Value != null && !string.IsNullOrWhiteSpace(Game1.player.boots.Value.Name))
+                outfitTag += $"boots {Game1.player.boots.Value.Name.Trim()} ";
+            if (Game1.player.hat?.Value != null && !string.IsNullOrWhiteSpace(Game1.player.hat.Value.Name))
+                outfitTag += $"hat {Game1.player.hat.Value.Name.Trim()} ";
 
-                if(outfitTag != "player outfit: ")
-                    tags.Add(outfitTag);
+            if (outfitTag != "player outfit: ")
+                tags.Add(outfitTag);
 
         }
 
@@ -422,14 +655,16 @@ namespace Smartphone
                 if (cropTagCount >= MaxCropTagsPerImage)
                     break;
 
-                string cropTag = $"{cropGroup.Key} {cropGroup.Value.GetGrowthState()}";
+                string growthState = cropGroup.Value.GetGrowthState();
+                bool isField = cropGroup.Value.Count >= 18;
+
+                string cropTag = isField
+                    ? $"{cropGroup.Key} field {growthState}".Trim()
+                    : $"{cropGroup.Key} {growthState}".Trim();
+
+                cropTag = string.Join(" ", cropTag.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+
                 if (tags.Add(cropTag))
-                    cropTagCount++;
-
-                if (cropTagCount >= MaxCropTagsPerImage)
-                    break;
-
-                if (cropGroup.Value.Count >= 18 && tags.Add($"{cropGroup.Key} field"))
                     cropTagCount++;
             }
 
@@ -441,14 +676,14 @@ namespace Smartphone
                 if (fruitTreeTagCount >= MaxFruitTreeTagsPerImage)
                     break;
 
-                string fruitTreeTag = fruitTreeGroup.Value.GetRegularTag(fruitTreeGroup.Key);
+                string baseTag = fruitTreeGroup.Value.GetRegularTag(fruitTreeGroup.Key);
+                bool isOrchard = fruitTreeGroup.Value.Count >= 6;
+
+                string fruitTreeTag = isOrchard
+                    ? $"Orchard {baseTag}"
+                    : baseTag;
+
                 if (tags.Add(fruitTreeTag))
-                    fruitTreeTagCount++;
-
-                if (fruitTreeTagCount >= MaxFruitTreeTagsPerImage)
-                    break;
-
-                if (fruitTreeGroup.Value.Count >= 6 && tags.Add($"{NormalizeFruitTreeOrchardName(fruitTreeGroup.Key)} orchard"))
                     fruitTreeTagCount++;
             }
         }
@@ -608,14 +843,14 @@ namespace Smartphone
             public string GetGrowthState()
             {
                 if (ReadyCount == 0)
-                    return "still_growing";
+                    return "growing";
 
                 if (GrowingCount == 0)
-                    return "ready_to_harvest";
+                    return "harvestable";
 
                 return ReadyCount >= GrowingCount
-                    ? "ready_to_harvest"
-                    : "still_growing";
+                    ? "harvestable"
+                    : "growing";
             }
         }
 
@@ -649,18 +884,106 @@ namespace Smartphone
             }
         }
 
-        private static string NormalizeFruitTreeOrchardName(string? rawTreeName)
+        private static void AddPetTags(HashSet<string> tags, Rectangle captureBounds)
         {
-            if (string.IsNullOrWhiteSpace(rawTreeName))
-                return "fruit orchard";
+            GameLocation? currentLocation = Game1.currentLocation;
+            if (currentLocation?.characters == null)
+                return;
 
-            string normalized = rawTreeName.Trim().ToLowerInvariant();
-            if (normalized.EndsWith(" tree", StringComparison.OrdinalIgnoreCase))
-                normalized = normalized[..^5].TrimEnd();
+            var catNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var dogNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var horseNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var dinoNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            return string.IsNullOrWhiteSpace(normalized)
-                ? "fruit orchard"
-                : normalized;
+            foreach (Character character in currentLocation.characters)
+            {
+                if (!IsCharacterInsideCapture(character, captureBounds))
+                    continue;
+
+                if (character is Horse horse)
+                {
+                    AddCharacterNameIfPresent(horseNames, horse);
+                    continue;
+                }
+
+                if (character is Pet pet)
+                {
+                    if (IsCatPet(pet))
+                        AddCharacterNameIfPresent(catNames, pet);
+                    else
+                        AddCharacterNameIfPresent(dogNames, pet);
+                }
+            }
+
+            foreach (FarmAnimal animal in GetFarmAnimalsForCurrentLocation())
+            {
+                if (!IsCharacterInsideCapture(animal, captureBounds))
+                    continue;
+
+                if (!IsDinosaurAnimal(animal))
+                    continue;
+
+                AddCharacterNameIfPresent(dinoNames, animal);
+            }
+
+            AddPetTypeTag(tags, "#cat", catNames);
+            AddPetTypeTag(tags, "#dog", dogNames);
+            AddPetTypeTag(tags, "#horse", horseNames);
+            AddPetTypeTag(tags, "#dino", dinoNames);
+        }
+
+        private static void AddCharacterNameIfPresent(HashSet<string> names, Character character)
+        {
+            string displayName = GetCharacterDisplayName(character);
+            if (!string.IsNullOrWhiteSpace(displayName))
+                names.Add(displayName);
+        }
+
+        private static void AddPetTypeTag(HashSet<string> tags, string tagPrefix, HashSet<string> names)
+        {
+            List<string> selectedNames = names
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .Take(MaxPetNamesPerTypeTag)
+                .ToList();
+
+            if (selectedNames.Count > 0)
+                tags.Add($"{tagPrefix}: {string.Join(", ", selectedNames)}");
+        }
+
+        private static bool IsDinosaurAnimal(FarmAnimal animal)
+        {
+            string animalType = GetFarmAnimalTypeName(animal);
+            return animalType.Contains("dinosaur", StringComparison.OrdinalIgnoreCase)
+                || animalType.Contains("dino", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsCatPet(Pet pet)
+        {
+            if (TryInvokeBooleanMember(pet, "isCat"))
+                return true;
+
+            if (TryInvokeBooleanMember(pet, "isDog"))
+                return false;
+
+            string petType = TryReadStringMember(pet, "petType", "PetType", "whichBreed", "WhichBreed")
+                .Trim();
+
+            if (petType.Contains("cat", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (petType.Contains("dog", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            return false;
+        }
+
+        private static string GetCharacterDisplayName(Character character)
+        {
+            string displayName = TryReadStringMember(character, "displayName", "DisplayName", "Name").Trim();
+            if (!string.IsNullOrWhiteSpace(displayName))
+                return displayName;
+
+            return character.Name?.Trim() ?? string.Empty;
         }
 
         private static void AddFarmAnimalTags(HashSet<string> tags, Rectangle captureBounds)
@@ -902,12 +1225,6 @@ namespace Smartphone
             if (TryGetRecentUnlimitedEventTag(out string unlimitedEventTag))
                 tags.Add(unlimitedEventTag);
 
-            foreach (NPC birthdayNpc in GetNpcsWithBirthdayToday())
-            {
-                if (!string.IsNullOrWhiteSpace(birthdayNpc.Name))
-                    tags.Add($"{birthdayNpc.Name} birthday");
-            }
-
             if (!Game1.CurrentEvent.isFestival && !TryGetRecentUnlimitedEventTag(out _))
             {
                 List<string> actorNames = GetCurrentEventActorNames(Game1.CurrentEvent);
@@ -1011,6 +1328,25 @@ namespace Smartphone
             }
 
             return false;
+        }
+
+        private static bool TryInvokeIntMethod(object source, string methodName, out int result, params object[] arguments)
+        {
+            result = -1;
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase;
+
+            Type[] argumentTypes = arguments.Select(argument => argument?.GetType() ?? typeof(object)).ToArray();
+            MethodInfo? method = source.GetType().GetMethod(methodName, flags, Type.DefaultBinder, argumentTypes, null);
+            if (method == null)
+                return false;
+
+            object? rawResult = method.Invoke(source, arguments);
+            int parsedResult = ExtractIntFromUnknownValue(rawResult);
+            if (parsedResult < 0)
+                return false;
+
+            result = parsedResult;
+            return true;
         }
 
         private static bool TryReadBooleanMemberValue(object source, out bool value, params string[] memberNames)
@@ -1264,7 +1600,7 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(locationName) && npc == null)
                 location = Game1.currentLocation;
 
-            if(npc != null && location?.Name == npc.DefaultMap)
+            if (npc != null && location?.Name == npc.DefaultMap)
                 return $"#at {npc.displayName}'s home";
 
             return $"#visiting {location?.DisplayName}";

@@ -44,7 +44,6 @@ namespace Smartphone
                 setValue: value => Config.NpcMessageRequirement = value,
                 allowedValues: new string[]
                 {
-                    ModConfig.NpcRequirementNoRequirement,
                     ModConfig.NpcRequirementMeet,
                     ModConfig.NpcRequirementFriend
                 },
@@ -75,6 +74,67 @@ namespace Smartphone
                 getValue: () => Config.OpenAIKey,
                 setValue: value => Config.OpenAIKey = value.Trim()
             );
+
+
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => "OpenAI model",
+                tooltip: () => "Require OpenAI Key provided.\nSelect the OpenAI model to use. Only effective if AI key is provided.\nNano-level model are much cheaper, but it comes with lower quality.",
+                getValue: () => Config.OpenAIModel,
+                setValue: value => Config.OpenAIModel = value,
+                allowedValues: new string[]
+                {
+                    ModConfig.OpenAIModel_51,
+                    ModConfig.OpenAIModel_5mini,
+                    ModConfig.OpenAIModel_5nano,
+                    ModConfig.OpenAIModel_54mini,
+                    ModConfig.OpenAIModel_54nano
+                },
+                formatAllowedValue: value => value
+            );
+
+            
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => "Characteristic mode",
+                tooltip: () => "Require OpenAI Key provided.\nSelect the preferred NPC characteristic quality.\nHigher quality provides more detailed characteristics but cost higher usage\n(minimal -100, long +100 extra token per NPC per use).",
+                getValue: () => Config.CharacteristicMode,
+                setValue: value => Config.CharacteristicMode = value,
+                allowedValues: new string[]
+                {
+                    ModConfig.CharacteristicModeMinimal,
+                    ModConfig.CharacteristicModeShort,
+                    ModConfig.CharacteristicModeLong
+                },
+                formatAllowedValue: value => value
+            );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
             configMenu.AddNumberOption(
                 mod: ModManifest,

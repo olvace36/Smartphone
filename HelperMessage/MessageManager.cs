@@ -31,8 +31,6 @@ namespace Smartphone
                 return false;
 
             string requirement = ModEntry.Config?.NpcMessageRequirement ?? ModConfig.NpcRequirementFriend;
-            if (string.Equals(requirement, ModConfig.NpcRequirementNoRequirement, StringComparison.OrdinalIgnoreCase))
-                return true;
 
             if (string.Equals(requirement, ModConfig.NpcRequirementMeet, StringComparison.OrdinalIgnoreCase))
                 return Game1.player.friendshipData.ContainsKey(targetNpc.Name);

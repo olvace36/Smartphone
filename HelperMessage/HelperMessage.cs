@@ -2044,9 +2044,9 @@ namespace Smartphone
                 {
                     if (!eventButton.Value.Contains(x, y))
                         continue;
-                    bool opened = ModEntry.TryOpenManualScheduleEventTimeMenu(selectedNpc ?? string.Empty, eventButton.Key);
+                    
+                    ModEntry.iUnlimitedEventExpansionApi.OpenScheduleEventTimeMenu(selectedNpc ?? string.Empty, eventButton.Key, eventButton.Key, selectedNpc ?? string.Empty);
                     ResetChatQuickActionsState();
-                    Game1.playSound(opened ? "smallSelect" : "cancel");
                     this.ClosePhoneMenu();
                     return true;
                 }
@@ -2193,7 +2193,7 @@ namespace Smartphone
                 Rectangle buttonBounds = new Rectangle(panelX + panelPadding, buttonY, panelWidth - panelPadding * 2, rowHeight);
                 chatScheduleEventButtonBounds[registeredEvent.EventType] = buttonBounds;
 
-                string label = GetTailTextToFit($"Schedule {registeredEvent.DisplayName}", Game1.smallFont, buttonBounds.Width - 16);
+                string label = GetTailTextToFit($"Schedule {registeredEvent.EventType}", Game1.smallFont, buttonBounds.Width - 16);
                 DrawChatQuickActionButton(b, buttonBounds, label, false);
                 buttonY += rowHeight + rowSpacing;
             }
