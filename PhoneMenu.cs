@@ -87,15 +87,7 @@ namespace Smartphone
         private Texture2D textureAppPhoto = Textures.AppPhoto;
         private Texture2D textureAppSocial = Textures.AppSocial;
         private Texture2D textureAppSetting = Textures.AppSetting;
-        private Texture2D textureAppGame = Textures.AppGame;
         private Texture2D textureAppNotification = Textures.AppNotification;
-
-        private Texture2D textureGameDarts = Textures.GameDarts;
-        private Texture2D textureGameJack = Textures.GameJack;
-        private Texture2D textureGameCart = Textures.GameCart;
-        private Texture2D textureGameCrane = Textures.GameCrane;
-        private Texture2D textureGamePirate = Textures.GamePirate;
-        private Texture2D textureGameSpin = Textures.GameSpin;
 
         public List<ClickableComponent> messageableNpcList;
         private int scrollOffset = 0;
@@ -179,7 +171,6 @@ namespace Smartphone
         private const string BuiltinAppSocialId = "builtin:social";
         private const string BuiltinAppSettingId = "builtin:setting";
         private const string BuiltinAppCalendarId = "builtin:calendar";
-        private const string BuiltinAppGameId = "builtin:game";
         private const string ExternalGroupAppState = "appExternalGroup";
         private const string SettingMenuMainState = "settingMain";
         private const string SettingMenuSoundState = "settingSound";
@@ -219,14 +210,6 @@ namespace Smartphone
         private readonly Dictionary<string, Rectangle> externalGroupItemClickBounds = new();
         private string currentExternalGroupId = "";
         private string currentExternalGroupName = "";
-
-
-        private ClickableTextureComponent gamePirate;
-        private ClickableTextureComponent gameJack;
-        private ClickableTextureComponent gameDarts;
-        private ClickableTextureComponent gameCart;
-        private ClickableTextureComponent gameCrane;
-        private ClickableTextureComponent gameSpin;
 
 
         private const string PlayerPhotoFolderName = "player_photo";
@@ -388,44 +371,6 @@ namespace Smartphone
                 1f);
 
 
-            // minigame app
-            gameDarts = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 140, this.yPositionOnScreen + 370, 84, 84),
-                textureGameDarts,
-                new Rectangle(0, 0, 84, 84),
-                1f);
-
-            gamePirate = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 260, this.yPositionOnScreen + 370, 84, 84),
-                textureGamePirate,
-                new Rectangle(0, 0, 84, 84),
-                1f);
-
-            gameCart = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 380, this.yPositionOnScreen + 370, 84, 84),
-                textureGameCart,
-                new Rectangle(0, 0, 84, 84),
-                1f);
-
-            gameSpin = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 140, this.yPositionOnScreen + 490, 84, 84),
-                textureGameSpin,
-                new Rectangle(0, 0, 84, 84),
-                1f);
-
-            gameJack = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 260, this.yPositionOnScreen + 490, 84, 84),
-                textureGameJack,
-                new Rectangle(0, 0, 84, 84),
-                1f);
-
-            gameCrane = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 380, this.yPositionOnScreen + 490, 84, 84),
-                textureGameCrane,
-                new Rectangle(0, 0, 84, 84),
-                1f);
-
-
             // global
             backButton = new ClickableTextureComponent(
                 new Rectangle(this.xPositionOnScreen + 40, this.yPositionOnScreen + 59, 64, 64),
@@ -452,20 +397,6 @@ namespace Smartphone
 
                 DrawHomeApps(b);
 
-            }
-            else if (currentApp == "appGame")
-            {
-                b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
-                b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
-                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
-                backButton.draw(b);
-
-                gameCart.draw(b);
-                gameDarts.draw(b);
-                gameJack.draw(b);
-                gamePirate.draw(b);
-                gameCrane.draw(b);
-                gameSpin.draw(b);
             }
             else if (currentApp == ExternalGroupAppState)
             {
@@ -1004,7 +935,7 @@ namespace Smartphone
                     HandleSocialBackNavigation();
                     return;
                 }
-                else if (new List<string> { "appCamera", "appPhoto", "appGame", "appNotification", ExternalGroupAppState }.Contains(currentApp))
+                else if (new List<string> { "appCamera", "appPhoto", "appNotification", ExternalGroupAppState }.Contains(currentApp))
                 {
                     if (currentApp == ExternalGroupAppState)
                         ClearCurrentExternalGroup();
@@ -1195,100 +1126,6 @@ namespace Smartphone
             }
             if (HandleTextNpcListOrChatClick(x, y))
             {
-                return;
-            }
-            else if (gameCart.containsPoint(x, y) && currentApp == "appGame")
-            {
-                exitThisMenu();
-                int type = Game1.dayOfMonth % 2 == 0 ? 3 : 2;
-                Game1.currentMinigame = new StardewValley.Minigames.MineCart(0, type);
-                return;
-            }
-            else if (gameJack.containsPoint(x, y) && currentApp == "appGame")
-            {
-                exitThisMenu();
-                int bet = Game1.dayOfMonth % 2 == 0 ? 1000 : 100;
-                int costToStart = 100; // Always 100G to start
-                int playerGold = Game1.player.Money;
-                int playerClubCoins = Game1.player.clubCoins;
-
-                // Check if player has enough gold and coins
-                if (playerGold < costToStart)
-                {
-                    Game1.addHUDMessage(new HUDMessage($"You don't have enough 100 Gold!", 3));
-                    return;
-                }
-                if (playerClubCoins < bet)
-                {
-                    Game1.addHUDMessage(new HUDMessage($"You don't have enough Casino Coins for today bet: {bet}!", 3));
-                    return;
-                }
-
-                // Confirmation message
-                string question = $"Play Calico Jack?\nCost to start: {costToStart}G\nToday's bet: {bet} Casino Coins";
-
-                // Show confirmation dialog
-                Game1.activeClickableMenu = new ConfirmationDialog(
-                    question,
-                    onConfirm: (Farmer who) =>
-                    {
-                        Game1.player.Money -= costToStart;
-
-                        bool highStakes = bet == 1000;
-                        Game1.activeClickableMenu = null;
-                        Game1.currentMinigame = new StardewValley.Minigames.CalicoJack(highStakes: highStakes);
-                    },
-                    onCancel: (Farmer who) =>
-                    {
-                        Game1.activeClickableMenu = null;
-                    }
-                );
-
-                return;
-            }
-            else if (gameDarts.containsPoint(x, y) && currentApp == "appGame")
-            {
-                exitThisMenu();
-                Game1.currentMinigame = new StardewValley.Minigames.Darts();
-                return;
-            }
-            else if (gamePirate.containsPoint(x, y) && currentApp == "appGame")
-            {
-                exitThisMenu();
-                Game1.currentMinigame = new StardewValley.Minigames.AbigailGame();
-                return;
-            }
-            else if (gameSpin.containsPoint(x, y) && currentApp == "appGame")
-            {
-                exitThisMenu();
-                if (Game1.player.clubCoins < 10)
-                {
-                    Game1.addHUDMessage(new HUDMessage($"You don't have enough Casino Coins!", 3));
-                    return;
-                }
-                Game1.currentMinigame = new StardewValley.Minigames.Slots();
-                return;
-            }
-            else if (gameCrane.containsPoint(x, y) && currentApp == "appGame")
-            {
-                exitThisMenu();
-                string question = $"Play Crane Game?\nCost to start: 750G";
-
-                // Show confirmation dialog
-                Game1.activeClickableMenu = new ConfirmationDialog(
-                    question,
-                    onConfirm: (Farmer who) =>
-                    {
-                        Game1.player.Money -= 750;
-
-                        Game1.activeClickableMenu = null;
-                        Game1.currentMinigame = new StardewValley.Minigames.CraneGame();
-                    },
-                    onCancel: (Farmer who) =>
-                    {
-                        Game1.activeClickableMenu = null;
-                    }
-                );
                 return;
             }
 
@@ -2120,15 +1957,7 @@ namespace Smartphone
             textureAppPhoto = Textures.AppPhoto;
             textureAppSocial = Textures.AppSocial;
             textureAppSetting = Textures.AppSetting;
-            textureAppGame = Textures.AppGame;
             textureAppNotification = Textures.AppNotification;
-
-            textureGameDarts = Textures.GameDarts;
-            textureGameJack = Textures.GameJack;
-            textureGameCart = Textures.GameCart;
-            textureGameCrane = Textures.GameCrane;
-            textureGamePirate = Textures.GamePirate;
-            textureGameSpin = Textures.GameSpin;
         }
 
         private Color GetCurrentHomeTextColor()
@@ -2467,13 +2296,6 @@ namespace Smartphone
                     DisplayName = "Calendar",
                     IconTexture = furnitureTexture,
                     SourceRect = new Rectangle(417, 698, 15, 16)
-                },
-                new HomeAppEntry
-                {
-                    Id = BuiltinAppGameId,
-                    DisplayName = "Games",
-                    IconTexture = textureAppGame,
-                    SourceRect = new Rectangle(0, 0, 84, 84)
                 }
             };
 
@@ -2675,10 +2497,6 @@ namespace Smartphone
                 case BuiltinAppCalendarId:
                     ClosePhoneMenu();
                     Game1.activeClickableMenu = new Billboard();
-                    return true;
-
-                case BuiltinAppGameId:
-                    currentApp = "appGame";
                     return true;
 
                 default:

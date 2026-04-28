@@ -91,15 +91,7 @@ public class AssetHelper
         public const string AppPhoto = "app_photo.png";
         public const string AppSocial = "app_social.png";
         public const string AppSetting = "app_setting.png";
-        public const string AppGame = "app_game.png";
         public const string AppNotification = "app_notification.png";
-
-        public const string GameDarts = "game_darts.png";
-        public const string GameCart = "game_cart.png";
-        public const string GameCrane = "game_crane.png";
-        public const string GamePirate = "game_pirate.png";
-        public const string GameJack = "game_jack.png";
-        public const string GameSpin = "game_spin.png";
     }
 
 }

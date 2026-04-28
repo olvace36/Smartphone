@@ -16,16 +16,7 @@ namespace Smartphone
         public static Texture2D AppPhoto;
         public static Texture2D AppSocial;
         public static Texture2D AppSetting;
-        public static Texture2D AppGame;
         public static Texture2D AppNotification;
-
-
-        public static Texture2D GameDarts;
-        public static Texture2D GameCrane;
-        public static Texture2D GameCart;
-        public static Texture2D GameJack;
-        public static Texture2D GamePirate;
-        public static Texture2D GameSpin;
 
         public static void LoadTextures()
         {
@@ -63,18 +54,10 @@ namespace Smartphone
             AppCamera = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppCamera));
             AppPhoto = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppPhoto));
             AppSetting = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppSetting));
-            AppGame = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppGame));
             AppNotification = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppNotification));
             AppSocial = TryLoadTextureOrFallback(
                 Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppSocial),
                 Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppNotification));
-
-            GameDarts = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameDarts));
-            GameCart = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameCart));
-            GameCrane = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameCrane));
-            GameJack = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameJack));
-            GamePirate = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GamePirate));
-            GameSpin = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.GameSpin));
         }
 
         private static Texture2D TryLoadTextureOrFallback(string primaryAssetPath, string fallbackAssetPath)

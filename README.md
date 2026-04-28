@@ -46,7 +46,7 @@ API method summary:
 
 *** APP GROUP API (MAX 9 ITEMS) ***
 
-You can also create a grouped app (like the built-in Game app).
+You can also create a grouped app (see the example AppGame mod).
 Each group can have up to 9 items.
 
 1) Register the group app icon:
