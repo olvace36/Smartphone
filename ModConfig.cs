@@ -26,7 +26,7 @@ namespace Smartphone
 
         public SButton ModKey { get; set; } = SButton.H;
         public string NpcMessageRequirement { get; set; } = NpcRequirementFriend;
-        public string PostPerDay { get; set; } = PostPerDayMedium;
+        public string PostPerDay { get; set; } = PostPerDayLow;
 
         // advance
         public string OpenAIKey { get; set; } = "";
@@ -35,8 +35,6 @@ namespace Smartphone
 
 
         public int MaxSummaryWordCount { get; set; } = 350;
-        public int MaxCharacteristicCharacterCount { get; set; } = 1300;
-
 
 
 
@@ -57,6 +55,7 @@ namespace Smartphone
         public int NpcMaxPhoto { get; set; } = 200;
         public bool ShowSocialImageTags { get; set; } = true;
         public bool ShowMessageImageTags { get; set; } = true;
+        public bool ShowAiCredit { get; set; } = true;
         public bool notifyNotification { get; set; } = true;
         public bool notifyMessage { get; set; } = true;
         public bool notifyStardewSocial { get; set; } = true;

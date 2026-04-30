@@ -55,6 +55,25 @@ namespace Smartphone
         }
     }
 
+    internal sealed class RegisteredChatQuickActionButton
+    {
+        public string OwnerModId { get; init; } = "";
+        public string ActionId { get; init; } = "";
+        public Texture2D IconTexture { get; init; } = null!;
+        public Action<string> OnClick { get; init; } = null!;
+        public bool ClosePhoneOnLaunch { get; init; }
+        public int SortOrder { get; init; }
+        public Rectangle? SourceRect { get; init; }
+        public HashSet<string>? AllowedNpcNames { get; init; }
+
+        public string CompositeId => BuildCompositeId(this.OwnerModId, this.ActionId);
+
+        public static string BuildCompositeId(string ownerModId, string actionId)
+        {
+            return $"{ownerModId.Trim()}::{actionId.Trim()}";
+        }
+    }
+
     public partial class ModEntry
     {
         private const int MaxItemsPerRegisteredPhoneAppGroup = 9;
@@ -62,6 +81,7 @@ namespace Smartphone
         private static readonly object RegisteredPhoneAppsLock = new();
         private static readonly Dictionary<string, RegisteredPhoneApp> RegisteredPhoneApps = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, Dictionary<string, RegisteredPhoneAppGroupItem>> RegisteredPhoneAppGroupItems = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, RegisteredChatQuickActionButton> RegisteredChatQuickActionButtons = new(StringComparer.OrdinalIgnoreCase);
 
         internal static bool RegisterPhoneAppInternal(
             string ownerModId,
@@ -311,6 +331,142 @@ namespace Smartphone
             return removed;
         }
 
+        internal static bool RegisterChatQuickActionButtonInternal(
+            string ownerModId,
+            string actionId,
+            Texture2D iconTexture,
+            Action<string> onClick,
+            bool closePhoneOnLaunch,
+            int sortOrder,
+            Rectangle? sourceRect,
+            List<string>? npcNames)
+        {
+            if (string.IsNullOrWhiteSpace(ownerModId)
+                || string.IsNullOrWhiteSpace(actionId)
+                || iconTexture == null
+                || onClick == null)
+            {
+                SMonitor?.Log("RegisterChatQuickActionButton failed: ownerModId, actionId, iconTexture, and onClick are required.", LogLevel.Warn);
+                return false;
+            }
+
+            if (sourceRect.HasValue && (sourceRect.Value.Width <= 0 || sourceRect.Value.Height <= 0))
+            {
+                SMonitor?.Log($"RegisterChatQuickActionButton failed for '{ownerModId}:{actionId}': sourceRect must have positive width and height.", LogLevel.Warn);
+                return false;
+            }
+
+            HashSet<string>? allowedNpcNames = null;
+            if (npcNames != null)
+            {
+                var sanitizedNames = npcNames
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Select(name => name.Trim())
+                    .ToList();
+
+                if (sanitizedNames.Count > 0)
+                    allowedNpcNames = new HashSet<string>(sanitizedNames, StringComparer.OrdinalIgnoreCase);
+            }
+
+            string key = RegisteredChatQuickActionButton.BuildCompositeId(ownerModId, actionId);
+            var action = new RegisteredChatQuickActionButton
+            {
+                OwnerModId = ownerModId.Trim(),
+                ActionId = actionId.Trim(),
+                IconTexture = iconTexture,
+                OnClick = onClick,
+                ClosePhoneOnLaunch = closePhoneOnLaunch,
+                SortOrder = sortOrder,
+                SourceRect = sourceRect,
+                AllowedNpcNames = allowedNpcNames
+            };
+
+            bool replaced;
+            lock (RegisteredPhoneAppsLock)
+            {
+                replaced = RegisteredChatQuickActionButtons.ContainsKey(key);
+                RegisteredChatQuickActionButtons[key] = action;
+            }
+
+            SMonitor?.Log(
+                replaced
+                    ? $"Updated chat quick-action button '{key}'."
+                    : $"Registered chat quick-action button '{key}'.",
+                LogLevel.Trace);
+            return true;
+        }
+
+        internal static bool UnregisterChatQuickActionButtonInternal(string ownerModId, string actionId)
+        {
+            if (string.IsNullOrWhiteSpace(ownerModId) || string.IsNullOrWhiteSpace(actionId))
+                return false;
+
+            string key = RegisteredChatQuickActionButton.BuildCompositeId(ownerModId, actionId);
+
+            bool removed;
+            lock (RegisteredPhoneAppsLock)
+                removed = RegisteredChatQuickActionButtons.Remove(key);
+
+            if (removed)
+                SMonitor?.Log($"Unregistered chat quick-action button '{key}'.", LogLevel.Trace);
+
+            return removed;
+        }
+
+        internal static List<RegisteredChatQuickActionButton> GetRegisteredChatQuickActionButtonsSnapshot(string selectedNpcName)
+        {
+            if (string.IsNullOrWhiteSpace(selectedNpcName))
+                return new List<RegisteredChatQuickActionButton>();
+
+            List<RegisteredChatQuickActionButton> snapshot;
+            lock (RegisteredPhoneAppsLock)
+            {
+                snapshot = RegisteredChatQuickActionButtons.Values
+                    .OrderBy(p => p.SortOrder)
+                    .ThenBy(p => p.CompositeId, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            var visibleActions = new List<RegisteredChatQuickActionButton>();
+            foreach (RegisteredChatQuickActionButton action in snapshot)
+            {
+                if (IsRegisteredChatQuickActionButtonVisibleForNpc(action, selectedNpcName))
+                    visibleActions.Add(action);
+            }
+
+            return visibleActions;
+        }
+
+        internal static bool TryInvokeRegisteredChatQuickActionButton(string compositeId, string selectedNpcName, PhoneMenu menu)
+        {
+            if (string.IsNullOrWhiteSpace(compositeId) || string.IsNullOrWhiteSpace(selectedNpcName))
+                return false;
+
+            RegisteredChatQuickActionButton? action;
+            lock (RegisteredPhoneAppsLock)
+                RegisteredChatQuickActionButtons.TryGetValue(compositeId, out action);
+
+            if (action == null)
+                return false;
+
+            if (!IsRegisteredChatQuickActionButtonVisibleForNpc(action, selectedNpcName))
+                return false;
+
+            try
+            {
+                if (action.ClosePhoneOnLaunch)
+                    menu.ClosePhoneMenu();
+
+                action.OnClick.Invoke(selectedNpcName);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                SMonitor?.Log($"Error while invoking chat quick-action button '{action.CompositeId}': {ex}", LogLevel.Error);
+                return false;
+            }
+        }
+
         internal static List<RegisteredPhoneApp> GetRegisteredPhoneAppsSnapshot()
         {
             List<RegisteredPhoneApp> snapshot;
@@ -463,6 +619,18 @@ namespace Smartphone
                 SMonitor?.Log($"Visibility callback failed for smartphone app-group item '{item.CompositeId}': {ex.Message}", LogLevel.Warn);
                 return false;
             }
+        }
+
+        private static bool IsRegisteredChatQuickActionButtonVisibleForNpc(RegisteredChatQuickActionButton action, string selectedNpcName)
+        {
+            if (action.AllowedNpcNames != null
+                && action.AllowedNpcNames.Count > 0
+                && !action.AllowedNpcNames.Contains(selectedNpcName))
+            {
+                return false;
+            }
+
+            return true;
         }
     }
 }

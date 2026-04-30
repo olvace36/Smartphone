@@ -232,6 +232,8 @@ namespace Smartphone
         private bool chatScheduleOptionsOpen = false;
         private Rectangle chatQuickPhotoActionBounds = Rectangle.Empty;
         private Rectangle chatQuickScheduleActionBounds = Rectangle.Empty;
+        private Rectangle chatAiCreditInfoBounds = Rectangle.Empty;
+        private readonly Dictionary<string, Rectangle> chatRegisteredQuickActionButtonBounds = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Rectangle> chatScheduleEventButtonBounds = new(StringComparer.OrdinalIgnoreCase);
         private Rectangle chatPhotoPickerPrevBounds = Rectangle.Empty;
         private Rectangle chatPhotoPickerNextBounds = Rectangle.Empty;
@@ -386,7 +388,7 @@ namespace Smartphone
 
             if (currentApp == null)
             {
-                b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
+                b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
                 b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
                 b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
                 if (phoneBackgroundImage != null)
@@ -400,7 +402,7 @@ namespace Smartphone
             }
             else if (currentApp == ExternalGroupAppState)
             {
-                b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
+                b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
                 b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
                 b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
                 backButton.draw(b);
@@ -437,8 +439,9 @@ namespace Smartphone
                     cameraSquareButtonBounds = squareDrawBounds;
                 }
 
-                int viewportWidth = Game1.viewport.Width;
-                int viewportHeight = Game1.viewport.Height;
+                Rectangle uiViewportBounds = GetUiViewportBounds();
+                int viewportWidth = uiViewportBounds.Width;
+                int viewportHeight = uiViewportBounds.Height;
 
                 int topShadeHeight = Math.Max(0, phoneRect.Top);
                 int bottomShadeY = Math.Clamp(phoneRect.Bottom, 0, viewportHeight);
@@ -523,7 +526,7 @@ namespace Smartphone
             }
             else if (currentApp == "appPhoto")
             {
-                b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
+                b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
                 b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
                 b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
                 backButton.draw(b);
@@ -620,7 +623,7 @@ namespace Smartphone
             }
             else if (currentApp == "appNotification")
             {
-                b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
+                b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
                 b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
                 b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
                 b.Draw(
@@ -1722,7 +1725,7 @@ namespace Smartphone
 
         private void DrawSettingMenu(SpriteBatch b)
         {
-            b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
+            b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
             b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
             b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
             backButton.draw(b);
@@ -2241,6 +2244,13 @@ namespace Smartphone
             return fittedTexture;
         }
 
+        private static Rectangle GetUiViewportBounds()
+        {
+            int viewportWidth = Math.Max(1, Game1.uiViewport.Width);
+            int viewportHeight = Math.Max(1, Game1.uiViewport.Height);
+            return new Rectangle(0, 0, viewportWidth, viewportHeight);
+        }
+
         private List<HomeAppEntry> BuildHomeAppsSnapshot()
         {
             var apps = new List<HomeAppEntry>
@@ -2250,7 +2260,6 @@ namespace Smartphone
                     Id = BuiltinAppNotificationId,
                     DisplayName = "Notification",
                     IconTexture = textureAppNotification,
-                    SourceRect = new Rectangle(0, 0, 84, 84),
                     GetBadgeCount = () => Math.Max(0, NotificationManager.getUnreadNotication())
                 },
                 new HomeAppEntry
@@ -2258,37 +2267,32 @@ namespace Smartphone
                     Id = BuiltinAppTextId,
                     DisplayName = "Messages",
                     IconTexture = textureAppText,
-                    SourceRect = new Rectangle(0, 0, 84, 84),
                     GetBadgeCount = () => MessageManager.unreadCounts.Count(pair => pair.Value > 0)
                 },
                 new HomeAppEntry
                 {
                     Id = BuiltinAppCameraId,
                     DisplayName = "Camera",
-                    IconTexture = textureAppCamera,
-                    SourceRect = new Rectangle(0, 0, 84, 84)
+                    IconTexture = textureAppCamera
                 },
                 new HomeAppEntry
                 {
                     Id = BuiltinAppPhotoId,
                     DisplayName = "Photos",
-                    IconTexture = textureAppPhoto,
-                    SourceRect = new Rectangle(0, 0, 84, 84)
+                    IconTexture = textureAppPhoto
                 },
                 new HomeAppEntry
                 {
                     Id = BuiltinAppSocialId,
                     DisplayName = "StardewConnect",
                     IconTexture = textureAppSocial,
-                    SourceRect = new Rectangle(0, 0, 84, 84),
                     GetBadgeCount = () => GetTotalSocialNotificationCount()
                 },
                 new HomeAppEntry
                 {
                     Id = BuiltinAppSettingId,
                     DisplayName = "Settings",
-                    IconTexture = textureAppSetting,
-                    SourceRect = new Rectangle(0, 0, 84, 84)
+                    IconTexture = textureAppSetting
                 },
                 new HomeAppEntry
                 {
@@ -2713,7 +2717,14 @@ namespace Smartphone
 
         private void DrawAppIcon(SpriteBatch b, Texture2D texture, Rectangle bounds, Rectangle? sourceRect)
         {
-            Rectangle source = sourceRect ?? new Rectangle(0, 0, texture.Width, texture.Height);
+            Rectangle textureBounds = new Rectangle(0, 0, texture.Width, texture.Height);
+            Rectangle source = sourceRect.HasValue
+                ? Rectangle.Intersect(sourceRect.Value, textureBounds)
+                : textureBounds;
+
+            if (source.Width <= 0 || source.Height <= 0)
+                source = textureBounds;
+
             float scale = Math.Min(bounds.Width / (float)source.Width, bounds.Height / (float)source.Height);
 
             int drawWidth = Math.Max(1, (int)Math.Round(source.Width * scale));

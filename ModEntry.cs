@@ -197,6 +197,32 @@ namespace Smartphone
             return ModEntry.UnregisterPhoneAppGroupItemInternal(ownerModId, groupId, itemId);
         }
 
+        public bool RegisterChatQuickActionButton(
+            string ownerModId,
+            string actionId,
+            Texture2D iconTexture,
+            Action<string> onClick,
+            bool closePhoneOnLaunch = false,
+            int sortOrder = 0,
+            Rectangle? sourceRect = null,
+            List<string>? npcNames = null)
+        {
+            return ModEntry.RegisterChatQuickActionButtonInternal(
+                ownerModId,
+                actionId,
+                iconTexture,
+                onClick,
+                closePhoneOnLaunch,
+                sortOrder,
+                sourceRect,
+                npcNames);
+        }
+
+        public bool UnregisterChatQuickActionButton(string ownerModId, string actionId)
+        {
+            return ModEntry.UnregisterChatQuickActionButtonInternal(ownerModId, actionId);
+        }
+
     }
 
     public partial class ModEntry : Mod

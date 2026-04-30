@@ -176,7 +176,7 @@ namespace Smartphone
         {
             npcConversationSummary = Helper.Data.ReadJsonFile<Dictionary<string, string>>($"./userdata/{Constants.SaveFolderName}/npcConversationSummary")
                    ?? new Dictionary<string, string>();
-                   
+
             IndoorAreasByLocation = SHelper.Data.ReadJsonFile<Dictionary<string, Dictionary<string, AreaData>>>("assets/indoor_area.json")
                         ?? new Dictionary<string, Dictionary<string, AreaData>>();
 
@@ -215,7 +215,7 @@ namespace Smartphone
 
             foreach (var npc in Utility.getAllVillagers()
             .OfType<NPC>()
-                .Where(npc => npc.CanSocialize && !npc.IsInvisible && Game1.player.friendshipData.ContainsKey(npc.Name))
+                .Where(npc => npc.CanSocialize && !npc.IsInvisible && Game1.player.friendshipData.ContainsKey(npc.Name) && !socialNpcBlacklist.Contains(npc.Name, StringComparer.OrdinalIgnoreCase))
                 .ToList())
             {
                 if (!string.IsNullOrEmpty(npc.Birthday_Season) && npc.Birthday_Day > 0)
@@ -404,7 +404,7 @@ namespace Smartphone
 
             HandleScheduledSocialPostsOnTimeChanged(e.NewTime);
 
-            if ((e.NewTime - 730) % GetSocialEngagementIntervalFromConfig() == 0 && Game1.timeOfDay >= 630 && Game1.timeOfDay <= 2400)
+            if ((e.NewTime - 750) % GetSocialEngagementIntervalFromConfig() == 0 && Game1.timeOfDay >= 630 && Game1.timeOfDay <= 2400)
                 QueueRandomNpcEngagement();
 
             if (Game1.timeOfDay < 2300)

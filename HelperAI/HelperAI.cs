@@ -210,6 +210,7 @@ namespace Smartphone
                     var requestBody = new Dictionary<string, object>
                     {
                         { "model", chatModel },
+                        { "max_output_tokens", 100},
                         { "input", new object[]
                             {
                                 new
@@ -830,6 +831,7 @@ namespace Smartphone
                     var requestBody = new
                     {
                         model = chatModel,
+                        max_output_tokens = 2048,
                         input = new object[]
                         {
                             new
@@ -1074,6 +1076,7 @@ namespace Smartphone
                 var requestBody = new
                 {
                     model = chatModel,
+                    max_output_tokens = 2048,
                     input = new object[]
                     {
                         new

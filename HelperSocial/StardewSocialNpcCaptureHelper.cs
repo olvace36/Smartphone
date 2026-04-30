@@ -193,11 +193,7 @@ namespace Smartphone
 
             try
             {
-                Texture2D portrait = SHelper.GameContent.Load<Texture2D>($"Characters\\{npcName}");
-                NPC dummyNpc = new NPC(new AnimatedSprite($"Characters\\{npcName}", 0, 16, 32), realNpc.DefaultPosition, realNpc.DefaultMap, 2, npcName, portrait, true);
-                // dummyNpc.SimpleNonVillagerNPC = true;
-                dummyNpc.EventActor = true;
-                dummyNpc.faceDirection(2);
+                NPC dummyNpc = new NPC(realNpc.Sprite, realNpc.DefaultPosition, realNpc.DefaultMap, 2, npcName, realNpc.Portrait, true);
                 return dummyNpc;
             }
             catch (Exception ex)
@@ -296,7 +292,7 @@ namespace Smartphone
                 return additionalDummyNpcs;
 
             List<string> randomCandidates = Utility.getAllVillagers()
-                .Where(npc => npc.CanSocialize && !npc.IsInvisible && Game1.player.friendshipData.ContainsKey(npc.Name))
+                .Where(npc => npc.CanSocialize && !npc.IsInvisible && Game1.player.friendshipData.ContainsKey(npc.Name) && !socialNpcBlacklist.Contains(npc.Name, StringComparer.OrdinalIgnoreCase))
                 .Select(npc => npc.Name)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Where(name => !selectedNpcNames.Contains(name))
@@ -486,7 +482,7 @@ namespace Smartphone
 
             if (spawnedDummies.Count == 1)
             {
-                mainDummyNpc.faceDirection(2);
+                mainDummyNpc.faceDirection(Game1.random.Next(4));
                 return;
             }
 

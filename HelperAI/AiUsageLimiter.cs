@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using StardewModdingAPI;
+using StardewValley;
 
 namespace Smartphone
 {
@@ -13,8 +14,10 @@ namespace Smartphone
             public string QueueKey { get; init; } = string.Empty;
         }
 
-        private const int MaxAiCallsPerDay = 40;
-        public static int AiCallsRemainingToday = MaxAiCallsPerDay;
+        private const int AiCreditRemaining = 4;
+        public const int DailyAiLimit = 10;
+        public static int AiCallsRemainingToday = AiCreditRemaining;
+        public static int DailyAiUsageRemainingToday = DailyAiLimit;
         public static int SuccessfulAiCallsToday = 0;
 
         private static readonly object aiQuotaLock = new();
@@ -32,9 +35,43 @@ namespace Smartphone
         {
             lock (aiQuotaLock)
             {
-                AiCallsRemainingToday = MaxAiCallsPerDay;
+                AiCallsRemainingToday = AiCreditRemaining;
+                DailyAiUsageRemainingToday = DailyAiLimit;
                 SuccessfulAiCallsToday = 0;
             }
+        }
+
+        public static (int DailyUsageLeft, int DailyUsageMax, int CreditsLeft, int CreditsMax) GetAiUsageSnapshot()
+        {
+            lock (aiQuotaLock)
+            {
+                return (
+                    DailyAiUsageRemainingToday,
+                    DailyAiLimit,
+                    AiCallsRemainingToday,
+                    AiCreditRemaining);
+            }
+        }
+
+        public static bool TryGetNextAiCreditRefillTime(int currentTime, out int nextRefillTime)
+        {
+            nextRefillTime = 0;
+            if (!IsAiUsageLimitEnabled())
+                return false;
+
+            lock (aiQuotaLock)
+            {
+                if (DailyAiUsageRemainingToday <= 0 || AiCallsRemainingToday >= AiCreditRemaining)
+                    return false;
+            }
+
+            int hour = NormalizeTimeToHour(currentTime);
+            int nextRefillHour = ((hour / 2) + 1) * 2;
+            if (nextRefillHour > 26)
+                return false;
+
+            nextRefillTime = nextRefillHour * 100;
+            return true;
         }
 
         public static void HandleAiUsageTimeChanged(int newTime)
@@ -44,6 +81,7 @@ namespace Smartphone
                 AiCallsRemainingToday = 0;
                 return;
             }
+
             if (!IsAiUsageLimitEnabled())
             {
                 TriggerQueuedAiActions();
@@ -56,7 +94,7 @@ namespace Smartphone
             bool refilled = false;
             lock (aiQuotaLock)
             {
-                if (AiCallsRemainingToday < MaxAiCallsPerDay)
+                if (DailyAiUsageRemainingToday > 0 && AiCallsRemainingToday < AiCreditRemaining)
                 {
                     AiCallsRemainingToday++;
                     refilled = true;
@@ -77,10 +115,14 @@ namespace Smartphone
 
             lock (aiQuotaLock)
             {
+                if (DailyAiUsageRemainingToday <= 0)
+                    return false;
+
                 if (AiCallsRemainingToday <= 0)
                     return false;
 
                 AiCallsRemainingToday--;
+                DailyAiUsageRemainingToday--;
                 return true;
             }
         }
@@ -211,7 +253,7 @@ namespace Smartphone
                 if (highPriorityQueuedAiActions.Count == 0 && normalPriorityQueuedAiActions.Count == 0)
                     return false;
 
-                if (limitEnabled && AiCallsRemainingToday <= 0)
+                if (limitEnabled && (AiCallsRemainingToday <= 0 || DailyAiUsageRemainingToday <= 0))
                     return false;
 
                 QueuedAiAction nextAction = highPriorityQueuedAiActions.Count > 0
@@ -222,7 +264,10 @@ namespace Smartphone
                     queuedAiActionKeys.Remove(nextAction.QueueKey);
 
                 if (limitEnabled)
+                {
                     AiCallsRemainingToday--;
+                    DailyAiUsageRemainingToday--;
+                }
 
                 action = nextAction.Action;
                 return true;

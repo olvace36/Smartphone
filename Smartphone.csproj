@@ -14,10 +14,10 @@
 
 	</ItemGroup>
 	<ItemGroup>
-		<None Update="assets\*">
+		<None Update="assets\**">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
-		<None Update="phone_themes\*\*">
+		<None Update="phone_themes\**">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
 		<None Update="README.txt">

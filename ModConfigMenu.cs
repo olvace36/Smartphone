@@ -7,14 +7,49 @@ namespace Smartphone
     public partial class ModEntry
     {
 
-        public static void ConfigMenu (IContentPatcherAPI api, IManifest ModManifest, IModHelper Helper)
+        public static void ConfigMenu(IContentPatcherAPI api, IManifest ModManifest, IModHelper Helper)
         {
-            
-
             // get Generic Mod Config Menu's API (if it's installed)
             var configMenu = Helper.ModRegistry.GetApi<Smartphone.Data.IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
             if (configMenu is null)
                 return;
+
+            string[] npcRequirementValues =
+            {
+                ModConfig.NpcRequirementMeet,
+                ModConfig.NpcRequirementFriend
+            };
+
+            string[] postPerDayValues =
+            {
+                ModConfig.PostPerDayHigh,
+                ModConfig.PostPerDayMedium,
+                ModConfig.PostPerDayLow
+            };
+
+            string[] openAiModelValues =
+            {
+                ModConfig.OpenAIModel_51,
+                ModConfig.OpenAIModel_5mini,
+                ModConfig.OpenAIModel_5nano,
+                ModConfig.OpenAIModel_54mini,
+                ModConfig.OpenAIModel_54nano
+            };
+
+            string[] characteristicValues =
+            {
+                ModConfig.CharacteristicModeMinimal,
+                ModConfig.CharacteristicModeShort,
+                ModConfig.CharacteristicModeLong
+            };
+
+            static string EnsureAllowedValue(string? value, string fallback, string[] allowedValues)
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                    return fallback;
+
+                return Array.IndexOf(allowedValues, value) >= 0 ? value : fallback;
+            }
 
             // register mod
             configMenu.Register(
@@ -23,147 +58,168 @@ namespace Smartphone
                 save: () => Helper.WriteConfig(Config)
             );
 
+            // main page: options most players change often
+            configMenu.AddSectionTitle(mod: ModManifest, text: () => "Quick Setup");
 
             configMenu.AddKeybind(
                 mod: ModManifest,
-                name: () => "Mod Key",
+                name: () => "Open phone key",
+                tooltip: () => "The key used to open your in-game smartphone.",
                 getValue: () => Config.ModKey,
                 setValue: value => Config.ModKey = value
             );
 
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => "Who can message you",
+                tooltip: () => "Meet: NPC must be talked to at least once.\nFriend: NPC must have at least 1 heart.",
+                getValue: () => EnsureAllowedValue(Config.NpcMessageRequirement, ModConfig.NpcRequirementFriend, npcRequirementValues),
+                setValue: value => Config.NpcMessageRequirement = value,
+                allowedValues: npcRequirementValues,
+                formatAllowedValue: value => value switch
+                {
+                    ModConfig.NpcRequirementMeet => "Meet",
+                    ModConfig.NpcRequirementFriend => "Friend (1+ heart)",
+                    _ => value
+                }
+            );
+
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Disable daily message",
+                tooltip: () => "If enabled, the `Good morning...` option will be disabled.\nYou should keep this disabled which will help the AI understand what is lore of the character.",
+                getValue: () => Config.DisableDailyMessage,
+                setValue: value => Config.DisableDailyMessage = value
+            );
+
+            configMenu.AddPageLink(
+                mod: ModManifest,
+                pageId: "ai-settings",
+                text: () => "AI Settings",
+                tooltip: () => "API key, model choice, and limits setting."
+            );
+
+            configMenu.AddPageLink(
+                mod: ModManifest,
+                pageId: "storage-limits",
+                text: () => "Storage and Limits",
+                tooltip: () => "How many messages, posts, and photos are kept on your computer."
+            );
+
+            configMenu.AddPageLink(
+                mod: ModManifest,
+                pageId: "display",
+                text: () => "Display",
+                tooltip: () => "Image tag visibility options."
+            );
+
+            configMenu.AddPageLink(
+                mod: ModManifest,
+                pageId: "notifications",
+                text: () => "HUD Notifications",
+                tooltip: () => "Toggle popup notifications for each app."
+            );
+
+            // AI Settings page
+            configMenu.AddPage(mod: ModManifest, pageId: "ai-settings", pageTitle: () => "AI Settings");
             configMenu.AddParagraph(
                 mod: ModManifest,
-                text: () => "Controls which villagers appear in the Messages app."
+                text: () => "These settings are only effective when an OpenAI API key is provided."
             );
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "NPC message requirement",
-                tooltip: () => "No requirement: see everyone from the start.\nMeet: only NPCs you've already spoken to.\nFriend: requires 1+ hearts.",
-                getValue: () => Config.NpcMessageRequirement,
-                setValue: value => Config.NpcMessageRequirement = value,
-                allowedValues: new string[]
-                {
-                    ModConfig.NpcRequirementMeet,
-                    ModConfig.NpcRequirementFriend
-                },
-                formatAllowedValue: value => value
-            );
-
-            configMenu.AddTextOption(
-                mod: ModManifest,
-                name: () => "Post per day",
-                tooltip: () => "High: more frequent social updates (posts every 3h, engagement every 2h).\nMedium: balanced frequency (posts every 4h, engagement every 3h).\nLow: fewer updates (posts every 6h, engagement every 4h).",
-                getValue: () => Config.PostPerDay,
-                setValue: value => Config.PostPerDay = value,
-                allowedValues: new string[]
-                {
-                    ModConfig.PostPerDayHigh,
-                    ModConfig.PostPerDayMedium,
-                    ModConfig.PostPerDayLow
-                },
-                formatAllowedValue: value => value
-            );
-
-            // advance settings
-            configMenu.AddSectionTitle(mod: ModManifest, () => "Advance Settings");
-            configMenu.AddTextOption(
-                mod: ModManifest,
-                name: () => "OpenAI API Key",
-                tooltip: () => "You can provide your own key to avoid usage limit. Cost are expected to be very low (1 to 8 cents per game day depending on your settings).\nYou can get your API key from https://platform.openai.com/account/api-keys.\nRestart your game after changing the key. ",
+                name: () => "OpenAI API key",
+                tooltip: () => "Use your own key to remove shared usage limits.\nGet one from https://platform.openai.com/account/api-keys.\nRestart the game after changing this value.",
                 getValue: () => Config.OpenAIKey,
-                setValue: value => Config.OpenAIKey = value.Trim()
+                setValue: value => Config.OpenAIKey = (value ?? string.Empty).Trim()
             );
 
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Show AI credit button",
+                tooltip: () => "Shows an AI credit info button in Text chat quick actions when shared AI mode is active.",
+                getValue: () => Config.ShowAiCredit,
+                setValue: value => Config.ShowAiCredit = value
+            );
 
             configMenu.AddTextOption(
                 mod: ModManifest,
                 name: () => "OpenAI model",
-                tooltip: () => "Require OpenAI Key provided.\nSelect the OpenAI model to use. Only effective if AI key is provided.\nNano-level model are much cheaper, but it comes with lower quality.",
-                getValue: () => Config.OpenAIModel,
+                tooltip: () => "Chooses the model used for AI replies and summaries.",
+                getValue: () => EnsureAllowedValue(Config.OpenAIModel, ModConfig.OpenAIModel_54mini, openAiModelValues),
                 setValue: value => Config.OpenAIModel = value,
-                allowedValues: new string[]
+                allowedValues: openAiModelValues,
+                formatAllowedValue: value => value switch
                 {
-                    ModConfig.OpenAIModel_51,
-                    ModConfig.OpenAIModel_5mini,
-                    ModConfig.OpenAIModel_5nano,
-                    ModConfig.OpenAIModel_54mini,
-                    ModConfig.OpenAIModel_54nano
-                },
-                formatAllowedValue: value => value
+                    ModConfig.OpenAIModel_54mini => "gpt-5.4-mini (recommended)",
+                    ModConfig.OpenAIModel_54nano => "gpt-5.4-nano",
+                    ModConfig.OpenAIModel_51 => "gpt-5.1",
+                    ModConfig.OpenAIModel_5mini => "gpt-5-mini (2nd recommended)",
+                    ModConfig.OpenAIModel_5nano => "gpt-5-nano (cheapest)",
+                    _ => value
+                }
             );
 
-            
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "Characteristic mode",
-                tooltip: () => "Require OpenAI Key provided.\nSelect the preferred NPC characteristic quality.\nHigher quality provides more detailed characteristics but cost higher usage\n(minimal -100, long +100 extra token per NPC per use).",
-                getValue: () => Config.CharacteristicMode,
-                setValue: value => Config.CharacteristicMode = value,
-                allowedValues: new string[]
+                name: () => "StardewConnect activity",
+                tooltip: () => "Controls how often StardewConnect posts and engagement are generated.",
+                getValue: () => EnsureAllowedValue(Config.PostPerDay, ModConfig.PostPerDayMedium, postPerDayValues),
+                setValue: value => Config.PostPerDay = value,
+                allowedValues: postPerDayValues,
+                formatAllowedValue: value => value switch
                 {
-                    ModConfig.CharacteristicModeMinimal,
-                    ModConfig.CharacteristicModeShort,
-                    ModConfig.CharacteristicModeLong
-                },
-                formatAllowedValue: value => value
+                    ModConfig.PostPerDayHigh => "High (more updates)",
+                    ModConfig.PostPerDayMedium => "Medium (recommended)",
+                    ModConfig.PostPerDayLow => "Low (default, fewer updates)",
+                    _ => value
+                }
             );
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => "NPC characteristic detail",
+                tooltip: () => "NPC characteristic give the AI a background for each NPC during the chat and the post generation.\nHigher detail improves quality but uses more tokens per NPC.",
+                getValue: () => EnsureAllowedValue(Config.CharacteristicMode, ModConfig.CharacteristicModeShort, characteristicValues),
+                setValue: value => Config.CharacteristicMode = value,
+                allowedValues: characteristicValues,
+                formatAllowedValue: value => value switch
+                {
+                    ModConfig.CharacteristicModeMinimal => "Minimal (lowest cost)",
+                    ModConfig.CharacteristicModeShort => "Short (recommended)",
+                    ModConfig.CharacteristicModeLong => "Long (highest detail)",
+                    _ => value
+                }
+            );
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "Max summary word count",
-                tooltip: () => "Limit the maximum word count for the conversation summary generated. Only effective if you have provided OpenAI API key.",
+                name: () => "Summary max words",
+                tooltip: () => "Conversation with NPCs are summarized daily and will be used with the AI so it knows what the previous conversation is about.\nHigher limit means AI will `remember` more details but will use more tokens.\nMemory saved at \"Userdata\\summary\".",
                 getValue: () => Config.MaxSummaryWordCount,
-                setValue: value => Config.MaxSummaryWordCount = value
+                setValue: value => Config.MaxSummaryWordCount = Math.Clamp(value, 0, 5000),
+                min: 0,
+                max: 5000
             );
+
+            // storage and limits page
+            configMenu.AddPage(mod: ModManifest, pageId: "storage-limits", pageTitle: () => "Storage and Limits");
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "Max characteristic character count",
-                tooltip: () => "Max character count for each NPC characteristic. Only effective if you have provided OpenAI API key.",
-                getValue: () => Config.MaxCharacteristicCharacterCount,
-                setValue: value => Config.MaxCharacteristicCharacterCount = value
-            );
-
-            configMenu.AddNumberOption(
-                mod: ModManifest,
-                name: () => "StardewConnect max posts",
-                tooltip: () => "Maximum number of StardewConnect posts to keep when the day saves. Older posts are removed first.",
+                name: () => "StardewConnect posts to keep",
+                tooltip: () => "Older posts are removed first when this limit is exceeded.",
                 getValue: () => Config.MaxStardewConnectPosts,
-                setValue: value => Config.MaxStardewConnectPosts = Math.Clamp(value, 10, 500)
+                setValue: value => Config.MaxStardewConnectPosts = Math.Clamp(value, 10, 500),
+                min: 10,
+                max: 500
             );
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "Player photo max",
-                tooltip: () => "Maximum number of player photos to keep. Older photos are deleted automatically when the limit is exceeded.",
+                name: () => "Player photos to keep",
+                tooltip: () => "Older player photos are deleted first.",
                 getValue: () => Config.PlayerMaxPhoto,
                 setValue: value => Config.PlayerMaxPhoto = Math.Clamp(value, 1, 500),
                 min: 1,
@@ -172,8 +228,8 @@ namespace Smartphone
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "NPC photo max",
-                tooltip: () => "Maximum number of NPC photos to keep. Older photos are deleted automatically when the limit is exceeded.",
+                name: () => "NPC photos to keep",
+                tooltip: () => "Older NPC photos are deleted first.",
                 getValue: () => Config.NpcMaxPhoto,
                 setValue: value => Config.NpcMaxPhoto = Math.Clamp(value, 1, 500),
                 min: 1,
@@ -182,16 +238,21 @@ namespace Smartphone
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "Messages max per NPC",
-                tooltip: () => "Maximum number of stored messages per NPC in the Text app. Older messages are removed first.",
+                name: () => "Messages per NPC",
+                tooltip: () => "Older text messages are removed first when this limit is exceeded.",
                 getValue: () => Config.MaxMessage,
-                setValue: value => Config.MaxMessage = Math.Clamp(value, 50, 5000)
+                setValue: value => Config.MaxMessage = Math.Clamp(value, 50, 5000),
+                min: 50,
+                max: 5000
             );
+
+            // display page
+            configMenu.AddPage(mod: ModManifest, pageId: "display", pageTitle: () => "Display");
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
                 name: () => "Show StardewConnect image tags",
-                tooltip: () => "Show the saved image tag text above attached images in StardewConnect posts.",
+                tooltip: () => "Shows saved image tag text above attached images in StardewConnect posts.",
                 getValue: () => Config.ShowSocialImageTags,
                 setValue: value => Config.ShowSocialImageTags = value
             );
@@ -199,16 +260,17 @@ namespace Smartphone
             configMenu.AddBoolOption(
                 mod: ModManifest,
                 name: () => "Show message image tags",
-                tooltip: () => "Show attached message image tags when hovering photo bubbles in Text app.",
+                tooltip: () => "Shows attached image tags when hovering photo bubbles in the Text app.",
                 getValue: () => Config.ShowMessageImageTags,
                 setValue: value => Config.ShowMessageImageTags = value
             );
 
-            configMenu.AddSectionTitle(mod: ModManifest, () => "HUD Notifications");
+            // notification page
+            configMenu.AddPage(mod: ModManifest, pageId: "notifications", pageTitle: () => "HUD Notifications");
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Notify notification app",
+                name: () => "Notification app popups",
                 tooltip: () => "Show HUD popups for Notification app updates.",
                 getValue: () => Config.notifyNotification,
                 setValue: value => Config.notifyNotification = value
@@ -216,26 +278,18 @@ namespace Smartphone
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Notify messages",
-                tooltip: () => "Show HUD popups for new NPC messages.",
+                name: () => "Message popups",
+                tooltip: () => "Show HUD popups for new NPC text messages.",
                 getValue: () => Config.notifyMessage,
                 setValue: value => Config.notifyMessage = value
             );
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Notify StardewConnect",
-                tooltip: () => "Show HUD popups for new StardewConnect social notifications.",
+                name: () => "StardewConnect popups",
+                tooltip: () => "Show HUD popups for new StardewConnect activity.",
                 getValue: () => Config.notifyStardewSocial,
                 setValue: value => Config.notifyStardewSocial = value
-            );
-
-            configMenu.AddBoolOption(
-                mod: ModManifest,
-                name: () => "Disable Daily Message",
-                tooltip: () => "Disable the daily message feature.",
-                getValue: () => Config.DisableDailyMessage,
-                setValue: value => Config.DisableDailyMessage = value
             );
         }
 

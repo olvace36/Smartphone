@@ -11,7 +11,14 @@ namespace Smartphone
 {
     public partial class ModEntry
     {
-        // Social simulation tuning (edit these values to tweak behavior).
+        private static List<string> socialNpcBlacklist = new List<string>
+        {
+            "Krobus",
+            "Dwarf",
+            "Gunther",
+            "Birdie",
+            "Bouncer",
+        };
         private static int SocialActionMaxDelayMilliseconds = 1000; // 10s = 10000ms
         private static int SocialPostMaxDelayMilliseconds = 3000; // 30s = 30000ms
         private static double SocialRepeatCommentChance = 0.30;
@@ -21,7 +28,7 @@ namespace Smartphone
 
         private sealed class DailySocialPostPlan
         {
-            public string PlanId { get; set; } = Guid.NewGuid().ToString("N").Substring(0, 8);
+            public string PlanId { get; set; } = StardewConnectManager.CreateShortAlphanumericId();
             public string AuthorName { get; set; } = string.Empty;
             public int ScheduledTime { get; set; } = 900;
             public bool IncludeText { get; set; }
@@ -83,7 +90,7 @@ namespace Smartphone
         {
             List<NPC> candidates = Utility.getAllVillagers()
                 .OfType<NPC>()
-                .Where(npc => npc.CanSocialize && Game1.player.friendshipData.ContainsKey(npc.Name))
+                .Where(npc => npc.CanSocialize && Game1.player.friendshipData.ContainsKey(npc.Name) && !socialNpcBlacklist.Contains(npc.Name, StringComparer.OrdinalIgnoreCase))
                 .ToList();
 
             if (candidates.Count == 0)
@@ -122,10 +129,13 @@ namespace Smartphone
 
         private static int GetSocialEngagementIntervalFromConfig()
         {
+            if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
+                return 750; 
+
             return Config?.PostPerDay switch
             {
                 ModConfig.PostPerDayHigh => 500,
-                ModConfig.PostPerDayLow => 800,
+                ModConfig.PostPerDayLow => 750,
                 _ => 600
             };
         }
@@ -159,7 +169,7 @@ namespace Smartphone
 
                 DailyScheduledSocialPosts.Add(new DailySocialPostPlan
                 {
-                    PlanId = Guid.NewGuid().ToString("N").Substring(0, 8),
+                    PlanId = StardewConnectManager.CreateShortAlphanumericId(),
                     AuthorName = selectedNpc.Name,
                     ScheduledTime = scheduledTime,
                     IncludeText = includeText,
@@ -251,6 +261,9 @@ namespace Smartphone
 
         private static (int MinGapMinutes, int MaxGapMinutes, int MinPosts, int MaxPosts) GetSocialPostSchedulingConfig()
         {
+            if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
+                return (330, 420, 1, 3);
+
             return Config?.PostPerDay switch
             {
                 ModConfig.PostPerDayHigh => (210, 300, 2, 4),
@@ -545,7 +558,7 @@ namespace Smartphone
 
             List<NPC> candidates = Utility.getAllVillagers()
                 .OfType<NPC>()
-                .Where(npc => npc.CanSocialize && Game1.player.friendshipData.ContainsKey(npc.Name))
+                .Where(npc => npc.CanSocialize && Game1.player.friendshipData.ContainsKey(npc.Name) && !socialNpcBlacklist.Contains(npc.Name, StringComparer.OrdinalIgnoreCase))
                 .Where(npc => IsEligibleNpcCommentAuthorForPost(post, npc))
                 .Where(npc => excludedNpcNames == null || !excludedNpcNames.Contains(npc.Name))
                 .ToList();
@@ -577,7 +590,7 @@ namespace Smartphone
 
             List<NPC> candidates = Utility.getAllVillagers()
                 .OfType<NPC>()
-                .Where(npc => npc.CanSocialize && Game1.player.friendshipData.ContainsKey(npc.Name))
+                .Where(npc => npc.CanSocialize && Game1.player.friendshipData.ContainsKey(npc.Name) && !socialNpcBlacklist.Contains(npc.Name, StringComparer.OrdinalIgnoreCase))
                 .Where(npc => !string.Equals(npc.Name, post.AuthorName, StringComparison.OrdinalIgnoreCase))
                 .Where(npc => !excludeAlreadyLiked || !StardewConnectManager.IsPostLikedBy(post, npc.Name))
                 .ToList();
@@ -618,13 +631,11 @@ namespace Smartphone
                 && !string.Equals(comment.AuthorName, postAuthorName, StringComparison.OrdinalIgnoreCase));
         }
 
-        private static NPC? GetRandomVillagerNpc(string excludedNpcName = "")
+        private static NPC? GetRandomVillagerNpc()
         {
             List<NPC> candidates = Utility.getAllVillagers()
                 .OfType<NPC>()
-                .Where(npc => npc.CanSocialize && Game1.player.friendshipData.ContainsKey(npc.Name))
-                .Where(npc => string.IsNullOrWhiteSpace(excludedNpcName)
-                    || !string.Equals(npc.Name, excludedNpcName, StringComparison.OrdinalIgnoreCase))
+                .Where(npc => npc.CanSocialize && Game1.player.friendshipData.ContainsKey(npc.Name) && !socialNpcBlacklist.Contains(npc.Name, StringComparer.OrdinalIgnoreCase))
                 .ToList();
 
             if (candidates.Count == 0)

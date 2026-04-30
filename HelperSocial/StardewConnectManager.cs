@@ -79,6 +79,8 @@ namespace Smartphone
     public static class StardewConnectManager
     {
         private static readonly StringComparer NameComparer = StringComparer.OrdinalIgnoreCase;
+        private const string ShortIdCharacters = "abcdefghijklmnopqrstuvwxyz0123456789";
+        private const int ShortIdLength = 8;
         private const int MaxAttachmentsPerPost = 3;
         private const int DaysPerSeason = 28;
         private const int SeasonsPerYear = 4;
@@ -96,6 +98,17 @@ namespace Smartphone
         public static List<StardewConnectPost> GetPostsSnapshot()
         {
             return Posts.ToList();
+        }
+
+        public static string CreateShortAlphanumericId(int length = ShortIdLength)
+        {
+            int safeLength = Math.Max(1, length);
+            var buffer = new char[safeLength];
+
+            for (int i = 0; i < safeLength; i++)
+                buffer[i] = ShortIdCharacters[Random.Shared.Next(ShortIdCharacters.Length)];
+
+            return new string(buffer);
         }
 
         public static StardewConnectVisitSnapshot GetLastSocialVisitSnapshot()
@@ -386,7 +399,7 @@ namespace Smartphone
 
             var post = new StardewConnectPost
             {
-                Id = Guid.NewGuid().ToString("N").Substring(0, 8),
+                Id = CreateShortAlphanumericId(),
                 AuthorName = resolvedAuthorName,
                 AuthorIsPlayer = authorIsPlayer,
                 Text = text,
@@ -503,7 +516,7 @@ namespace Smartphone
 
             var comment = new StardewConnectComment
             {
-                Id = Guid.NewGuid().ToString("N").Substring(0, 8),
+                Id = CreateShortAlphanumericId(),
                 AuthorName = resolvedAuthorName,
                 AuthorIsPlayer = authorIsPlayer,
                 Text = text,
@@ -777,7 +790,7 @@ namespace Smartphone
         {
             foreach (StardewConnectPost post in Posts)
             {
-                post.Id = string.IsNullOrWhiteSpace(post.Id) ? Guid.NewGuid().ToString("N").Substring(0, 8) : post.Id;
+                post.Id = string.IsNullOrWhiteSpace(post.Id) ? CreateShortAlphanumericId() : post.Id;
                 post.AuthorName = post.AuthorName ?? "";
                 post.Text = post.Text ?? "";
                 post.AttachedImageFile = post.AttachedImageFile ?? "";
@@ -811,7 +824,7 @@ namespace Smartphone
 
                 foreach (StardewConnectComment comment in post.Comments)
                 {
-                    comment.Id = string.IsNullOrWhiteSpace(comment.Id) ? Guid.NewGuid().ToString("N").Substring(0, 8) : comment.Id;
+                    comment.Id = string.IsNullOrWhiteSpace(comment.Id) ? CreateShortAlphanumericId() : comment.Id;
                     comment.AuthorName = comment.AuthorName ?? "";
                     comment.Text = comment.Text ?? "";
                     comment.Season = string.IsNullOrWhiteSpace(comment.Season) ? "spring" : comment.Season;
@@ -951,19 +964,6 @@ namespace Smartphone
                 return postDayIndex >= endDayIndex && postDayIndex <= startDayIndex;
             }).ToList();
         }
-        // {
-        //     if (Posts.Count == 0 || maxDays < 0)
-        //         return new List<StardewConnectPost>();
-
-        //     int currentDayIndex = GetAbsoluteDayIndex(Game1.currentSeason, Game1.dayOfMonth, Game1.year);
-
-        //     return Posts.Where(post =>
-        //     {
-        //         int postDayIndex = GetAbsoluteDayIndex(post.Season, post.Day, post.Year);
-        //         int dayDelta = currentDayIndex - postDayIndex;
-        //         return dayDelta >= 0 && dayDelta <= maxDays;
-        //     }).ToList();
-        // }
 
         private static int GetAbsoluteDayIndex(string season, int day, int year)
         {

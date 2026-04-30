@@ -14,6 +14,10 @@ namespace Smartphone
     {
         private const string TextAppState = "appText";
         private const int ChatQuickActionButtonHeight = 30;
+        private const int ChatQuickStackSpacing = 6;
+        private const string ChatQuickActionIdPhoto = "builtin:photo";
+        private const string ChatQuickActionIdSchedule = "builtin:schedule";
+        private const string ChatQuickActionIdAiCredit = "builtin:ai-credit";
         private static readonly Rectangle ChatQuickToggleArrowUpSource = new Rectangle(421, 472, 11, 12);
         private static readonly Rectangle ChatQuickToggleArrowDownSource = new Rectangle(421, 459, 11, 12);
         private static readonly Rectangle ChatQuickScheduleIconSource = new Rectangle(190, 423, 14, 11);
@@ -42,7 +46,7 @@ namespace Smartphone
 
         private void DrawTextApp(SpriteBatch b)
         {
-            b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.6f);
+            b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
             b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
             b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
             backButton.draw(b);
@@ -51,6 +55,7 @@ namespace Smartphone
             if (selectedNpc == null)
             {
                 chatPhotoButtonBounds = Rectangle.Empty;
+                chatAiCreditInfoBounds = Rectangle.Empty;
                 ResetChatQuickActionsState();
                 favourityNpcButton.Clear();
                 socialProfileNpcButtonBounds.Clear();
@@ -447,10 +452,13 @@ namespace Smartphone
                         textBox.Selected = true;
                         Game1.keyboardDispatcher.Subscriber = textBox;
                     }
+
+                    DrawAiCreditTooltipIfHovered(b);
                 }
                 else
                 {
                     chatPhotoButtonBounds = Rectangle.Empty;
+                    chatAiCreditInfoBounds = Rectangle.Empty;
                     ResetChatQuickActionsState();
                     textBox.Selected = false;
                     if (Game1.keyboardDispatcher.Subscriber == textBox)
@@ -1996,7 +2004,70 @@ namespace Smartphone
             chatScheduleOptionsOpen = false;
             chatQuickPhotoActionBounds = Rectangle.Empty;
             chatQuickScheduleActionBounds = Rectangle.Empty;
+            chatAiCreditInfoBounds = Rectangle.Empty;
+            chatRegisteredQuickActionButtonBounds.Clear();
             chatScheduleEventButtonBounds.Clear();
+        }
+
+        private static bool ShouldShowAiCreditButton()
+        {
+            if (!(ModEntry.Config?.ShowAiCredit ?? true))
+                return false;
+
+            return string.IsNullOrWhiteSpace(ModEntry.Config?.OpenAIKey);
+        }
+
+        private static string FormatAiRefillTime(int rawTime)
+        {
+            int hour = Math.Clamp(rawTime / 100, 0, 26);
+            int minute = Math.Clamp(rawTime % 100, 0, 59);
+            int normalizedHour = ((hour % 24) + 24) % 24;
+            int displayHour = normalizedHour % 12;
+            if (displayHour == 0)
+                displayHour = 12;
+
+            string suffix = normalizedHour < 12 ? "AM" : "PM";
+            return $"{displayHour}:{minute:00} {suffix}";
+        }
+
+        private static string BuildAiCreditTooltipText()
+        {
+            var usage = ModEntry.GetAiUsageSnapshot();
+            var lines = new List<string>
+            {
+                $"Daily usage left: {Math.Max(0, usage.DailyUsageLeft)}/{usage.DailyUsageMax}",
+                $"Current credit left: {Math.Max(0, usage.CreditsLeft)}/{usage.CreditsMax}"
+            };
+
+            if (usage.CreditsLeft < usage.CreditsMax)
+            {
+                string nextRefillText = "--";
+                if (ModEntry.TryGetNextAiCreditRefillTime(Game1.timeOfDay, out int nextRefillTime))
+                    nextRefillText = FormatAiRefillTime(nextRefillTime);
+
+                lines.Add($"Next credit refill at {nextRefillText}");
+            }
+
+            lines.Add("When daily usage left is 0, credit wont be refill");
+            return string.Join("\n", lines);
+        }
+
+        private void DrawAiCreditTooltipIfHovered(SpriteBatch b)
+        {
+            if (!ShouldShowAiCreditButton() || chatAiCreditInfoBounds == Rectangle.Empty)
+                return;
+
+            int mouseX = Game1.getMouseX();
+            int mouseY = Game1.getMouseY();
+            if (!chatAiCreditInfoBounds.Contains(mouseX, mouseY))
+                return;
+
+            DrawSocialTagTooltip(b, BuildAiCreditTooltipText(), mouseX, mouseY);
+        }
+
+        private void DrawChatAiCreditInfoButton(SpriteBatch b, Rectangle bounds)
+        {
+            DrawChatQuickActionButton(b, bounds, "?", false);
         }
 
         private bool TryHandleChatQuickActionClick(int x, int y)
@@ -2021,6 +2092,12 @@ namespace Smartphone
             if (!chatQuickActionsOpen)
                 return false;
 
+            if (chatAiCreditInfoBounds.Contains(x, y))
+            {
+                Game1.playSound("smallSelect");
+                return true;
+            }
+
             if (chatQuickPhotoActionBounds.Contains(x, y))
             {
                 OpenChatPhotoPicker();
@@ -2036,6 +2113,22 @@ namespace Smartphone
 
                 Game1.playSound("smallSelect");
                 return true;
+            }
+
+            foreach (KeyValuePair<string, Rectangle> actionButton in chatRegisteredQuickActionButtonBounds)
+            {
+                if (!actionButton.Value.Contains(x, y))
+                    continue;
+
+                bool invoked = ModEntry.TryInvokeRegisteredChatQuickActionButton(actionButton.Key, selectedNpc ?? string.Empty, this);
+                if (invoked)
+                {
+                    Game1.playSound("smallSelect");
+                    if (currentApp == TextAppState)
+                        ResetChatQuickActionsState();
+                }
+
+                return invoked;
             }
 
             if (chatScheduleOptionsOpen)
@@ -2126,25 +2219,63 @@ namespace Smartphone
             int quickActionWidth = chatPhotoButtonBounds.Width;
             int quickActionHeight = chatPhotoButtonBounds.Height;
             int actionY = chatPhotoButtonBounds.Y - quickActionHeight - 8;
+            chatQuickPhotoActionBounds = Rectangle.Empty;
+            chatQuickScheduleActionBounds = Rectangle.Empty;
+            chatAiCreditInfoBounds = Rectangle.Empty;
+            chatRegisteredQuickActionButtonBounds.Clear();
 
-            chatQuickPhotoActionBounds = new Rectangle(actionX, actionY, quickActionWidth, quickActionHeight);
-            chatQuickScheduleActionBounds = new Rectangle(actionX, actionY - quickActionHeight - 6, quickActionWidth, quickActionHeight);
+            var quickActionButtons = new List<(string ActionId, bool Active, Texture2D? TextureIcon, Rectangle? TextureSourceRect, Rectangle? CursorIcon, int BadgeCount, bool IsAiInfoButton)>
+            {
+                (ChatQuickActionIdPhoto, false, textureAppPhoto, null, null, chatSelectedPhotos.Count, false),
+                (ChatQuickActionIdSchedule, chatScheduleOptionsOpen, null, null, ChatQuickScheduleIconSource, 0, false)
+            };
 
-            DrawChatQuickIconActionButton(
-                b,
-                chatQuickPhotoActionBounds,
-                active: false,
-                useTextureIcon: textureAppPhoto,
-                useCursorIcon: null,
-                badgeCount: chatSelectedPhotos.Count);
+            if (ShouldShowAiCreditButton())
+                quickActionButtons.Add((ChatQuickActionIdAiCredit, false, null, null, null, 0, true));
 
-            DrawChatQuickIconActionButton(
-                b,
-                chatQuickScheduleActionBounds,
-                active: chatScheduleOptionsOpen,
-                useTextureIcon: null,
-                useCursorIcon: ChatQuickScheduleIconSource,
-                badgeCount: 0);
+            foreach (RegisteredChatQuickActionButton action in ModEntry.GetRegisteredChatQuickActionButtonsSnapshot(selectedNpc ?? string.Empty))
+            {
+                quickActionButtons.Add((
+                    action.CompositeId,
+                    false,
+                    action.IconTexture,
+                    action.SourceRect,
+                    null,
+                    0,
+                    false));
+            }
+
+            for (int i = 0; i < quickActionButtons.Count; i++)
+            {
+                var button = quickActionButtons[i];
+                int quickButtonY = actionY - i * (quickActionHeight + ChatQuickStackSpacing);
+                Rectangle buttonBounds = new Rectangle(actionX, quickButtonY, quickActionWidth, quickActionHeight);
+
+                if (string.Equals(button.ActionId, ChatQuickActionIdPhoto, StringComparison.OrdinalIgnoreCase))
+                    chatQuickPhotoActionBounds = buttonBounds;
+                else if (string.Equals(button.ActionId, ChatQuickActionIdSchedule, StringComparison.OrdinalIgnoreCase))
+                    chatQuickScheduleActionBounds = buttonBounds;
+                else if (string.Equals(button.ActionId, ChatQuickActionIdAiCredit, StringComparison.OrdinalIgnoreCase))
+                    chatAiCreditInfoBounds = buttonBounds;
+                else
+                    chatRegisteredQuickActionButtonBounds[button.ActionId] = buttonBounds;
+
+                if (button.IsAiInfoButton)
+                {
+                    DrawChatAiCreditInfoButton(b, buttonBounds);
+                }
+                else
+                {
+                    DrawChatQuickIconActionButton(
+                        b,
+                        buttonBounds,
+                        button.Active,
+                        button.TextureIcon,
+                        button.TextureSourceRect,
+                        button.CursorIcon,
+                        button.BadgeCount);
+                }
+            }
 
             chatScheduleEventButtonBounds.Clear();
             if (!chatScheduleOptionsOpen)
@@ -2242,6 +2373,7 @@ namespace Smartphone
             Rectangle bounds,
             bool active,
             Texture2D? useTextureIcon,
+            Rectangle? useTextureSourceRect,
             Rectangle? useCursorIcon,
             int badgeCount)
         {
@@ -2269,7 +2401,7 @@ namespace Smartphone
 
             if (useTextureIcon != null)
             {
-                b.Draw(useTextureIcon, iconBounds, Color.White);
+                b.Draw(useTextureIcon, iconBounds, useTextureSourceRect, Color.White);
             }
             else if (useCursorIcon.HasValue)
             {
@@ -2463,7 +2595,7 @@ namespace Smartphone
 
         private void DrawChatPhotoPickerMenu(SpriteBatch b)
         {
-            b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.35f);
+            b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.35f);
 
             Rectangle panelBounds = new Rectangle(xPositionOnScreen + 65, yPositionOnScreen + 180, 470, 600);
             IClickableMenu.drawTextureBox(

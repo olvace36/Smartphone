@@ -15,7 +15,7 @@ Other mods can register their own app icon on the Smartphone home screen and pro
 
 	ISmartPhoneApi smartphoneApi = Helper.ModRegistry.GetApi<ISmartPhoneApi>("d5a1lamdtd.Smartphone");
 
-2) Load your icon texture (84x84 is recommended):
+2) Load your icon texture (any size works; square 256x256 is a good default for quality):
 
 	Texture2D icon = Helper.ModContent.Load<Texture2D>("assets/market_app.png");
 
@@ -91,6 +91,40 @@ Additional method summary:
 - UnregisterPhoneAppGroupItem(ownerModId, groupId, itemId)
 
 
+*** TEXT CHAT QUICK ACTION BUTTON API ***
+
+You can register custom quick-action buttons in the Text app chat menu (the menu opened by the ^ button).
+
+Layout behavior:
+- Built-in actions stay at the bottom of the quick-action column:
+  - Attach photo
+  - Schedule event
+  - AI credit info (only shown when shared AI mode is active and ShowAiCredit is enabled)
+- Registered actions always appear above built-in actions.
+- Registered actions are sorted by sortOrder (lower value appears closer to the built-in actions).
+
+Example registration:
+
+	smartphoneApi.RegisterChatQuickActionButton(
+		 ownerModId: this.ModManifest.UniqueID,
+		 actionId: "market-gift-hint",
+		 iconTexture: quickActionIcon,
+		 onClick: npcName => OpenGiftHintMenuForNpc(npcName),
+		 closePhoneOnLaunch: false,
+		 sortOrder: 0,
+		 sourceRect: null,
+		 npcNames: new List<string> { "Abigail", "Lewis" }
+	);
+
+Optional unregister:
+
+	smartphoneApi.UnregisterChatQuickActionButton(this.ModManifest.UniqueID, "market-gift-hint");
+
+Method summary:
+- RegisterChatQuickActionButton(ownerModId, actionId, iconTexture, onClick, closePhoneOnLaunch, sortOrder, sourceRect, npcNames)
+- UnregisterChatQuickActionButton(ownerModId, actionId)
+
+
 *** DYNAMIC UNLIMITED EVENT API ***
 
 UEE (or any mod) can register event types that Smartphone AI is allowed to schedule.
@@ -101,7 +135,6 @@ Example registration from another mod:
 	smartphoneApi.RegisterUnlimitedEvent(
 		 ownerModId: this.ModManifest.UniqueID,
 		 eventType: "Stargazing",
-		 displayName: "Stargazing",
 		 triggerEvent: npcName => myUeeApi.TriggerStargazingEvent(npcName),
 		 minimumHeartLevel: 6,
 		 toolDescription: "Use this only after both sides agree to meet tonight for stargazing."
@@ -112,7 +145,7 @@ Unregister when needed:
 	smartphoneApi.UnregisterUnlimitedEvent(this.ModManifest.UniqueID, "Stargazing");
 
 Method summary:
-- RegisterUnlimitedEvent(ownerModId, eventType, displayName, triggerEvent, minimumHeartLevel, toolDescription)
+- RegisterUnlimitedEvent(ownerModId, eventType, triggerEvent, minimumHeartLevel, toolDescription)
 - UnregisterUnlimitedEvent(ownerModId, eventType)
 
 Notes:
