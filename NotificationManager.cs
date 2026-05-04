@@ -54,7 +54,6 @@ namespace Smartphone
         public static void SaveNoticationData()
         {
             ModEntry.SHelper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/notificationList", notificationList);
-            ModEntry.SHelper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/unreadNotification", unreadNotification.ToString());
         }
 
         public static void LoadNoticationData()
@@ -68,7 +67,6 @@ namespace Smartphone
 
             notificationList = ModEntry.SHelper.Data.ReadJsonFile<List<string>>($"./userdata/{Constants.SaveFolderName}/notificationList")
                           ?? new List<string>();
-            unreadNotification = int.Parse(ModEntry.SHelper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/unreadNotification") ?? "0");
         }
     }
 }

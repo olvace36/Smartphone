@@ -23,15 +23,16 @@ namespace Smartphone
         /// </summary>
         /// <param name="eventNpcName">The name of the NPC for whom the event is being scheduled.</param>
         /// <param name="eventType">The type of event being scheduled.</param>
-        /// <param name="eventDisplayName">The display name of the event.</param>
-        /// <param name="npcDisplayName">The display name of the NPC.</param>
         /// <param name="npcResponse">The confirmation message for the NPC's response.</param>
         void OpenScheduleEventTimeMenu(string eventNpcName,
             string eventType,
-            string eventDisplayName,
-            string npcDisplayName,
             string? npcResponse = null
         );
 
+        /// <summary>
+        /// Checks if the player can schedule a new event. This method is used to enforce any limitations on the number of events that can be scheduled, such as allowing only one event per day without an OpenAI key.
+        /// </summary>
+        /// <returns>True if the player can schedule a new event; otherwise, false.</returns>
+        bool CanScheduleNewEvent();
     }
 }

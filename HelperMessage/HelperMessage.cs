@@ -741,6 +741,7 @@ namespace Smartphone
                 ResetEditableTextFieldState(EditableTextFieldKind.Search);
                 ResetChatQuickActionsState();
                 CloseChatPhotoPicker(clearSelection: true);
+                scrollOffset = 0;
                 UpdateNpcList();
                 return true;
             }
@@ -755,9 +756,14 @@ namespace Smartphone
 
         private bool HandleTextRemoveButtonClick(int x, int y)
         {
-            if (!IsTextAppOpen() || !removeButton.containsPoint(x, y))
+            if (!IsTextAppOpen() || selectedNpc == null || !removeButton.containsPoint(x, y))
                 return false;
+
+            MessageManager.ClearMessages(selectedNpc);
             messageHistory = MessageManager.GetMessages(selectedNpc);
+            ResetEditableTextFieldState(EditableTextFieldKind.Chat);
+            SnapChatScrollToBottom();
+            Game1.playSound("trashcan");
             return true;
         }
 
@@ -880,19 +886,24 @@ namespace Smartphone
             if (chatPhotoPickerOpen)
                 return true;
 
+            float scrollSteps = GetNormalizedScrollSteps(direction);
+            if (Math.Abs(scrollSteps) <= 0.0001f)
+                return true;
+
             if (selectedNpc != null)
             {
-                float wheelSteps = direction / 120f;
                 chatScrollTarget = Math.Clamp(
-                    chatScrollTarget - wheelSteps * ChatScrollPixelsPerWheelNotch,
+                    chatScrollTarget - scrollSteps * ChatScrollPixelsPerWheelNotch,
                     0f,
                     CalculateScrollToBottomOffset(messageHistory));
 
                 return true;
             }
 
-            scrollOffset -= direction / 120;
-            scrollOffset = Math.Max(0, Math.Min(scrollOffset, messageableNpcList.Count - maxVisibleNPCs));
+            int listStep = Math.Max(1, (int)Math.Floor(Math.Abs(scrollSteps)));
+            int listDelta = Math.Sign(scrollSteps) * listStep;
+            int maxOffset = Math.Max(0, messageableNpcList.Count - maxVisibleNPCs);
+            scrollOffset = Math.Clamp(scrollOffset - listDelta, 0, maxOffset);
             return true;
         }
 
@@ -922,7 +933,9 @@ namespace Smartphone
                     ResetEditableTextFieldState(EditableTextFieldKind.Search);
                     currentSuggestion = new("", "");
                     ResetChatQuickActionsState();
-                    CloseChatPhotoPicker(clearSelection: true);
+                    CloseChatPhotoPicker(clearSelection: true); 
+                    scrollOffset = 0;
+                    UpdateNpcList();
                     return true;
                 }
 
@@ -970,7 +983,10 @@ namespace Smartphone
             if (handled)
             {
                 if (textChanged)
+                {
+                    scrollOffset = 0;
                     UpdateNpcList();
+                }
 
                 if (!isRepeat)
                 {
@@ -1125,6 +1141,9 @@ namespace Smartphone
             bool ctrlDown = keyboardState.IsKeyDown(Keys.LeftControl) || keyboardState.IsKeyDown(Keys.RightControl);
             bool shiftDown = keyboardState.IsKeyDown(Keys.LeftShift) || keyboardState.IsKeyDown(Keys.RightShift);
 
+            if (ShouldIgnoreNonKeyboardTextEditInput(key, keyboardState, allowEnter))
+                return true;
+
             if (allowPaste && ctrlDown && key == Keys.V)
             {
                 string pastedText = NormalizePastedText(GetClipboardTextSafely());
@@ -1265,6 +1284,20 @@ namespace Smartphone
             ApplyEditableTextInsertion(field, ref text, ref cursorIndex, ref selectionAnchorIndex, input.ToString());
             textChanged = true;
             return true;
+        }
+
+        private bool ShouldIgnoreNonKeyboardTextEditInput(Keys key, KeyboardState keyboardState, bool allowEnter)
+        {
+            if (keyboardState.IsKeyDown(key))
+                return false;
+
+            if (allowEnter && key == Keys.Enter)
+                return true;
+
+            if (key is Keys.Back or Keys.Delete or Keys.Left or Keys.Right or Keys.Home or Keys.End)
+                return true;
+
+            return GetCharFromKey(key, shift: false) != '\0';
         }
 
         private static bool ShouldPlayTypingSound(Keys key, bool allowPaste)
@@ -2138,7 +2171,11 @@ namespace Smartphone
                     if (!eventButton.Value.Contains(x, y))
                         continue;
                     
-                    ModEntry.iUnlimitedEventExpansionApi.OpenScheduleEventTimeMenu(selectedNpc ?? string.Empty, eventButton.Key, eventButton.Key, selectedNpc ?? string.Empty);
+                    NPC selected = Game1.getCharacterFromName(selectedNpc);
+                    if (selected == null)
+                        return false;
+
+                    ModEntry.iUnlimitedEventExpansionApi.OpenScheduleEventTimeMenu(selectedNpc, eventButton.Key);
                     ResetChatQuickActionsState();
                     this.ClosePhoneMenu();
                     return true;
@@ -2693,9 +2730,9 @@ namespace Smartphone
                     new Vector2(chatPhotoPickerToggleBounds.X + (chatPhotoPickerToggleBounds.Width - toggleSize.X) / 2f, chatPhotoPickerToggleBounds.Y + 10),
                     Color.Black);
 
-                string fileName = Path.GetFileName(currentPath);
-                string visibleFileName = GetTailTextToFit(fileName, Game1.smallFont, panelBounds.Width - 40);
-                b.DrawString(Game1.smallFont, visibleFileName, new Vector2(panelBounds.X + 20, previewBounds.Bottom + 78), Color.Black);
+                // string fileName = Path.GetFileName(currentPath);
+                // string visibleFileName = GetTailTextToFit(fileName, Game1.smallFont, panelBounds.Width - 40);
+                // b.DrawString(Game1.smallFont, visibleFileName, new Vector2(panelBounds.X + 20, previewBounds.Bottom + 78), Color.Black);
             }
 
             IClickableMenu.drawTextureBox(

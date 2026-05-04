@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Characters;
+using StardewValley.Locations;
 using StardewValley.Objects;
 using StardewValley.TerrainFeatures;
 
@@ -13,14 +14,14 @@ namespace Smartphone
 {
     public partial class ModEntry
     {
-        private const int MaxCropTagsPerImage = 20;
-        private const int MaxFruitTreeTagsPerImage = 10;
-        private const int MaxAnimalTagsPerImage = 10;
-        private const int MaxForageTagsPerImage = 10;
+        private const int MaxCropTagsPerImage = 3;
+        private const int MaxFruitTreeTagsPerImage = 3;
+        private const int MaxAnimalTagsPerImage = 3;
+        private const int MaxForageTagsPerImage = 3;
         private const int MaxFurnitureTagsPerImage = 5;
         private const int MaxDisplayedItemTagsPerImage = 5;
         private const int MaxPetNamesPerTypeTag = 3;
-        private const string PlayerTag = "#Player";
+        // private static string PlayerTag => $"#Player {Game1.player?.displayName}".Trim();
         private const int BuildingFrontTilesLeftRight = 2;
         private const int BuildingFrontTilesUp = 3;
         private const int BuildingFrontTilesDown = 1;
@@ -96,7 +97,6 @@ namespace Smartphone
                 return;
             }
 
-            Game1.chatBox.addErrorMessage($"{string.Join(", ", cleanedTags)}");
             ImageTags[imageName] = string.Join(";", cleanedTags);
             SaveImageTags();
         }
@@ -146,15 +146,15 @@ namespace Smartphone
 
         private static IEnumerable<string> BuildImageTags(Rectangle captureBounds, NPC? npc = null)
         {
-            var tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                BuildLocationTag(npc?.currentLocation, npc: npc)
-            };
+            var tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            AddLocationTag(tags, npc?.currentLocation, npc: npc);
+            bool isAtEvent = AddCurrentEventTags(tags);
+            if (isAtEvent)
+                return tags;
 
             AddBuildingFrontTags(tags, captureBounds);
             AddAreaTags(tags, captureBounds);
             AddWeatherTags(tags);
-            AddCurrentEventTags(tags);
             AddCharacterTags(tags, captureBounds);
             AddHeldFishTag(tags);
             AddCropAndFruitTreeTags(tags, captureBounds);
@@ -535,7 +535,7 @@ namespace Smartphone
                 && IsPlayerInCurrentLocation()
                 && IsCharacterInsideCapture(Game1.player, captureBounds))
             {
-                tags.Add(PlayerTag);
+                tags.Add($"#Player {Game1.player?.displayName}".Trim());
                 // AddPlayerClothingTags(tags);
             }
 
@@ -662,7 +662,7 @@ namespace Smartphone
                     ? $"{cropGroup.Key} field {growthState}".Trim()
                     : $"{cropGroup.Key} {growthState}".Trim();
 
-                cropTag = string.Join(" ", cropTag.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+                cropTag = "#" + string.Join(" ", cropTag.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
 
                 if (tags.Add(cropTag))
                     cropTagCount++;
@@ -680,8 +680,8 @@ namespace Smartphone
                 bool isOrchard = fruitTreeGroup.Value.Count >= 6;
 
                 string fruitTreeTag = isOrchard
-                    ? $"Orchard {baseTag}"
-                    : baseTag;
+                    ? $"#Orchard {baseTag}"
+                    : "#" + baseTag;
 
                 if (tags.Add(fruitTreeTag))
                     fruitTreeTagCount++;
@@ -1004,8 +1004,8 @@ namespace Smartphone
 
                 bool isBaby = TryInvokeBooleanMember(animal, "isBaby");
                 string animalTag = isBaby
-                    ? $"baby {animalType}"
-                    : animalType;
+                    ? $"#baby {animalType}"
+                    : $"#{animalType}";
 
                 if (tags.Add(animalTag))
                     animalTagCount++;
@@ -1172,7 +1172,7 @@ namespace Smartphone
 
         private static void AddHeldFishTag(HashSet<string> tags)
         {
-            if (Game1.player == null || !tags.Contains(PlayerTag))
+            if (Game1.player == null || !tags.Contains($"#Player {Game1.player?.displayName}".Trim()))
                 return;
 
             Item? heldItem = Game1.player.ActiveObject ?? Game1.player.CurrentItem;
@@ -1214,25 +1214,34 @@ namespace Smartphone
             tags.Add($"#weather {(Game1.currentLocation.GetWeather().Weather.ToString() == "Festival" ? "Sunny" : Game1.currentLocation.GetWeather().Weather.ToString())}");
         }
 
-        private static void AddCurrentEventTags(HashSet<string> tags)
+        private static bool AddCurrentEventTags(HashSet<string> tags)
         {
+            bool isAtEvent = false;
             if (Game1.CurrentEvent == null)
-                return;
+                return isAtEvent;
 
             if (Game1.CurrentEvent.isFestival && !string.IsNullOrWhiteSpace(Game1.CurrentEvent.FestivalName))
+            {
                 tags.Add($"#{Game1.CurrentEvent.FestivalName.Trim()}");
+                isAtEvent = true;
+            }
 
             if (TryGetRecentUnlimitedEventTag(out string unlimitedEventTag))
+            {
                 tags.Add(unlimitedEventTag);
+                isAtEvent = true;
+            }
 
             if (!Game1.CurrentEvent.isFestival && !TryGetRecentUnlimitedEventTag(out _))
             {
                 List<string> actorNames = GetCurrentEventActorNames(Game1.CurrentEvent);
                 if (actorNames.Count == 1)
-                    tags.Add($"event with {actorNames[0]}");
+                    tags.Add($"#event with {actorNames[0]}");
                 else if (actorNames.Count > 1)
-                    tags.Add($"event with {string.Join(", ", actorNames.Take(2))}");
+                    tags.Add($"#event with {string.Join(", ", actorNames.Take(2))}");
+                isAtEvent = true;
             }
+            return isAtEvent;
         }
 
         private static List<string> GetCurrentEventActorNames(Event currentEvent)
@@ -1594,16 +1603,31 @@ namespace Smartphone
             return GetNormalizedCaptureBounds(captureBounds).Contains(screenBounds);
         }
 
-        private static string BuildLocationTag(GameLocation? location, NPC? npc = null)
+        private static void AddLocationTag(HashSet<string> tags, GameLocation? location, NPC? npc = null)
         {
             string? locationName = location?.Name;
             if (string.IsNullOrWhiteSpace(locationName) && npc == null)
                 location = Game1.currentLocation;
 
             if (npc != null && location?.Name == npc.DefaultMap)
-                return $"#at {npc.displayName}'s home";
+            {
+                tags.Add($"#at {npc.displayName}'s home");
+                return;
+            }
 
-            return $"#visiting {location?.DisplayName}";
+            if (location == Game1.getFarm())
+            {
+                tags.Add("#at the farm");
+                return;
+            }
+
+            if (location is FarmHouse)
+            {
+                tags.Add("#at home");
+                return;
+            }
+
+            tags.Add($"#visiting {location?.DisplayName}");
         }
     }
 }

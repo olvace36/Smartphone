@@ -146,17 +146,16 @@ namespace Smartphone
                 using Texture2D croppedTexture = new Texture2D(graphics, cropWidth, cropHeight);
                 croppedTexture.SetData(croppedData);
 
-                SaveCapturedPhoto(croppedTexture, Game1.currentLocation?.Name, BuildImageTags(captureBounds).ToList(), true);
+                SaveCapturedPhoto(croppedTexture, Game1.currentLocation?.DisplayName, BuildImageTags(captureBounds).ToList(), true);
             }
         }
 
-        private static string CaptureNpcPhoto(NPC npc, Vector2 captureCenter, bool landscape = false, bool square = false, List<NPC>? visibleNpcAtTarget = null, float zoomLevel = 1f, int? captureTimeOfDay = null)
+        private static string CaptureNpcPhoto(GameLocation targetLocation, Vector2 captureCenter, NPC npc = null, bool landscape = false, bool square = false, List<NPC>? visibleNpcAtTarget = null, float zoomLevel = 1f, int? captureTimeOfDay = null)
         {
-            if (!Context.IsWorldReady || npc == null || npc.currentLocation == null || Game1.graphics?.GraphicsDevice == null || Game1.game1 == null)
+            if (!Context.IsWorldReady || targetLocation == null || Game1.graphics?.GraphicsDevice == null || Game1.game1 == null)
                 return "";
 
             GraphicsDevice graphics = Game1.graphics.GraphicsDevice;
-            GameLocation targetLocation = npc.currentLocation;
             int effectiveCaptureTime = NormalizeCaptureTimeOfDay(captureTimeOfDay);
             var renderStateSnapshot = new PhotoRenderStateSnapshot();
             int temporarySpriteCount = targetLocation.temporarySprites.Count;
@@ -184,7 +183,7 @@ namespace Smartphone
             catch (Exception ex)
             {
                 RecoverWorldDrawStateAfterCaptureFailure();
-                SMonitor.Log($"Failed to capture off-screen NPC photo for {npc.Name}: {ex}", LogLevel.Error);
+                SMonitor.Log($"Failed to capture off-screen photo: {ex}", LogLevel.Error);
                 return "";
             }
             finally
@@ -203,7 +202,7 @@ namespace Smartphone
                 }
             }
 
-            return SaveCapturedPhoto(renderTarget, targetLocation.Name, tags, false);
+            return SaveCapturedPhoto(renderTarget, targetLocation.DisplayName, tags, false);
         }
 
         private static (int Width, int Height) GetZoomedCaptureDimensions(int baseCaptureWidth, int baseCaptureHeight, float zoomLevel)
@@ -339,7 +338,7 @@ namespace Smartphone
                 ? "UnknownLocation"
                 : locationName;
 
-            string filename = $"{resolvedLocationName}-{Game1.currentSeason}-Y{Game1.year}-D{Game1.dayOfMonth:D2}_{Game1.random.Next(0, 9999999)}.png";
+            string filename = $"{resolvedLocationName}-{Game1.currentSeason}-Y{Game1.year}-D{Game1.dayOfMonth:D2}_{Game1.random.Next(0, 99999)}.png";
             string path = Path.Combine(folderPath, filename);
 
             using Texture2D opaqueTexture = CreateOpaqueTexture(capturedTexture);

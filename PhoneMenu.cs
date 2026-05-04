@@ -1,4 +1,6 @@
-﻿using System.Diagnostics.Metrics;
+﻿using System.Collections.Specialized;
+using System.Diagnostics.Metrics;
+using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
 using Microsoft.Xna.Framework;
@@ -126,6 +128,8 @@ namespace Smartphone
         private const int NotificationViewportYOffset = 126;
         private const int NotificationViewportHeight = 800;
         private const int TextWrapCacheMaxEntries = 4096;
+        private const int ScrollWheelNotchDelta = 120;
+        private const float ControllerScrollNotchBoost = 1.5f;
 
         private readonly Dictionary<string, List<string>> textWrapCache = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Texture2D> chatImageCache = new(StringComparer.OrdinalIgnoreCase);
@@ -258,6 +262,8 @@ namespace Smartphone
         private const int DefaultMenuOffsetX = 400;
         private const int DefaultMenuOffsetY = 500;
 
+        private bool forcedFreeControllerCursor = false;
+
         public PhoneMenu() : base(Game1.uiViewport.Width / 2 - DefaultMenuOffsetX, Game1.uiViewport.Height / 2 - DefaultMenuOffsetY, 600, 1000, true)
         {
             this.upperRightCloseButton = null;
@@ -265,7 +271,7 @@ namespace Smartphone
             messageableNpcList = new List<ClickableComponent>();
             Dictionary<string, long> latestTimestamps = MessageManager.GetLatestAddDictionary();
             List<NPC> villagers = Utility.getAllVillagers()
-            .Where(n => !n.IsInvisible && n.CanSocialize && CanMessageNpc(n))
+            .Where(n => !n.IsInvisible && n.CanSocialize && CanMessageNpc(n) && !ModEntry.socialNpcBlacklist.Contains(n.Name, StringComparer.OrdinalIgnoreCase))
             .OrderByDescending(npc => MessageManager.favouriteNpc.Contains(npc.Name))
             .ThenByDescending(npc => latestTimestamps.TryGetValue(npc.Name, out long ts) ? ts : 0)
             .ThenBy(npc => GetNpcDisplayNameOrFallback(npc), StringComparer.OrdinalIgnoreCase)
@@ -338,7 +344,14 @@ namespace Smartphone
             ReloadThemeTextures();
 
             ApplyPhoneBackground(MessageManager.currentPhoneBackground);
+            EnsureFreeControllerCursor();
 
+        }
+
+        protected override void cleanupBeforeExit()
+        {
+            RestoreControllerCursorSetting();
+            base.cleanupBeforeExit();
         }
 
 
@@ -726,6 +739,7 @@ namespace Smartphone
         public override void update(GameTime time)
         {
             base.update(time);
+            EnsureFreeControllerCursor();
 
             appLabelMarqueeElapsedSeconds += time.ElapsedGameTime.TotalSeconds;
             if (appLabelMarqueeElapsedSeconds >= 1_000_000d)
@@ -2131,7 +2145,7 @@ namespace Smartphone
             string filter = currentMessage?.ToLower() ?? "";
 
             List<NPC> villagers = Utility.getAllVillagers()
-            .Where(n => !n.IsInvisible && n.CanSocialize && CanMessageNpc(n) 
+            .Where(n => !n.IsInvisible && n.CanSocialize && CanMessageNpc(n) && !ModEntry.socialNpcBlacklist.Contains(n.Name, StringComparer.OrdinalIgnoreCase)
                 && (bypassFilter || DoesNpcMatchTextFilter(n, filter))
             )
             .OrderByDescending(npc => MessageManager.favouriteNpc.Contains(npc.Name))
@@ -2249,6 +2263,91 @@ namespace Smartphone
             int viewportWidth = Math.Max(1, Game1.uiViewport.Width);
             int viewportHeight = Math.Max(1, Game1.uiViewport.Height);
             return new Rectangle(0, 0, viewportWidth, viewportHeight);
+        }
+
+        private static float GetNormalizedScrollSteps(int direction)
+        {
+            if (direction == 0)
+                return 0f;
+
+            if (Math.Abs(direction) >= ScrollWheelNotchDelta)
+                return direction / (float)ScrollWheelNotchDelta;
+
+            return Math.Sign(direction) * ControllerScrollNotchBoost;
+        }
+
+        private void EnsureFreeControllerCursor()
+        {
+            if (forcedFreeControllerCursor || Game1.options == null)
+                return;
+
+            if (!Game1.options.SnappyMenus)
+                return;
+
+            if (TrySetSnappyMenusOption(false))
+            {
+                forcedFreeControllerCursor = true;
+                return;
+            }
+
+            ModEntry.SMonitor.Log("Unable to disable controller-style menu snapping for the smartphone UI.", LogLevel.Trace);
+        }
+
+        private void RestoreControllerCursorSetting()
+        {
+            if (!forcedFreeControllerCursor)
+                return;
+
+            if (!TrySetSnappyMenusOption(true))
+                ModEntry.SMonitor.Log("Unable to restore controller-style menu snapping after closing the smartphone UI.", LogLevel.Trace);
+
+            forcedFreeControllerCursor = false;
+        }
+
+        private static bool TrySetSnappyMenusOption(bool value)
+        {
+            if (Game1.options == null)
+                return false;
+
+            object options = Game1.options;
+            Type optionsType = options.GetType();
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+            try
+            {
+                PropertyInfo? snappyProperty = optionsType.GetProperty("SnappyMenus", flags);
+                if (snappyProperty?.CanWrite == true)
+                {
+                    snappyProperty.SetValue(options, value);
+                    return true;
+                }
+
+                foreach (string fieldName in new[] { "snappyMenus", "_snappyMenus", "<SnappyMenus>k__BackingField" })
+                {
+                    FieldInfo? field = optionsType.GetField(fieldName, flags);
+                    if (field?.FieldType != typeof(bool))
+                        continue;
+
+                    field.SetValue(options, value);
+                    return true;
+                }
+
+                foreach (string methodName in new[] { "set_SnappyMenus", "SetSnappyMenus", "setSnappyMenus" })
+                {
+                    MethodInfo? method = optionsType.GetMethod(methodName, flags, binder: null, types: new[] { typeof(bool) }, modifiers: null);
+                    if (method == null)
+                        continue;
+
+                    method.Invoke(options, new object[] { value });
+                    return true;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
         }
 
         private List<HomeAppEntry> BuildHomeAppsSnapshot()
@@ -2476,6 +2575,7 @@ namespace Smartphone
                     return true;
 
                 case BuiltinAppTextId:
+                    scrollOffset = 0;
                     UpdateNpcList();
                     currentApp = "appText";
                     return true;
@@ -2949,6 +3049,7 @@ namespace Smartphone
             }
 
             ResetEditableTextFieldState(EditableTextFieldKind.Search);
+            RestoreControllerCursorSetting();
             exitThisMenu();
         }
 

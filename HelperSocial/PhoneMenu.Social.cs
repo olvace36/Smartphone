@@ -25,8 +25,10 @@ namespace Smartphone
         private const int SocialCreateSelectionMaxCount = 3;
         private const int SocialImageNavButtonSize = 40;
         private const int SocialImageMaxWidth = SocialPostCardWidth - 30;
-        private const int SocialImageMaxHeight = 810;
+        private const int SocialImageMaxHeight = 410;
         private const float SocialPortraitImageMaxWidthRatio = 2f / 3f;
+        private static float SocialPostTextScale = 0.9f;
+        private static float SocialCommentTextScale = 0.9f;
         private const float SocialImageTagScale = 0.68f;
         private const int SocialImageTagBottomPadding = 6;
         private const float SocialScrollPixelsPerWheelNotch = 52f;
@@ -572,9 +574,11 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(authorName))
                 authorName = "Someone";
 
+            NPC commenter = Game1.getCharacterFromName(firstUnread.AuthorName, mustBeVillager: false);
+
             string message = unreadCount <= 1
-                ? $"{authorName} commented on your post (1 new comment)"
-                : $"{authorName} and {unreadCount - 1} others commented on your post ({unreadCount} new comments)";
+                ? $"{commenter.displayName} commented on your post (1 new comment)"
+                : $"{commenter.displayName} and {unreadCount - 1} others commented on your post ({unreadCount} new comments)";
 
             return new SocialNotificationEntry
             {
@@ -690,7 +694,7 @@ namespace Smartphone
                 return false;
 
             string postTag = StardewConnectManager.GetPostTag(post);
-            if (ContainsTag(postTag, "#Player"))
+            if (ContainsTag(postTag, $"#Player {Game1.player?.displayName}".Trim()))
                 return true;
 
             return ContainsPlayerMention(post.Text);
@@ -1387,13 +1391,13 @@ namespace Smartphone
                 DrawSocialImageNavButton(b, socialCreateNextImageBounds, isNext: true);
 
                 // image label
-                string fileLabel = fileName;
-                Vector2 fileLabelSize = Game1.smallFont.MeasureString(fileLabel);
-                b.DrawString(
-                    Game1.smallFont,
-                    fileLabel,
-                    new Vector2(previewBounds.X + (previewBounds.Width - fileLabelSize.X) / 2f, previewBounds.Bottom - fileLabelSize.Y + 45),
-                    Color.Black);
+                // string fileLabel = fileName;
+                // Vector2 fileLabelSize = Game1.smallFont.MeasureString(fileLabel);
+                // b.DrawString(
+                //     Game1.smallFont,
+                //     fileLabel,
+                //     new Vector2(previewBounds.X + (previewBounds.Width - fileLabelSize.X) / 2f, previewBounds.Bottom - fileLabelSize.Y + 45),
+                //     Color.Black);
 
                 // select image option
                 bool selected = IsCreateImageSelected(fileName);
@@ -1606,7 +1610,7 @@ namespace Smartphone
             b.Draw(Game1.mouseCursors, receivedHeartBounds, new Rectangle(211, 428, 7, 7), Color.White);
             b.DrawString(Game1.smallFont, stats.TotalLikesReceived.ToString(), new Vector2(receivedHeartBounds.Right + 6, receivedLineY), Color.Black);
 
-            Rectangle receivedCommentBounds = new Rectangle(receivedHeartBounds.Right + 90, receivedLineY + 6, SocialProfileStatIconSize, SocialProfileStatIconSize);
+            Rectangle receivedCommentBounds = new Rectangle(receivedHeartBounds.Right + 125, receivedLineY + 6, SocialProfileStatIconSize, SocialProfileStatIconSize);
             b.Draw(Game1.mouseCursors, receivedCommentBounds, new Rectangle(139, 465, 24, 24), Color.White);
             b.DrawString(Game1.smallFont, stats.TotalCommentsReceived.ToString(), new Vector2(receivedCommentBounds.Right + 6, receivedLineY), Color.Black);
 
@@ -1617,7 +1621,7 @@ namespace Smartphone
             b.Draw(Game1.mouseCursors, sentHeartBounds, new Rectangle(211, 428, 7, 7), Color.White);
             b.DrawString(Game1.smallFont, stats.TotalLikesGiven.ToString(), new Vector2(sentHeartBounds.Right + 6, sentLineY), Color.Black);
 
-            Rectangle sentCommentBounds = new Rectangle(sentHeartBounds.Right + 90, sentLineY + 6, SocialProfileStatIconSize, SocialProfileStatIconSize);
+            Rectangle sentCommentBounds = new Rectangle(sentHeartBounds.Right + 125, sentLineY + 6, SocialProfileStatIconSize, SocialProfileStatIconSize);
             b.Draw(Game1.mouseCursors, sentCommentBounds, new Rectangle(139, 465, 24, 24), Color.White);
             b.DrawString(Game1.smallFont, stats.TotalCommentsGiven.ToString(), new Vector2(sentCommentBounds.Right + 6, sentLineY), Color.Black);
 
@@ -1660,7 +1664,7 @@ namespace Smartphone
                 1f,
                 false);
             b.DrawString(Game1.smallFont, "Posts (Newest to Oldest)", new Vector2(postsHeaderBounds.X + 14, postsHeaderBounds.Y + 9), Color.Black);
-            
+
             cursorY += postsHeaderBounds.Height + SocialPostSpacing;
 
             if (profilePosts.Count == 0)
@@ -1761,15 +1765,20 @@ namespace Smartphone
                 1f,
                 false);
 
-            if (IsSocialNotificationPost(post))
-                DrawSocialNotificationBanner(b, cardBounds);
+            int unreadCommentCount = StardewConnectManager.GetUnreadCommentCount(post);
+            bool showUnreadCommentCount = (ModEntry.Config?.ShowUnreadComment ?? true) && unreadCommentCount > 0;
+            bool isNotificationPost = IsSocialNotificationPost(post);
+            bool shouldShowNotificationBanner = isNotificationPost || showUnreadCommentCount;
+            if (shouldShowNotificationBanner)
+                DrawSocialNotificationBanner(b, cardBounds, isNotificationPost, showUnreadCommentCount ? unreadCommentCount : 0);
 
             if (context == SocialCardRenderContext.Feed)
                 socialFeedPostBounds[post.Id] = cardBounds;
             else if (context == SocialCardRenderContext.Profile)
                 socialProfilePostBounds[post.Id] = cardBounds;
 
-            int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
+            int baseLineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
+            int postLineHeight = GetSocialScaledLineHeight(SocialPostTextScale);
             int cursorY = cardY + 15;
 
             Rectangle actorIconBounds = new Rectangle(cardX + 15, cursorY, SocialActorIconSize, SocialActorIconSize);
@@ -1789,11 +1798,21 @@ namespace Smartphone
 
             if (!string.IsNullOrWhiteSpace(post.Text))
             {
-                List<string> lines = SplitTextIntoLines(post.Text, Game1.smallFont, SocialPostTextMaxWidth);
+                int postTextWrapWidth = GetSocialScaledWrapWidth(SocialPostTextMaxWidth, SocialPostTextScale);
+                List<string> lines = SplitTextIntoLines(post.Text, Game1.smallFont, postTextWrapWidth);
                 foreach (string line in lines)
                 {
-                    b.DrawString(Game1.smallFont, line, new Vector2(cardX + 15, cursorY), Color.Black);
-                    cursorY += lineHeight;
+                    b.DrawString(
+                        Game1.smallFont,
+                        line,
+                        new Vector2(cardX + 15, cursorY),
+                        Color.Black,
+                        0f,
+                        Vector2.Zero,
+                        SocialPostTextScale,
+                        SpriteEffects.None,
+                        0f);
+                    cursorY += postLineHeight;
                 }
 
                 cursorY += 6;
@@ -1887,7 +1906,7 @@ namespace Smartphone
                 cursorY += attachmentAreaHeight + 10;
             }
 
-            
+
             // Post like section
             Rectangle likeIconBounds = new Rectangle(cardX + 18, cursorY + 2, 24, 24);
             Rectangle heartRect = StardewConnectManager.IsPostLikedByPlayer(post)
@@ -1909,7 +1928,7 @@ namespace Smartphone
                 likeIconBounds.Right + 6,
                 cursorY - 1,
                 Math.Max(1, (int)Math.Ceiling(likeCountSize.X) + 6),
-                Math.Max(1, lineHeight + 4));
+                Math.Max(1, baseLineHeight + 4));
 
             if (context == SocialCardRenderContext.Feed)
                 socialFeedLikeHoverBounds[post.Id] = likeCountBounds;
@@ -1918,7 +1937,7 @@ namespace Smartphone
             else if (context == SocialCardRenderContext.Profile)
                 socialProfileLikeHoverBounds[post.Id] = likeCountBounds;
 
-            b.DrawString(Game1.smallFont, likeCountText, new Vector2(likeIconBounds.Right + 8, cursorY ), Color.Black);
+            b.DrawString(Game1.smallFont, likeCountText, new Vector2(likeIconBounds.Right + 8, cursorY), Color.Black);
 
             // Post comment section
             Rectangle commentIconBounds = new Rectangle(cardX + 132, cursorY + 4, 24, 24);
@@ -1934,7 +1953,7 @@ namespace Smartphone
                 1f,
                 false);
             List<StardewConnectComment> comments = post.Comments ?? new List<StardewConnectComment>();
-            b.DrawString(Game1.smallFont, comments.Count.ToString(), new Vector2(commentIconBounds.Right + 8, cursorY ), Color.Black);
+            b.DrawString(Game1.smallFont, comments.Count.ToString(), new Vector2(commentIconBounds.Right + 8, cursorY), Color.Black);
 
             if (comments.Count > 0)
             {
@@ -1966,7 +1985,8 @@ namespace Smartphone
 
         private int DrawSocialCommentBlock(SpriteBatch b, StardewConnectComment comment, int x, int y, int maxTextWidth, SocialCardRenderContext context)
         {
-            int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
+            int headerLineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
+            int commentLineHeight = GetSocialScaledLineHeight(SocialCommentTextScale);
             int startY = y;
 
             Rectangle iconBounds = new Rectangle(x, y + 2, SocialCommentIconSize, SocialCommentIconSize);
@@ -1983,15 +2003,27 @@ namespace Smartphone
                 Color.DarkSlateGray,
                 Color.DimGray);
 
-            int textY = y + lineHeight;
-            List<string> commentLines = SplitTextIntoLines(comment.Text ?? "", Game1.smallFont, Math.Max(80, maxTextWidth - SocialCommentIconSize - 8));
+            int textY = y + headerLineHeight;
+            int commentTextWrapWidth = GetSocialScaledWrapWidth(
+                Math.Max(80, maxTextWidth - SocialCommentIconSize - 8),
+                SocialCommentTextScale);
+            List<string> commentLines = SplitTextIntoLines(comment.Text ?? "", Game1.smallFont, commentTextWrapWidth);
             if (commentLines.Count == 0)
                 commentLines.Add("");
 
             foreach (string line in commentLines)
             {
-                b.DrawString(Game1.smallFont, line, new Vector2(textX, textY), Color.Black);
-                textY += lineHeight;
+                b.DrawString(
+                    Game1.smallFont,
+                    line,
+                    new Vector2(textX, textY),
+                    Color.Black,
+                    0f,
+                    Vector2.Zero,
+                    SocialCommentTextScale,
+                    SpriteEffects.None,
+                    0f);
+                textY += commentLineHeight;
             }
 
             int contentHeight = (textY - startY) + 2;
@@ -2058,12 +2090,13 @@ namespace Smartphone
             if (socialCardHeightCache.TryGetValue(cacheKey, out int cachedHeight))
                 return cachedHeight;
 
-            int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
+            int lineHeight = GetSocialScaledLineHeight(SocialPostTextScale);
             int height = 15 + SocialActorIconSize + 10;
 
             if (!string.IsNullOrWhiteSpace(post.Text))
             {
-                List<string> lines = SplitTextIntoLines(post.Text, Game1.smallFont, SocialPostTextMaxWidth);
+                int postTextWrapWidth = GetSocialScaledWrapWidth(SocialPostTextMaxWidth, SocialPostTextScale);
+                List<string> lines = SplitTextIntoLines(post.Text, Game1.smallFont, postTextWrapWidth);
                 height += (lines.Count * lineHeight) + 6;
             }
 
@@ -2099,12 +2132,16 @@ namespace Smartphone
 
         private int MeasureSocialCommentHeight(StardewConnectComment comment, int maxTextWidth)
         {
-            int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
-            List<string> lines = SplitTextIntoLines(comment.Text ?? "", Game1.smallFont, Math.Max(80, maxTextWidth - SocialCommentIconSize - 8));
+            int headerLineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
+            int lineHeight = GetSocialScaledLineHeight(SocialCommentTextScale);
+            int commentTextWrapWidth = GetSocialScaledWrapWidth(
+                Math.Max(80, maxTextWidth - SocialCommentIconSize - 8),
+                SocialCommentTextScale);
+            List<string> lines = SplitTextIntoLines(comment.Text ?? "", Game1.smallFont, commentTextWrapWidth);
             if (lines.Count == 0)
                 lines.Add("");
 
-            int textHeight = lineHeight + (lines.Count * lineHeight) + 2;
+            int textHeight = headerLineHeight + (lines.Count * lineHeight) + 2;
             int iconHeight = SocialCommentIconSize + 4;
             return Math.Max(textHeight, iconHeight) + 4;
         }
@@ -2120,8 +2157,20 @@ namespace Smartphone
 
         private int GetSocialImageTagLineHeight()
         {
+            return GetSocialScaledLineHeight(SocialImageTagScale);
+        }
+
+        private static int GetSocialScaledLineHeight(float scale)
+        {
             int baseLineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
-            return Math.Max(1, (int)Math.Ceiling(baseLineHeight * SocialImageTagScale));
+            float safeScale = Math.Max(0.01f, scale);
+            return Math.Max(1, (int)Math.Ceiling(baseLineHeight * safeScale));
+        }
+
+        private static int GetSocialScaledWrapWidth(int maxWidth, float scale)
+        {
+            float safeScale = Math.Max(0.01f, scale);
+            return Math.Max(1, (int)Math.Floor(maxWidth / safeScale));
         }
 
         private static (int Width, int Height) GetAdaptiveSocialImageSize(int sourceWidth, int sourceHeight, int maxWidth, int maxHeight)
@@ -2379,21 +2428,39 @@ namespace Smartphone
             }
         }
 
-        private void DrawSocialNotificationBanner(SpriteBatch b, Rectangle cardBounds)
+        private void DrawSocialNotificationBanner(SpriteBatch b, Rectangle cardBounds, bool isNotificationPost, int unreadCommentCount = 0)
         {
             int bannerSize = 30;
-            Rectangle bannerBounds = new Rectangle(cardBounds.Right - bannerSize - 12, cardBounds.Y + 12, bannerSize, bannerSize);
-            b.Draw(Game1.staminaRect, bannerBounds, new Color(214, 33, 33, 230));
 
-            string text = "!";
-            Vector2 textSize = Game1.smallFont.MeasureString(text);
-            b.DrawString(
-                Game1.smallFont,
-                text,
+            if (unreadCommentCount > 0)
+            {
+                string unreadText = unreadCommentCount.ToString();
+                Rectangle bannerBounds1 = new Rectangle(cardBounds.Right - bannerSize - 42, cardBounds.Y + 25, bannerSize, bannerSize);
+                b.Draw(Game1.staminaRect, bannerBounds1, new Color(0, 0, 0, 100));
+                Vector2 unreadTextSize = Game1.smallFont.MeasureString(unreadText);
+                b.DrawString(
+                    Game1.smallFont,
+                    unreadText,
+                    new Vector2(
+                        bannerBounds1.X + (bannerBounds1.Width - unreadTextSize.X) / 2f,
+                        bannerBounds1.Y + (bannerBounds1.Height - unreadTextSize.Y) / 2f),
+                    Color.White);
+            }
+
+            if (isNotificationPost)
+            {
+                Rectangle bannerBounds = new Rectangle(cardBounds.Right - bannerSize - 12, cardBounds.Y + 25, bannerSize, bannerSize);
+                b.Draw(Game1.staminaRect, bannerBounds, new Color(214, 33, 33, 230));
+                string text = "!";
+                Vector2 textSize = Game1.smallFont.MeasureString(text);
+                b.DrawString(
+                    Game1.smallFont,
+                    text,
                 new Vector2(
                     bannerBounds.X + (bannerBounds.Width - textSize.X) / 2f,
-                    bannerBounds.Y + (bannerBounds.Height - textSize.Y) / 2f - 1f),
+                    bannerBounds.Y + (bannerBounds.Height - textSize.Y) / 2f),
                 Color.White);
+            }
         }
 
         private void DrawSocialUnreadBadge(SpriteBatch b, int rightX, int y, int unreadCount)
@@ -2918,7 +2985,9 @@ namespace Smartphone
             if (socialCreateMenuOpen)
                 return;
 
-            float wheelSteps = direction / 120f;
+            float scrollSteps = GetNormalizedScrollSteps(direction);
+            if (Math.Abs(scrollSteps) <= 0.0001f)
+                return;
 
             if (socialNotificationMenuOpen)
             {
@@ -2926,7 +2995,7 @@ namespace Smartphone
                 ClampSocialNotificationScroll(notifications);
 
                 socialNotificationScrollTarget = Math.Clamp(
-                    socialNotificationScrollTarget - wheelSteps * SocialScrollPixelsPerWheelNotch,
+                    socialNotificationScrollTarget - scrollSteps * SocialScrollPixelsPerWheelNotch,
                     0f,
                     CalculateSocialNotificationMaxScroll(notifications));
 
@@ -2939,7 +3008,7 @@ namespace Smartphone
                 ClampSocialProfileScroll(profilePosts);
 
                 socialProfileScrollTarget = Math.Clamp(
-                    socialProfileScrollTarget - wheelSteps * SocialScrollPixelsPerWheelNotch,
+                    socialProfileScrollTarget - scrollSteps * SocialScrollPixelsPerWheelNotch,
                     0f,
                     CalculateSocialProfileMaxScroll(profilePosts));
 
@@ -2952,7 +3021,7 @@ namespace Smartphone
                 ClampSocialFeedScroll(posts);
 
                 socialFeedScrollTarget = Math.Clamp(
-                    socialFeedScrollTarget - wheelSteps * SocialScrollPixelsPerWheelNotch,
+                    socialFeedScrollTarget - scrollSteps * SocialScrollPixelsPerWheelNotch,
                     0f,
                     CalculateSocialFeedMaxScroll(posts));
 
@@ -2965,7 +3034,7 @@ namespace Smartphone
 
             ClampSocialDetailScroll(selectedPost);
             socialDetailScrollTarget = Math.Clamp(
-                socialDetailScrollTarget - wheelSteps * SocialScrollPixelsPerWheelNotch,
+                socialDetailScrollTarget - scrollSteps * SocialScrollPixelsPerWheelNotch,
                 0f,
                 CalculateSocialDetailMaxScroll(selectedPost));
         }
@@ -3452,7 +3521,7 @@ namespace Smartphone
             if (npc == null)
                 return "Unknown";
 
-            return npc.Age == 0 ? "adult" : npc.Age == 1 ? "teens" : npc.Age == 2 ? "child" : "adult";
+            return npc.Age == 0 ? "Adult" : npc.Age == 1 ? "Teens" : npc.Age == 2 ? "Child" : "Adult";
         }
 
 

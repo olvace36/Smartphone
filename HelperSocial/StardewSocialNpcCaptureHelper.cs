@@ -10,7 +10,6 @@ namespace Smartphone
     {
         public static List<string> TryCaptureNpcPhoto(string npcName, int photoCount, int? captureTimeOfDay = null)
         {
-            Game1.chatBox.addErrorMessage($"Attempting to capture {photoCount} photo(s) for NPC: {npcName}");
             var filePaths = new List<string>();
             if (photoCount <= 0)
                 return filePaths;
@@ -161,7 +160,7 @@ namespace Smartphone
                         ApplyGroupFacingDirections(spawnedDummies, dummyNpc, captureCenterTile);
                         float zoomLevel = GetRandomNpcCaptureZoomLevel(spawnedDummies.Count);
 
-                        string filePath = CaptureNpcPhoto(dummyNpc, captureCenterTile, Game1.random.NextBool(), Game1.random.NextDouble() < 0.3, visibleNpcAtTarget, zoomLevel, effectiveCaptureTime);
+                        string filePath = CaptureNpcPhoto(selectedLocation, captureCenterTile, dummyNpc, Game1.random.NextBool(), Game1.random.NextDouble() < 0.3, visibleNpcAtTarget, zoomLevel, effectiveCaptureTime);
                         if (!string.IsNullOrWhiteSpace(filePath))
                         {
                             filePaths.Add(filePath);
@@ -498,7 +497,6 @@ namespace Smartphone
                         lookTarget += randomNudge;
                 }
                 var direction = GetFacingDirectionToward(spawnedDummy.Tile, lookTarget);
-                Game1.chatBox.addErrorMessage($"NPC '{spawnedDummy.Name}' at {spawnedDummy.Tile} faces {(randomOtherTile.HasValue ? $"other NPC at {randomOtherTile.Value}" : $"group center at {groupCenterTile}")} with direction {direction}.");
                 spawnedDummy.faceDirection(direction);
             }
         }

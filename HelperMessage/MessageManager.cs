@@ -9,6 +9,22 @@ namespace Smartphone
 {
     public static class MessageManager
     {
+        private sealed class PhoneSettingData
+        {
+            public string CurrentPhoneBackground { get; set; } = "";
+            public string CurrentPhoneSound { get; set; } = "getNewSpecialItem";
+            public string CurrentPhoneTextColor { get; set; } = "Black";
+            public string CurrentPhoneTheme { get; set; } = AssetHelper.DefaultPhoneThemeName;
+            public string CurrentPlayerAvatar { get; set; } = "";
+            public List<string> FavouriteNpc { get; set; } = new();
+            public Dictionary<string, long> LatestAdd { get; set; } = new();
+            public Dictionary<string, int> UnreadCounts { get; set; } = new();
+            public int UnreadNotification { get; set; }
+            public int LastPhoneOpenedDay { get; set; }
+        }
+
+        private const string PhoneSettingFileName = "phoneSetting";
+
         public static Dictionary<string, List<string>> npcMessages = new();
         public static Dictionary<string, int> unreadCounts = new(); // new counter
         public static Dictionary<string, long> latestAdd = new(); // Unix timestamp per NPC
@@ -18,6 +34,7 @@ namespace Smartphone
         public static string currentPlayerAvatar = "";
         public static string currentPhoneTextColor = "Black";
         public static string currentPhoneTheme = AssetHelper.DefaultPhoneThemeName;
+        public static int lastPhoneOpenedDay = 0;
 
         private static IModHelper Helper => ModEntry.SHelper;
 
@@ -81,7 +98,7 @@ namespace Smartphone
 
         public static List<string> GetMessages(string npc)
         {
-            if (!npcMessages.ContainsKey(npc))
+            if (npc != null && !npcMessages.ContainsKey(npc))
                 npcMessages[npc] = new List<string>();
 
             if (npcMessages.ContainsKey(npc) && ModEntry.npcMessagesToday.ContainsKey(npc))
@@ -178,6 +195,91 @@ namespace Smartphone
             return latestAdd;
         }
 
+        public static int GetCurrentPhoneUsageDayNumber()
+        {
+            if (!Context.IsWorldReady)
+                return 0;
+
+            SDate today = SDate.Now();
+            int year = Math.Max(1, today.Year);
+            int day = Math.Clamp(today.Day, 1, 28);
+            int seasonIndex = ResolveSeasonIndex(today.Season);
+
+            return ((year - 1) * 112) + (seasonIndex * 28) + day;
+        }
+
+        public static void MarkPhoneOpenedToday()
+        {
+            int currentDayNumber = GetCurrentPhoneUsageDayNumber();
+            if (currentDayNumber <= 0)
+                return;
+
+            if (lastPhoneOpenedDay == currentDayNumber)
+            {
+                if (ModEntry.IsAiDisabledForPhoneInactivityToday)
+                    ModEntry.IsAiDisabledForPhoneInactivityToday = false;
+
+                return;
+            }
+
+            lastPhoneOpenedDay = currentDayNumber;
+            ModEntry.IsAiDisabledForPhoneInactivityToday = false;
+            SavePhoneSettingData();
+        }
+
+        private static int ResolveSeasonIndex(Season season)
+        {
+            return season switch
+            {
+                Season.Spring => 0,
+                Season.Summer => 1,
+                Season.Fall => 2,
+                Season.Winter => 3,
+                _ => 0
+            };
+        }
+
+
+
+        private static string GetPhoneSettingDataPath()
+        {
+            return $"./userdata/{Constants.SaveFolderName}/{PhoneSettingFileName}";
+        }
+
+        private static void SavePhoneSettingData()
+        {
+            PhoneSettingData data = new()
+            {
+                CurrentPhoneBackground = currentPhoneBackground ?? "",
+                CurrentPhoneSound = string.IsNullOrWhiteSpace(currentPhoneSound) ? "getNewSpecialItem" : currentPhoneSound,
+                CurrentPhoneTextColor = string.IsNullOrWhiteSpace(currentPhoneTextColor) ? "Black" : currentPhoneTextColor,
+                CurrentPhoneTheme = string.IsNullOrWhiteSpace(currentPhoneTheme) ? AssetHelper.DefaultPhoneThemeName : currentPhoneTheme,
+                CurrentPlayerAvatar = currentPlayerAvatar ?? "",
+                FavouriteNpc = favouriteNpc?.ToList() ?? new List<string>(),
+                LatestAdd = latestAdd?.ToDictionary(pair => pair.Key, pair => pair.Value) ?? new Dictionary<string, long>(),
+                UnreadCounts = unreadCounts?.ToDictionary(pair => pair.Key, pair => pair.Value) ?? new Dictionary<string, int>(),
+                UnreadNotification = Math.Max(0, NotificationManager.unreadNotification),
+                LastPhoneOpenedDay = Math.Max(0, lastPhoneOpenedDay)
+            };
+
+            Helper.Data.WriteJsonFile(GetPhoneSettingDataPath(), data);
+        }
+
+        private static void LoadPhoneSettingData()
+        {
+            PhoneSettingData data = Helper.Data.ReadJsonFile<PhoneSettingData>(GetPhoneSettingDataPath()) ?? new PhoneSettingData();
+
+            unreadCounts = data.UnreadCounts ?? new Dictionary<string, int>();
+            latestAdd = data.LatestAdd ?? new Dictionary<string, long>();
+            favouriteNpc = data.FavouriteNpc ?? new List<string>();
+            currentPhoneSound = string.IsNullOrWhiteSpace(data.CurrentPhoneSound) ? "getNewSpecialItem" : data.CurrentPhoneSound;
+            currentPhoneBackground = data.CurrentPhoneBackground ?? "";
+            currentPlayerAvatar = data.CurrentPlayerAvatar ?? "";
+            currentPhoneTextColor = string.IsNullOrWhiteSpace(data.CurrentPhoneTextColor) ? "Black" : data.CurrentPhoneTextColor;
+            currentPhoneTheme = string.IsNullOrWhiteSpace(data.CurrentPhoneTheme) ? AssetHelper.DefaultPhoneThemeName : data.CurrentPhoneTheme;
+            lastPhoneOpenedDay = Math.Max(0, data.LastPhoneOpenedDay);
+            NotificationManager.unreadNotification = Math.Max(0, data.UnreadNotification);
+        }
 
         public static void SaveData()
         {
@@ -213,14 +315,7 @@ namespace Smartphone
 
             // Write the merged result
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/npcMessages", mergedMessages);
-            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/unreadCounts", unreadCounts);
-            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/latestAdd", latestAdd);
-            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/favouriteNpc", favouriteNpc);
-            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPhoneSound", currentPhoneSound);
-            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPhoneBackground", currentPhoneBackground);
-            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPlayerAvatar", currentPlayerAvatar);
-            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPhoneTextColor", currentPhoneTextColor);
-            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/currentPhoneTheme", currentPhoneTheme);
+            SavePhoneSettingData();
         }
 
         public static void LoadData()
@@ -232,22 +327,7 @@ namespace Smartphone
             foreach (string npc in npcMessages.Keys.ToList())
                 TrimMessageListToMax(npcMessages[npc], maxMessages);
 
-            unreadCounts = Helper.Data.ReadJsonFile<Dictionary<string, int>>($"./userdata/{Constants.SaveFolderName}/unreadCounts")
-                          ?? new Dictionary<string, int>();
-            latestAdd = Helper.Data.ReadJsonFile<Dictionary<string, long>>($"./userdata/{Constants.SaveFolderName}/latestAdd")
-                         ?? new Dictionary<string, long>();
-            favouriteNpc = Helper.Data.ReadJsonFile<List<string>>($"./userdata/{Constants.SaveFolderName}/favouriteNpc")
-                         ?? new List<string>();
-            currentPhoneSound = Helper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/currentPhoneSound")
-                        ?? "getNewSpecialItem";
-            currentPhoneBackground = Helper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/currentPhoneBackground")
-                        ?? "";
-            currentPlayerAvatar = Helper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/currentPlayerAvatar")
-                        ?? "";
-            currentPhoneTextColor = Helper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/currentPhoneTextColor")
-                        ?? "Black";
-            currentPhoneTheme = Helper.Data.ReadJsonFile<string>($"./userdata/{Constants.SaveFolderName}/currentPhoneTheme")
-                        ?? AssetHelper.DefaultPhoneThemeName;
+            LoadPhoneSettingData();
 
         }
 

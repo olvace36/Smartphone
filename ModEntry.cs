@@ -300,7 +300,8 @@ namespace Smartphone
 
             if (Game1.random.NextDouble() < baseChance / 100.0)
             {
-                PhoneMenu phoneMenu = new PhoneMenu();
+                if (phoneMenu == null)
+                    phoneMenu = new PhoneMenu();
 
                 double power = 1.4;
                 int maxValue = Math.Min(phoneMenu.messageableNpcList.Count, 20);
@@ -357,7 +358,7 @@ namespace Smartphone
                         }
                         else
                         {
-                            if (iUnlimitedEventExpansionApi != null && Game1.timeOfDay < 1900 &&Game1.random.NextDouble() < 0.3 && Game1.player.getFriendshipHeartLevelForNPC(npcName) >= 3)
+                            if (iUnlimitedEventExpansionApi != null && Game1.timeOfDay < 1900 && Game1.random.NextDouble() < 0.3 && Game1.player.getFriendshipHeartLevelForNPC(npcName) >= 3 && iUnlimitedEventExpansionApi.CanScheduleNewEvent()) // 30% chance to trigger invite event if conditions are met
                             {
                                 Task.Run(async () =>
                                 {

@@ -40,6 +40,9 @@ namespace Smartphone
 
         internal static void HandleAiModelSettingTimeChanged(int newTime)
         {
+            if (IsAiTemporarilyDisabledForPhoneInactivity())
+                return;
+
             if (!string.IsNullOrWhiteSpace(Config.OpenAIKey))
             {
                 chatModel = Config.OpenAIModel;
@@ -137,7 +140,7 @@ namespace Smartphone
         }
 
 
-        private static string GetNpcCharacteristicForPrompt(NPC npc)
+        private static string GetNpcCharacteristicForPrompt(NPC npc, bool getMinimal = false)
         {
             if (npc is null)
                 return string.Empty;
@@ -148,18 +151,22 @@ namespace Smartphone
 
             string npcCharacteristic = $" {npc.Name} is {npcAge}, {npcManner}, and is {npcSocial}";
 
+            if (getMinimal && string.IsNullOrWhiteSpace(Config.OpenAIKey))
+                return npcCharacteristic;
+
             // CUSTOM CHARACTERISTIC OVERRIDE
             if (!string.IsNullOrWhiteSpace(Config.OpenAIKey))
             {
-                if (Config.CharacteristicMode == ModConfig.CharacteristicModeLong && NpcCharacteristicsLong.TryGetValue(npc.Name, out string? customCharacteristicLong) && !string.IsNullOrWhiteSpace(customCharacteristicLong))
+                if (Config.CharacteristicMode == ModConfig.CharacteristicModeLong && NpcCharacteristicsLong.TryGetValue(npc.Name, out string? customCharacteristicLong) && !string.IsNullOrWhiteSpace(customCharacteristicLong) && !getMinimal)
                 {
                     npcCharacteristic = customCharacteristicLong;
                 }
-                else if (Config.CharacteristicMode == ModConfig.CharacteristicModeShort && NpcCharacteristicsShort.TryGetValue(npc.Name, out string? customCharacteristic) && !string.IsNullOrWhiteSpace(customCharacteristic))
+                else if (Config.CharacteristicMode == ModConfig.CharacteristicModeShort && NpcCharacteristicsShort.TryGetValue(npc.Name, out string? customCharacteristic) && !string.IsNullOrWhiteSpace(customCharacteristic) && !getMinimal)
                 {
                     npcCharacteristic = customCharacteristic;
                 }
-                else if (Config.CharacteristicMode == ModConfig.CharacteristicModeMinimal && NpcCharacteristicsMinimal.TryGetValue(npc.Name, out string? customCharacteristicMinimal) && !string.IsNullOrWhiteSpace(customCharacteristicMinimal))
+                else if (NpcCharacteristicsMinimal.TryGetValue(npc.Name, out string? customCharacteristicMinimal) && !string.IsNullOrWhiteSpace(customCharacteristicMinimal)
+                && (Config.CharacteristicMode == ModConfig.CharacteristicModeMinimal || getMinimal && Config.BetterQualityComment))
                 {
                     npcCharacteristic = customCharacteristicMinimal;
                 }
@@ -186,7 +193,7 @@ namespace Smartphone
         {
             NPC npc = Game1.getCharacterFromName(npcName);
             var random = Game1.random;
-            if (npc is null || IsMaxedLimit)
+            if (npc is null || IsMaxedLimit || IsAiTemporarilyDisabledForPhoneInactivity())
             {
                 return "SYSTEM: ---Got an error---";
             }
@@ -253,12 +260,12 @@ namespace Smartphone
                         var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
                         RegisterSuccessfulAiCall();
 
-                        SMonitor.Log(jsonResponse.ToString(), LogLevel.Error);
-
                         JObject json = JObject.Parse(jsonResponse);
                         JArray toolCalls = GetResponseFunctionCalls(json);
                         responseMessage = GetResponseOutputText(json);
 
+
+                        SMonitor.Log(jsonResponse.ToString(), LogLevel.Error);
                         SMonitor.Log("system-----", LogLevel.Error);
                         SMonitor.Log(system, LogLevel.Error);
                         SMonitor.Log("user-----", LogLevel.Error);
@@ -307,7 +314,6 @@ namespace Smartphone
                                             iUnlimitedEventExpansionApi.OpenScheduleEventTimeMenu(
                                                 eventNpcName.Trim(),
                                                 registeredEvent.EventType,
-                                                npcDisplayName,
                                                 textResponse);
 
                                         },
@@ -546,12 +552,12 @@ namespace Smartphone
 
                             **Response Instructions**
                             1. **Response:** Reply to the user with a message of <30 words.
-                            2. **Slice of Life:** You may occasionally invent small, random dynamic details happening around you for your response. Be creative and do not be repetitive with your responses. 
+                            2. **Slice of Life:** You may occasionally invent new small, random dynamic details happening around you for your response. Be creative and do not be repetitive with your responses. 
 
                             * **{npc.Name} personality:** {npcCharacteristic}
                             * **Relationship with player:** {relation}
                             * **World Context:** {data}
-                            * **Memory Summary:** {summary}
+                            * **Conversation History:** {summary}
                             ";
 
                     if (possibleEvent.Any())
@@ -562,13 +568,13 @@ namespace Smartphone
                             **Response Instructions**
                             1. **Function call:** When the player intends to invite the NPC for an event that is in the possible event list below, then you must return the function schedule_event and finish.
                             2. **Response:** If player do not intend to invite the NPC for an event, then reply to the user with a message of <30 words.
-                            3. **Slice of Life:** You may occasionally invent small, random dynamic details happening around you for your response. Be creative and do not be repetitive with your responses. Do not invite or suggest the player for an event.
+                            3. **Slice of Life:** You may occasionally invent new small, random dynamic details happening around you for your response. Be creative and do not be repetitive with your responses. Do not invite or suggest the player for an event.
                             
                             * **{npc.Name} personality:** {npcCharacteristic}
                             * **Relationship with player:** {relation}
                             * **Possible events:** {string.Join(", ", possibleEvent)}
                             * **World Context:** {data}
-                            * **Memory Summary:** {summary}
+                            * **Conversation History:** {summary}
                             ";
 
 
@@ -583,12 +589,12 @@ namespace Smartphone
 
                         **Response Instructions**
                         1. Keep the text under 30 words. Be creative, in-character, and match your relationship level.
-                        3. **Slice of Life:** You may occasionally invent small, random dynamic details happening around you for your response. Be creative and not repetitive with your responses.
+                        3. **Slice of Life:** You may occasionally invent new small, random dynamic details happening around you for your response. Be creative and not repetitive with your responses.
 
                         * **{npc.Name} personality:** {npcCharacteristic}
                         * **Relationship with player:** {relation}
                         * **World Context:** {data}
-                        * **Memory Summary:** {summary}
+                        * **Conversation History:** {summary}
                         ";
                     return systemMessage;
                 }
@@ -605,7 +611,7 @@ namespace Smartphone
                         * **{npc.Name} personality:** {npcCharacteristic}
                         * **Relationship with player:** {relation}
                         * **World Context:** {data}
-                        * **Memory Summary:** {summary}
+                        * **Conversation History:** {summary}
                         ";
 
                     return systemMessage;
@@ -623,6 +629,9 @@ namespace Smartphone
         {
             var parsedSummaries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (conversationsByNpc == null || conversationsByNpc.Count == 0)
+                return parsedSummaries;
+
+            if (IsAiTemporarilyDisabledForPhoneInactivity())
                 return parsedSummaries;
 
             if (!bypassAiLimit && !TryConsumeAiCallSlot())
@@ -674,6 +683,7 @@ namespace Smartphone
                 return parsedSummaries;
 
             foreach (var candidate in summaryCandidates
+                .Where(item => item.Conversation.Contains("PLAYER", StringComparison.OrdinalIgnoreCase) && item.ConversationLength > 200)
                 .OrderByDescending(item => item.ConversationLength)
                 .ThenBy(item => item.NpcName, StringComparer.OrdinalIgnoreCase)
                 .Take(maxConversationsToSummarize))
@@ -773,7 +783,7 @@ namespace Smartphone
         private static async Task<Dictionary<string, string>> GenerateNpcSocialPostTextsBatch(IReadOnlyList<DailySocialPostPlan> scheduledPosts)
         {
             var generatedPosts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (scheduledPosts == null || scheduledPosts.Count == 0 || IsMaxedLimit)
+            if (scheduledPosts == null || scheduledPosts.Count == 0 || IsMaxedLimit || IsAiTemporarilyDisabledForPhoneInactivity())
                 return generatedPosts;
 
             List<DailySocialPostPlan> validPlans = scheduledPosts
@@ -955,7 +965,7 @@ namespace Smartphone
         public static async Task<Dictionary<string, Dictionary<string, string>>> GenerateNpcSocialPostCommentsBatch(IReadOnlyDictionary<string, IReadOnlyList<string>> commenterNamesByPostId)
         {
             var generatedCommentsByPost = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-            if (commenterNamesByPostId == null || commenterNamesByPostId.Count == 0 || IsMaxedLimit)
+            if (commenterNamesByPostId == null || commenterNamesByPostId.Count == 0 || IsMaxedLimit || IsAiTemporarilyDisabledForPhoneInactivity())
                 return generatedCommentsByPost;
 
             var expectedCommentersByPost = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
@@ -1011,10 +1021,13 @@ namespace Smartphone
                                     ? "middle"
                                     : "late";
 
+                        string npcCharacteristic = GetNpcCharacteristicForPrompt(Game1.getCharacterFromName(name), true);
+
                         return new
                         {
                             npc = name,
-                            characteristicDevelopmentState = npcCharacteristicState
+                            characteristicDevelopmentState = npcCharacteristicState,
+                            characteristic = npcCharacteristic
                         };
                     })
                     .ToArray();
@@ -1155,7 +1168,7 @@ namespace Smartphone
         {
             var functionList = new List<object>();
 
-            if (Game1.timeOfDay > 2200 || iUnlimitedEventExpansionApi == null)
+            if (Game1.timeOfDay > 2200 || iUnlimitedEventExpansionApi == null || !iUnlimitedEventExpansionApi.CanScheduleNewEvent())
                 return functionList.ToArray();
 
             int heartLevel = 0;

@@ -19,6 +19,7 @@ namespace Smartphone
         public static int AiCallsRemainingToday = AiCreditRemaining;
         public static int DailyAiUsageRemainingToday = DailyAiLimit;
         public static int SuccessfulAiCallsToday = 0;
+        public static bool IsAiDisabledForPhoneInactivityToday = false;
 
         private static readonly object aiQuotaLock = new();
         private static readonly Queue<QueuedAiAction> highPriorityQueuedAiActions = new();
@@ -29,6 +30,11 @@ namespace Smartphone
         public static bool IsAiUsageLimitEnabled()
         {
             return string.IsNullOrWhiteSpace(Config?.OpenAIKey);
+        }
+
+        public static bool IsAiTemporarilyDisabledForPhoneInactivity()
+        {
+            return IsAiUsageLimitEnabled() && IsAiDisabledForPhoneInactivityToday;
         }
 
         public static void ResetDailyAiUsageLimit()
@@ -82,6 +88,9 @@ namespace Smartphone
                 return;
             }
 
+            if (IsAiTemporarilyDisabledForPhoneInactivity())
+                return;
+
             if (!IsAiUsageLimitEnabled())
             {
                 TriggerQueuedAiActions();
@@ -110,6 +119,9 @@ namespace Smartphone
 
         public static bool TryConsumeAiCallSlot()
         {
+            if (IsAiTemporarilyDisabledForPhoneInactivity())
+                return false;
+
             if (!IsAiUsageLimitEnabled())
                 return true;
 
@@ -143,6 +155,9 @@ namespace Smartphone
         private static async Task RunAiActionWithQueueInternalAsync(Func<Task> action, string queueKey, bool highPriority, bool consumeSlotNow)
         {
             if (action == null)
+                return;
+
+            if (IsAiTemporarilyDisabledForPhoneInactivity())
                 return;
 
             if (!IsAiUsageLimitEnabled())
@@ -246,6 +261,10 @@ namespace Smartphone
         private static bool TryTakeNextQueuedAiAction(out Func<Task> action)
         {
             action = static () => Task.CompletedTask;
+
+            if (IsAiTemporarilyDisabledForPhoneInactivity())
+                return false;
+
             bool limitEnabled = IsAiUsageLimitEnabled();
 
             lock (aiQuotaLock)

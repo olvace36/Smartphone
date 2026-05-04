@@ -19,6 +19,7 @@ using StardewValley.Delegates;
 using StardewValley.Extensions;
 using StardewValley.GameData.Characters;
 using StardewValley.GameData.Crops;
+using StardewValley.GameData.LocationContexts;
 using StardewValley.Locations;
 using StardewValley.Menus;
 using StardewValley.Minigames;
@@ -141,6 +142,7 @@ namespace Smartphone
                     phoneMenu = new PhoneMenu();
 
                 Game1.activeClickableMenu = phoneMenu;
+                MessageManager.MarkPhoneOpenedToday();
             }
 
             // DEVTOOL
@@ -215,7 +217,7 @@ namespace Smartphone
 
             foreach (var npc in Utility.getAllVillagers()
             .OfType<NPC>()
-                .Where(npc => npc.CanSocialize && !npc.IsInvisible && Game1.player.friendshipData.ContainsKey(npc.Name) && !socialNpcBlacklist.Contains(npc.Name, StringComparer.OrdinalIgnoreCase))
+                .Where(npc => npc.CanSocialize && !npc.IsInvisible && !socialNpcBlacklist.Contains(npc.Name, StringComparer.OrdinalIgnoreCase))
                 .ToList())
             {
                 if (!string.IsNullOrEmpty(npc.Birthday_Season) && npc.Birthday_Day > 0)
@@ -277,7 +279,6 @@ namespace Smartphone
             // Reset daily variables
             ClearPendingRandomNpcSocialPost();
             ResetDailyAiUsageLimit();
-            HandleAiModelSettingTimeChanged(600);
             isTodayEventAdded = false;
             lastTimeReceiveMessage = 600;
             npcMessagesToday.Clear();
@@ -286,10 +287,13 @@ namespace Smartphone
             FarmTreeNames.Clear();
             ResetTriggeredUnlimitedEventTag();
 
+            UpdateSocialPostLimit();
             MessageManager.LoadData();
             ApplySavedPhoneTheme();
             NotificationManager.LoadNoticationData();
             StardewConnectManager.LoadData();
+            HandlePhoneUsageInactivityOnDayStarted();
+            HandleAiModelSettingTimeChanged(600);
             GiftMemories = Helper.Data.ReadJsonFile<Dictionary<string, GiftMemory>>($"./userdata/{Constants.SaveFolderName}/GiftMemoryData")
                    ?? new Dictionary<string, GiftMemory>();
             RecentEvents = Helper.Data.ReadJsonFile<List<RecentEvent>>($"./userdata/{Constants.SaveFolderName}/recent_event_memory")
@@ -316,6 +320,37 @@ namespace Smartphone
             // send conversationSummary to iModApi
             if (iUnlimitedEventExpansionApi != null)
                 iUnlimitedEventExpansionApi.SendNpcConversationSummary(npcConversationSummary);
+        }
+
+        private void HandlePhoneUsageInactivityOnDayStarted()
+        {
+            IsAiDisabledForPhoneInactivityToday = false;
+            return;
+
+            if (!IsAiUsageLimitEnabled())
+                return;
+
+            int currentDayNumber = MessageManager.GetCurrentPhoneUsageDayNumber();
+            if (currentDayNumber <= 0)
+                return;
+
+            int lastOpenedDay = Math.Max(0, MessageManager.lastPhoneOpenedDay);
+            if (lastOpenedDay > currentDayNumber)
+                lastOpenedDay = currentDayNumber;
+
+            int daysSinceLastOpen = lastOpenedDay <= 0
+                ? currentDayNumber
+                : currentDayNumber - lastOpenedDay;
+
+            if (daysSinceLastOpen >= 3)
+            {
+                IsAiDisabledForPhoneInactivityToday = true;
+                NotificationManager.addNotification("=== Smartphone ===^^Seem like you are not using Smartphone. All AI are disabled until you come back.");
+                return;
+            }
+
+            if (daysSinceLastOpen >= 2)
+                NotificationManager.addNotification("=== Smartphone ===^^Many things are happening, remember to check your Smartphone.");
         }
 
         private void ApplySavedPhoneTheme()
@@ -404,10 +439,13 @@ namespace Smartphone
 
             HandleScheduledSocialPostsOnTimeChanged(e.NewTime);
 
-            if ((e.NewTime - 750) % GetSocialEngagementIntervalFromConfig() == 0 && Game1.timeOfDay >= 630 && Game1.timeOfDay <= 2400)
-                QueueRandomNpcEngagement();
+            if (GetSocialCommentEngagementIntervalFromConfig().Contains(e.NewTime))
+                QueueRandomNpcCommentEngagement();
 
-            if (Game1.timeOfDay < 2300)
+            if (GetSocialLikeEngagementIntervalFromConfig().Contains(e.NewTime))
+                QueueRandomNpcLikeEngagement();
+
+            if (Game1.timeOfDay < 2200)
                 CheckSendNewMessage();
 
             if (pendingInitNotification && isPlayerFree())

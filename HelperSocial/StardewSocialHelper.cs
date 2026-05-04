@@ -11,16 +11,23 @@ namespace Smartphone
 {
     public partial class ModEntry
     {
-        private static List<string> socialNpcBlacklist = new List<string>
+        public static List<string> socialNpcBlacklist = new List<string>
         {
+            "Leo",
             "Krobus",
             "Dwarf",
             "Gunther",
             "Birdie",
             "Bouncer",
+            "MoonSBV",
+            "PanSBV",
+            "RaccoonSBV",
+            "Leximonster",
+            "Dianna",
+            "Torts"
         };
-        private static int SocialActionMaxDelayMilliseconds = 1000; // 10s = 10000ms
-        private static int SocialPostMaxDelayMilliseconds = 3000; // 30s = 30000ms
+        private static int SocialActionMaxDelayMilliseconds = 140000; // 1s = 1000ms
+        private static int SocialPostMaxDelayMilliseconds = 0;
         private static double SocialRepeatCommentChance = 0.30;
         private static readonly List<DailySocialPostPlan> DailyScheduledSocialPosts = new();
         private static bool DailySocialPostTextGenerationRequested = false;
@@ -42,50 +49,142 @@ namespace Smartphone
         }
 
         // Engagement limits for random posts
-        private static int SocialLikesWithin1DayMax = 8;
+        private static int SocialLikesWithin1DayMax = 3;
         private static int SocialCommentsWithin1DayMax = 5;
-        private static int SocialLikesWithin3DaysMax = 7;
+        private static int SocialLikesWithin3DaysMax = 2;
         private static int SocialCommentsWithin3DaysMax = 4;
 
         // Engagement limits for most popular posts
-        private static int SocialLikesMostPopularWithin2DayMax = 7;
+        private static int SocialLikesMostPopularWithin2DayMax = 2;
         private static int SocialCommentsMostPopularWithin2DayMax = 3;
+
+
+        // Post selection sampling size for comments
+        private static int SocialCommentRandomPostsWithin1DayCount = 2;
+        private static int SocialCommentRandomPostsWithin3DaysCount = 0;
+        private static int SocialCommentMostPopularWithin2DayCount = 1;
+
+        // Post selection sampling size for likes
+        private static int SocialLikeRandomPostsWithin1DayCount = 3;
+        private static int SocialLikeRandomPostsWithin3DaysCount = 4;
+        private static int SocialLikeMostPopularWithin2DayCount = 2;
+        private static int SocialLikeMinPerPost = 1;
 
 
         // Social post weights. Keep total 100
         private static int SocialPostWeightText0Images = 25;
-        private static int SocialPostWeightText1Image = 30;
+        private static int SocialPostWeightText1Image = 33;
         private static int SocialPostWeightText2Images = 15;
         private static int SocialPostWeightText3Images = 5;
         private static int SocialPostWeightNoText0Images = 0;
         private static int SocialPostWeightNoText1Image = 10;
-        private static int SocialPostWeightNoText2Images = 10;
+        private static int SocialPostWeightNoText2Images = 7;
         private static int SocialPostWeightNoText3Images = 5;
 
 
         internal static void UpdatePostInteractionLimit()
         {
             int totalNpcs = Utility.getAllVillagers().Count(npc => npc.CanSocialize);
-
-            if (totalNpcs > 60)
+            if (totalNpcs > 130)
             {
-                SocialLikesWithin1DayMax = 13;
+                SocialLikesWithin1DayMax = 6;
                 SocialCommentsWithin1DayMax = 7;
-                SocialLikesWithin3DaysMax = 11;
+                SocialLikesWithin3DaysMax = 5;
                 SocialCommentsWithin3DaysMax = 6;
-                SocialLikesMostPopularWithin2DayMax = 11;
+                SocialLikesMostPopularWithin2DayMax = 5;
+                SocialCommentsMostPopularWithin2DayMax = 5;
+            }
+            else if (totalNpcs > 100)
+            {
+                SocialLikesWithin1DayMax = 5;
+                SocialCommentsWithin1DayMax = 7;
+                SocialLikesWithin3DaysMax = 4;
+                SocialCommentsWithin3DaysMax = 6;
+                SocialLikesMostPopularWithin2DayMax = 4;
+                SocialCommentsMostPopularWithin2DayMax = 5;
+            }
+            else if (totalNpcs > 60)
+            {
+                SocialLikesWithin1DayMax = 4;
+                SocialCommentsWithin1DayMax = 7;
+                SocialLikesWithin3DaysMax = 4;
+                SocialCommentsWithin3DaysMax = 6;
+                SocialLikesMostPopularWithin2DayMax = 4;
                 SocialCommentsMostPopularWithin2DayMax = 5;
             }
             else if (totalNpcs > 40)
             {
-                SocialLikesWithin1DayMax = 10;
+                SocialLikesWithin1DayMax = 3;
                 SocialCommentsWithin1DayMax = 6;
-                SocialLikesWithin3DaysMax = 9;
+                SocialLikesWithin3DaysMax = 3;
                 SocialCommentsWithin3DaysMax = 5;
-                SocialLikesMostPopularWithin2DayMax = 9;
+                SocialLikesMostPopularWithin2DayMax = 3;
                 SocialCommentsMostPopularWithin2DayMax = 4;
             }
         }
+
+        internal static void UpdateSocialPostLimit()
+        {
+            if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
+                return;
+
+            if (Config.PostPerDay == ModConfig.PostPerDayHigh)
+            {
+                SocialCommentRandomPostsWithin1DayCount = 3;
+                SocialCommentRandomPostsWithin3DaysCount = 2;
+            }
+            else if (Config.PostPerDay == ModConfig.PostPerDayMedium)
+            {
+                SocialCommentRandomPostsWithin1DayCount = 2;
+                SocialCommentRandomPostsWithin3DaysCount = 1;
+            }
+            else
+            {
+                SocialCommentRandomPostsWithin1DayCount = 2;
+                SocialCommentRandomPostsWithin3DaysCount = 0;
+            }
+        }
+
+        private static List<int> GetSocialCommentEngagementIntervalFromConfig()
+        {
+            if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
+                return new List<int> { 900, 1700 };
+
+            return Config?.PostPerDay switch
+            {
+                ModConfig.PostPerDayHigh => new List<int> { 800, 1130, 1700, 2030 },
+                ModConfig.PostPerDayLow => new List<int> { 1100, 1900 },
+                _ => new List<int> { 1000, 1400, 1900 }
+            };
+        }
+
+        private static List<int> GetSocialLikeEngagementIntervalFromConfig()
+        {
+            if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
+                return new List<int> { 730, 1230, 1600, 2000 };
+
+            return Config?.PostPerDay switch
+            {
+                ModConfig.PostPerDayHigh => new List<int> { 610, 900, 1130, 1500, 1800, 2030 },
+                ModConfig.PostPerDayLow => new List<int> { 730, 1200, 1600, 2000 },
+                _ => new List<int> { 700, 1100, 1400, 1700, 2030 }
+            };
+        }
+
+        private static (int MinGapMinutes, int MaxGapMinutes, int MinPosts, int MaxPosts) GetSocialPostSchedulingConfig()
+        {
+            if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
+                return (330, 420, 1, 3);
+
+            return Config?.PostPerDay switch
+            {
+                ModConfig.PostPerDayHigh => (210, 300, 2, 4),
+                ModConfig.PostPerDayLow => (330, 420, 1, 3),
+                _ => (270, 360, 2, 3)
+            };
+        }
+
+
         private static NPC? getRandomWeightedNPC()
         {
             List<NPC> candidates = Utility.getAllVillagers()
@@ -125,19 +224,6 @@ namespace Smartphone
             }
 
             return null;
-        }
-
-        private static int GetSocialEngagementIntervalFromConfig()
-        {
-            if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
-                return 750; 
-
-            return Config?.PostPerDay switch
-            {
-                ModConfig.PostPerDayHigh => 500,
-                ModConfig.PostPerDayLow => 750,
-                _ => 600
-            };
         }
 
         private static void ClearPendingRandomNpcSocialPost()
@@ -257,19 +343,6 @@ namespace Smartphone
                     SMonitor.Log($"Unable to publish scheduled social post for '{plan.AuthorName}' at {plan.ScheduledTime}.", LogLevel.Trace);
                 }
             }
-        }
-
-        private static (int MinGapMinutes, int MaxGapMinutes, int MinPosts, int MaxPosts) GetSocialPostSchedulingConfig()
-        {
-            if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
-                return (330, 420, 1, 3);
-
-            return Config?.PostPerDay switch
-            {
-                ModConfig.PostPerDayHigh => (210, 300, 2, 4),
-                ModConfig.PostPerDayLow => (330, 420, 1, 3),
-                _ => (270, 360, 2, 3)
-            };
         }
 
         private static List<int> BuildDailySocialPostTimes(int desiredPostCount, int minGapMinutes, int maxGapMinutes)
@@ -397,28 +470,65 @@ namespace Smartphone
             return (true, 0);
         }
 
-        private static void QueueRandomNpcEngagement()
+        private static void QueueRandomNpcCommentEngagement()
         {
             var commentAttemptsByPostId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
             List<string> randomPostsWithin1Day = GetDistinctRandomPostIds(
                 count => StardewConnectManager.GetRandomPostIdWithinDayRange(count, 0, 1),
-                desiredCount: 3);
-            QueueLikesAndCommentsForPosts(randomPostsWithin1Day, SocialLikesWithin1DayMax, SocialCommentsWithin1DayMax, commentAttemptsByPostId);
+                desiredCount: SocialCommentRandomPostsWithin1DayCount);
+            QueueCommentAttemptsForPosts(randomPostsWithin1Day, SocialCommentsWithin1DayMax, commentAttemptsByPostId);
 
             List<string> randomPostsWithin3Days = GetDistinctRandomPostIds(
                 count => StardewConnectManager.GetRandomPostIdWithinDayRange(count, 1, 3),
-                desiredCount: 2);
-            QueueLikesAndCommentsForPosts(randomPostsWithin3Days, SocialLikesWithin3DaysMax, SocialCommentsWithin3DaysMax, commentAttemptsByPostId);
+                desiredCount: SocialCommentRandomPostsWithin3DaysCount);
+            QueueCommentAttemptsForPosts(randomPostsWithin3Days, SocialCommentsWithin3DaysMax, commentAttemptsByPostId);
 
-            string mostPopularWithin2Day = StardewConnectManager.GetOnePopularPostIdWithinDayRange(0, 2);
-            if (!string.IsNullOrWhiteSpace(mostPopularWithin2Day))
-                QueueLikesAndCommentsForPosts(new List<string> { mostPopularWithin2Day }, SocialLikesMostPopularWithin2DayMax, SocialCommentsMostPopularWithin2DayMax, commentAttemptsByPostId);
+            List<string> mostPopularWithin2Days = GetDistinctPopularPostIdsWithinDayRange(
+                desiredCount: SocialCommentMostPopularWithin2DayCount,
+                startDay: 0,
+                endDay: 2);
+            QueueCommentAttemptsForPosts(mostPopularWithin2Days, SocialCommentsMostPopularWithin2DayMax, commentAttemptsByPostId);
 
             QueueCommentsForPosts(commentAttemptsByPostId);
         }
 
-        private static void QueueLikesAndCommentsForPosts(IEnumerable<string> postIds, int maxLikes, int maxComments, IDictionary<string, int> commentAttemptsByPostId)
+        private static void QueueRandomNpcLikeEngagement()
+        {
+            List<string> randomPostsWithin1Day = GetDistinctRandomPostIds(
+                count => StardewConnectManager.GetRandomPostIdWithinDayRange(count, 0, 1),
+                desiredCount: SocialLikeRandomPostsWithin1DayCount);
+            QueueLikesForPosts(randomPostsWithin1Day, SocialLikesWithin1DayMax);
+
+            List<string> randomPostsWithin3Days = GetDistinctRandomPostIds(
+                count => StardewConnectManager.GetRandomPostIdWithinDayRange(count, 1, 3),
+                desiredCount: SocialLikeRandomPostsWithin3DaysCount);
+            QueueLikesForPosts(randomPostsWithin3Days, SocialLikesWithin3DaysMax);
+
+            List<string> mostPopularWithin2Days = GetDistinctPopularPostIdsWithinDayRange(
+                desiredCount: SocialLikeMostPopularWithin2DayCount,
+                startDay: 0,
+                endDay: 2);
+            QueueLikesForPosts(mostPopularWithin2Days, SocialLikesMostPopularWithin2DayMax);
+        }
+
+        private static List<string> GetDistinctPopularPostIdsWithinDayRange(int desiredCount, int startDay, int endDay)
+        {
+            return GetDistinctRandomPostIds(requestCount =>
+            {
+                var postIds = new List<string>();
+                for (int i = 0; i < requestCount; i++)
+                {
+                    string postId = StardewConnectManager.GetOnePopularPostIdWithinDayRange(startDay, endDay);
+                    if (!string.IsNullOrWhiteSpace(postId))
+                        postIds.Add(postId);
+                }
+
+                return postIds;
+            }, desiredCount);
+        }
+
+        private static void QueueLikesForPosts(IEnumerable<string> postIds, int maxLikes)
         {
             if (postIds == null)
                 return;
@@ -426,6 +536,16 @@ namespace Smartphone
             foreach (string postId in postIds)
             {
                 QueueLikesForPost(postId, maxLikes);
+            }
+        }
+
+        private static void QueueCommentAttemptsForPosts(IEnumerable<string> postIds, int maxComments, IDictionary<string, int> commentAttemptsByPostId)
+        {
+            if (postIds == null)
+                return;
+
+            foreach (string postId in postIds)
+            {
                 QueueCommentAttemptsForPost(postId, maxComments, commentAttemptsByPostId);
             }
         }
@@ -450,7 +570,8 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(postId) || maxLikes <= 0)
                 return;
 
-            int likeAttempts = Game1.random.Next(2, maxLikes + 1);
+            int minLikeAttempts = Math.Clamp(SocialLikeMinPerPost, 1, maxLikes);
+            int likeAttempts = Game1.random.Next(minLikeAttempts, maxLikes + 1);
             for (int i = 0; i < likeAttempts; i++)
             {
                 QueueDelayedSocialAction(() =>

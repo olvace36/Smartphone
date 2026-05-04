@@ -25,13 +25,14 @@ namespace Smartphone
 
 
         public SButton ModKey { get; set; } = SButton.H;
-        public string NpcMessageRequirement { get; set; } = NpcRequirementFriend;
+        public string NpcMessageRequirement { get; set; } = NpcRequirementMeet;
         public string PostPerDay { get; set; } = PostPerDayLow;
 
         // advance
         public string OpenAIKey { get; set; } = "";
         public string OpenAIModel { get; set; } = OpenAIModel_54mini;
         public string CharacteristicMode { get; set; } = CharacteristicModeShort;
+        public bool BetterQualityComment { get; set; } = false;
 
 
         public int MaxSummaryWordCount { get; set; } = 350;
@@ -54,6 +55,7 @@ namespace Smartphone
         public int PlayerMaxPhoto { get; set; } = 100;
         public int NpcMaxPhoto { get; set; } = 200;
         public bool ShowSocialImageTags { get; set; } = true;
+        public bool ShowUnreadComment { get; set; } = true;
         public bool ShowMessageImageTags { get; set; } = true;
         public bool ShowAiCredit { get; set; } = true;
         public bool notifyNotification { get; set; } = true;

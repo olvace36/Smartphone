@@ -1571,7 +1571,7 @@ namespace Smartphone
             if (post == null)
                 return false;
 
-            return ContainsTag(post.PostTag, "#Player")
+            return ContainsTag(post.PostTag, $"#Player {Game1.player?.displayName}".Trim())
                 || ContainsPlayerMention(post.Text);
         }
 

@@ -87,9 +87,17 @@ namespace Smartphone
             configMenu.AddBoolOption(
                 mod: ModManifest,
                 name: () => "Disable daily message",
-                tooltip: () => "If enabled, the `Good morning...` option will be disabled.\nYou should keep this disabled which will help the AI understand what is lore of the character.",
+                tooltip: () => "If enabled, the `Good morning...` option will be disabled.\nYou should keep this option False which overtime will help the AI understand what is lore of the character.",
                 getValue: () => Config.DisableDailyMessage,
                 setValue: value => Config.DisableDailyMessage = value
+            );
+
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Show AI credit button",
+                tooltip: () => "You have a limited number of usage of the AI features each day when no OpenAI key is provided.\nThis option shows how many usages you have left. Check it at Messages -> NPC -> AI Credit.",
+                getValue: () => Config.ShowAiCredit,
+                setValue: value => Config.ShowAiCredit = value
             );
 
             configMenu.AddPageLink(
@@ -133,14 +141,6 @@ namespace Smartphone
                 tooltip: () => "Use your own key to remove shared usage limits.\nGet one from https://platform.openai.com/account/api-keys.\nRestart the game after changing this value.",
                 getValue: () => Config.OpenAIKey,
                 setValue: value => Config.OpenAIKey = (value ?? string.Empty).Trim()
-            );
-
-            configMenu.AddBoolOption(
-                mod: ModManifest,
-                name: () => "Show AI credit button",
-                tooltip: () => "Shows an AI credit info button in Text chat quick actions when shared AI mode is active.",
-                getValue: () => Config.ShowAiCredit,
-                setValue: value => Config.ShowAiCredit = value
             );
 
             configMenu.AddTextOption(
@@ -193,10 +193,18 @@ namespace Smartphone
                 }
             );
 
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "High quality comment",
+                tooltip: () => "If enabled, AI will be provided with the minimal characteristic detail for each NPC.\nThis may improve the quality of comments but will use more tokens.",
+                getValue: () => Config.BetterQualityComment,
+                setValue: value => Config.BetterQualityComment = value
+            );
+
             configMenu.AddNumberOption(
                 mod: ModManifest,
                 name: () => "Summary max words",
-                tooltip: () => "Conversation with NPCs are summarized daily and will be used with the AI so it knows what the previous conversation is about.\nHigher limit means AI will `remember` more details but will use more tokens.\nMemory saved at \"Userdata\\summary\".",
+                tooltip: () => "Conversation are summarized daily so the AI knows what the previous conversation is about.\nHigher limit means AI will `remember` more details but will use more tokens.\nMemory saved at \"Userdata\\SaveFolder\\summary\".",
                 getValue: () => Config.MaxSummaryWordCount,
                 setValue: value => Config.MaxSummaryWordCount = Math.Clamp(value, 0, 5000),
                 min: 0,
@@ -255,6 +263,14 @@ namespace Smartphone
                 tooltip: () => "Shows saved image tag text above attached images in StardewConnect posts.",
                 getValue: () => Config.ShowSocialImageTags,
                 setValue: value => Config.ShowSocialImageTags = value
+            );
+
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Show unread comment count",
+                tooltip: () => "Shows unread comment count on posts.",
+                getValue: () => Config.ShowUnreadComment,
+                setValue: value => Config.ShowUnreadComment = value
             );
 
             configMenu.AddBoolOption(
