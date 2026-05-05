@@ -323,6 +323,11 @@ namespace Smartphone
             ClampSocialFeedScroll(posts);
         }
 
+        public void ResetSocialImageLoadCache()
+        {
+            socialFailedImagePaths.Clear();
+        }
+
         private void OpenSocialApp()
         {
             InvalidateSocialLayoutCaches();
@@ -442,7 +447,11 @@ namespace Smartphone
 
         private bool IsPlayerPostWithNewCommentNotification(StardewConnectPost post)
         {
-            if (post == null || !post.AuthorIsPlayer || post.Comments == null || post.Comments.Count == 0)
+            if (post == null
+                || !post.AuthorIsPlayer
+                || !IsLocalPlayerAuthor(post.AuthorName)
+                || post.Comments == null
+                || post.Comments.Count == 0)
                 return false;
 
             int totalComments = post.Comments.Count;
@@ -460,6 +469,17 @@ namespace Smartphone
             }
 
             return false;
+        }
+
+        private bool IsLocalPlayerAuthor(string authorName)
+        {
+            string localPlayerName = (Game1.player?.Name ?? "Player").Trim();
+            string normalizedAuthorName = (authorName ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(localPlayerName) || string.IsNullOrWhiteSpace(normalizedAuthorName))
+                return false;
+
+            return string.Equals(localPlayerName, normalizedAuthorName, StringComparison.OrdinalIgnoreCase);
         }
 
         private bool IsFavouriteNpcPostNotification(StardewConnectPost post)
@@ -2368,7 +2388,7 @@ namespace Smartphone
                 }
             }
 
-            if (actorIsPlayer && TryGetSelectedPlayerAvatarTexture(out Texture2D avatarTexture))
+            if (actorIsPlayer && TryGetSelectedPlayerAvatarTexture(actorName, out Texture2D avatarTexture))
             {
                 b.Draw(avatarTexture, new Rectangle(bounds.X - 2, bounds.Y + 2, bounds.Width, bounds.Height), Color.White);
                 return;
@@ -2388,11 +2408,17 @@ namespace Smartphone
             b.DrawString(Game1.smallFont, fallbackLetter, letterPos, Color.White);
         }
 
-        private bool TryGetSelectedPlayerAvatarTexture(out Texture2D texture)
+        private bool TryGetSelectedPlayerAvatarTexture(string actorName, out Texture2D texture)
         {
             texture = null!;
 
-            string avatarPath = MessageManager.currentPlayerAvatar;
+            string avatarPath = StardewConnectManager.ResolveSharedPlayerAvatarAbsolutePath(actorName);
+            if (string.IsNullOrWhiteSpace(avatarPath)
+                && string.Equals(actorName, Game1.player?.Name ?? "Player", StringComparison.OrdinalIgnoreCase))
+            {
+                avatarPath = MessageManager.currentPlayerAvatar;
+            }
+
             if (string.IsNullOrWhiteSpace(avatarPath))
                 return false;
 
@@ -2407,7 +2433,13 @@ namespace Smartphone
 
             if (!File.Exists(avatarPath))
             {
-                MessageManager.currentPlayerAvatar = "";
+                string localPlayerName = Game1.player?.Name ?? "Player";
+                if (string.Equals(actorName, localPlayerName, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(avatarPath, MessageManager.currentPlayerAvatar, StringComparison.OrdinalIgnoreCase))
+                {
+                    MessageManager.currentPlayerAvatar = "";
+                }
+
                 socialFailedImagePaths.Add(avatarPath);
                 return false;
             }

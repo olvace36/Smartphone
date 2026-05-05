@@ -87,17 +87,193 @@ namespace Smartphone
         private const int DaySortKeyMultiplier = 2000;
         private const string LastSocialVisitDataFileName = "stardewConnectLastVisit";
         private const string SocialNotificationDismissalsDataFileName = "stardewConnectSocialNotificationDismissals";
+        private const string SharedPlayerAvatarsDataFileName = "stardewConnectSharedPlayerAvatars";
 
         private static IModHelper Helper => ModEntry.SHelper;
 
         public static List<StardewConnectPost> Posts { get; private set; } = new();
         public static Dictionary<string, StardewConnectProfileStats> ProfileStats { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
         public static HashSet<string> SocialNotificationDismissedKeys { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+        public static Dictionary<string, string> SharedPlayerAvatars { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
         private static StardewConnectVisitSnapshot LastSocialVisitSnapshot { get; set; } = new();
 
         public static List<StardewConnectPost> GetPostsSnapshot()
         {
             return Posts.ToList();
+        }
+
+        public static Dictionary<string, StardewConnectProfileStats> GetProfileStatsSnapshot()
+        {
+            var snapshot = new Dictionary<string, StardewConnectProfileStats>(StringComparer.OrdinalIgnoreCase);
+            foreach ((string key, StardewConnectProfileStats value) in ProfileStats)
+            {
+                snapshot[key] = CloneProfileStats(value ?? new StardewConnectProfileStats());
+            }
+
+            return snapshot;
+        }
+
+        public static Dictionary<string, string> GetSharedPlayerAvatarSnapshot()
+        {
+            return new Dictionary<string, string>(SharedPlayerAvatars, StringComparer.OrdinalIgnoreCase);
+        }
+
+        public static string GetSharedPlayerAvatarFileName(string actorName)
+        {
+            string key = (actorName ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(key))
+                return "";
+
+            return SharedPlayerAvatars.TryGetValue(key, out string? fileName)
+                ? (fileName ?? "")
+                : "";
+        }
+
+        public static string ResolveSharedPlayerAvatarAbsolutePath(string actorName)
+        {
+            string avatarFileName = GetSharedPlayerAvatarFileName(actorName);
+            if (string.IsNullOrWhiteSpace(avatarFileName))
+                return "";
+
+            return ModEntry.GetPlayerAvatarAbsolutePath(avatarFileName);
+        }
+
+        public static void SetSharedPlayerAvatarFileName(string actorName, string avatarFileName, bool saveData = true, bool notifyPhoneMenu = true)
+        {
+            string actorKey = (actorName ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(actorKey))
+                return;
+
+            string normalizedFileName = NormalizeAttachmentFileName(avatarFileName);
+            if (string.IsNullOrWhiteSpace(normalizedFileName))
+                SharedPlayerAvatars.Remove(actorKey);
+            else
+                SharedPlayerAvatars[actorKey] = normalizedFileName;
+
+            if (saveData)
+            {
+                Helper.Data.WriteJsonFile(
+                    $"./userdata/{Constants.SaveFolderName}/{SharedPlayerAvatarsDataFileName}",
+                    SharedPlayerAvatars);
+            }
+
+            if (notifyPhoneMenu)
+                NotifyPhoneMenuDataChanged();
+        }
+
+        public static void SetSharedPlayerAvatarSnapshot(Dictionary<string, string>? sharedAvatars, bool notifyPhoneMenu = true)
+        {
+            SharedPlayerAvatars = sharedAvatars != null
+                ? new Dictionary<string, string>(sharedAvatars, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string actorName in SharedPlayerAvatars.Keys.ToList())
+            {
+                string normalizedFileName = NormalizeAttachmentFileName(SharedPlayerAvatars[actorName]);
+                if (string.IsNullOrWhiteSpace(normalizedFileName))
+                    SharedPlayerAvatars.Remove(actorName);
+                else
+                    SharedPlayerAvatars[actorName] = normalizedFileName;
+            }
+
+            if (notifyPhoneMenu)
+                NotifyPhoneMenuDataChanged();
+        }
+
+        public static void ApplySocialStateSnapshot(
+            List<StardewConnectPost>? posts,
+            Dictionary<string, StardewConnectProfileStats>? profileStats,
+            Dictionary<string, string>? sharedPlayerAvatars)
+        {
+            Posts = posts ?? new List<StardewConnectPost>();
+            ProfileStats = profileStats != null
+                ? new Dictionary<string, StardewConnectProfileStats>(profileStats, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, StardewConnectProfileStats>(StringComparer.OrdinalIgnoreCase);
+
+            SanitizeLoadedData();
+            SanitizeLoadedProfileStats();
+            PrunePosts(GetMaxPostCount());
+
+            if (ProfileStats.Count == 0)
+                RebuildProfileStatsFromPosts();
+
+            SetSharedPlayerAvatarSnapshot(sharedPlayerAvatars, notifyPhoneMenu: false);
+            NotifyPhoneMenuDataChanged();
+        }
+
+        public static void ApplySyncedProfileStats(Dictionary<string, StardewConnectProfileStats>? profileStats, bool notifyPhoneMenu = true)
+        {
+            ProfileStats = profileStats != null
+                ? new Dictionary<string, StardewConnectProfileStats>(profileStats, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, StardewConnectProfileStats>(StringComparer.OrdinalIgnoreCase);
+
+            SanitizeLoadedProfileStats();
+            if (ProfileStats.Count == 0)
+                RebuildProfileStatsFromPosts();
+
+            if (notifyPhoneMenu)
+                NotifyPhoneMenuDataChanged();
+        }
+
+        public static void UpsertSyncedPost(StardewConnectPost syncedPost, Dictionary<string, StardewConnectProfileStats>? profileStats)
+        {
+            if (syncedPost == null || string.IsNullOrWhiteSpace(syncedPost.Id))
+                return;
+
+            int existingIndex = Posts.FindIndex(post => string.Equals(post.Id, syncedPost.Id, StringComparison.OrdinalIgnoreCase));
+            if (existingIndex >= 0)
+                Posts[existingIndex] = syncedPost;
+            else
+                Posts.Add(syncedPost);
+
+            SanitizeLoadedData();
+            PrunePosts(GetMaxPostCount());
+            ApplySyncedProfileStats(profileStats, notifyPhoneMenu: false);
+            NotifyPhoneMenuDataChanged();
+        }
+
+        public static bool ApplySyncedComment(
+            string postId,
+            StardewConnectComment comment,
+            int playerReadCommentCount,
+            Dictionary<string, StardewConnectProfileStats>? profileStats)
+        {
+            if (comment == null || string.IsNullOrWhiteSpace(postId))
+                return false;
+
+            bool applied = AddComment(
+                postId,
+                comment.AuthorName,
+                comment.AuthorIsPlayer,
+                comment.Text,
+                forcedCommentId: comment.Id,
+                broadcastChange: false);
+
+            if (!applied)
+                return false;
+
+            StardewConnectPost? post = GetPost(postId);
+            if (post != null)
+                post.PlayerReadCommentCount = Math.Clamp(playerReadCommentCount, 0, post.Comments.Count);
+
+            ApplySyncedProfileStats(profileStats, notifyPhoneMenu: false);
+            NotifyPhoneMenuDataChanged();
+            return true;
+        }
+
+        public static bool ApplySyncedLike(
+            string postId,
+            string actorName,
+            bool liked,
+            Dictionary<string, StardewConnectProfileStats>? profileStats)
+        {
+            bool applied = SetPostLike(postId, actorName, liked, broadcastChange: false);
+            if (!applied)
+                return false;
+
+            ApplySyncedProfileStats(profileStats, notifyPhoneMenu: false);
+            NotifyPhoneMenuDataChanged();
+            return true;
         }
 
         public static string CreateShortAlphanumericId(int length = ShortIdLength)
@@ -314,22 +490,30 @@ namespace Smartphone
 
         public static string? AddPlayerPost(string postText, string attachedImageFile = "")
         {
-            string authorName = Game1.player?.Name ?? "Player";
-            return AddPost(authorName, true, postText, attachedImageFile, attachmentFromPlayerFolder: true);
+            IEnumerable<string> attachments = string.IsNullOrWhiteSpace(attachedImageFile)
+                ? Enumerable.Empty<string>()
+                : new[] { attachedImageFile };
+
+            return AddPlayerPostWithAttachments(postText, attachments);
         }
 
         public static string? AddPlayerPostWithAttachments(string postText, IEnumerable<string>? attachedImageFiles)
         {
             string authorName = Game1.player?.Name ?? "Player";
 
-            List<StardewConnectPostAttachment> attachments = (attachedImageFiles ?? Enumerable.Empty<string>())
-                .Select(file => new StardewConnectPostAttachment
-                {
-                    ImageFile = NormalizeAttachmentFileName(file),
-                    FromPlayerFolder = true
-                })
-                .Where(item => !string.IsNullOrWhiteSpace(item.ImageFile))
+            List<string> sourceFiles = (attachedImageFiles ?? Enumerable.Empty<string>())
+                .Select(NormalizeAttachmentFileName)
+                .Where(file => !string.IsNullOrWhiteSpace(file))
                 .ToList();
+
+            if (ModEntry.ShouldRoutePlayerSocialActionToHost())
+            {
+                string desiredPostId = CreateShortAlphanumericId();
+                bool queued = ModEntry.TryRequestHostCreatePlayerPost(authorName, postText, sourceFiles, desiredPostId);
+                return queued ? desiredPostId : null;
+            }
+
+            List<StardewConnectPostAttachment> attachments = ModEntry.PrepareAuthoritativePlayerPostAttachments(sourceFiles, authorName);
 
             return AddPost(
                 authorName,
@@ -337,11 +521,16 @@ namespace Smartphone
                 postText,
                 attachedImageFile: "",
                 attachmentFromPlayerFolder: true,
-                attachments: attachments);
+                attachments: attachments,
+                forcedPostId: null,
+                broadcastChange: true);
         }
 
         public static string? AddNpcPost(string npcName, string postText, string attachedImageFile = "")
         {
+            if (ModEntry.IsFarmhandSocialPeer())
+                return null;
+
             if (Game1.getCharacterFromName(npcName, mustBeVillager: false) == null)
                 return null;
 
@@ -350,6 +539,9 @@ namespace Smartphone
 
         public static string? AddNpcPostWithAttachments(string npcName, string postText, IEnumerable<string>? attachedImageFiles)
         {
+            if (ModEntry.IsFarmhandSocialPeer())
+                return null;
+
             if (Game1.getCharacterFromName(npcName, mustBeVillager: false) == null)
                 return null;
             List<StardewConnectPostAttachment> attachments = (attachedImageFiles ?? Enumerable.Empty<string>())
@@ -375,7 +567,9 @@ namespace Smartphone
             string postText = "",
             string attachedImageFile = "",
             bool attachmentFromPlayerFolder = true,
-            IEnumerable<StardewConnectPostAttachment>? attachments = null)
+            IEnumerable<StardewConnectPostAttachment>? attachments = null,
+            string? forcedPostId = null,
+            bool broadcastChange = true)
         {
             string resolvedAuthorName = (authorName ?? "").Trim();
             if (string.IsNullOrWhiteSpace(resolvedAuthorName))
@@ -395,11 +589,21 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(text) && normalizedAttachments.Count == 0)
                 return null;
 
+            string normalizedForcedPostId = (forcedPostId ?? "").Trim();
+            if (!string.IsNullOrWhiteSpace(normalizedForcedPostId))
+            {
+                StardewConnectPost? existingPost = GetPost(normalizedForcedPostId);
+                if (existingPost != null)
+                    return existingPost.Id;
+            }
+
             StardewConnectPostAttachment? firstAttachment = normalizedAttachments.FirstOrDefault();
 
             var post = new StardewConnectPost
             {
-                Id = CreateShortAlphanumericId(),
+                Id = string.IsNullOrWhiteSpace(normalizedForcedPostId)
+                    ? CreateShortAlphanumericId()
+                    : normalizedForcedPostId,
                 AuthorName = resolvedAuthorName,
                 AuthorIsPlayer = authorIsPlayer,
                 Text = text,
@@ -427,6 +631,9 @@ namespace Smartphone
 
             if (!authorIsPlayer)
                 TryShowSocialHudForNewPost(post);
+
+            if (broadcastChange && ModEntry.ShouldBroadcastAuthoritativeSocialChanges())
+                ModEntry.BroadcastSyncedSocialPost(post, GetProfileStatsSnapshot());
 
             return post.Id;
         }
@@ -477,18 +684,34 @@ namespace Smartphone
         public static bool AddPlayerComment(string postId, string commentText)
         {
             string authorName = Game1.player?.Name ?? "Player";
+
+            if (ModEntry.ShouldRoutePlayerSocialActionToHost())
+            {
+                string desiredCommentId = CreateShortAlphanumericId();
+                return ModEntry.TryRequestHostAddPlayerComment(postId, authorName, commentText, desiredCommentId);
+            }
+
             return AddComment(postId, authorName, true, commentText);
         }
 
         public static bool AddNpcComment(string postId, string npcName, string commentText)
         {
+            if (ModEntry.IsFarmhandSocialPeer())
+                return false;
+
             if (Game1.getCharacterFromName(npcName, mustBeVillager: true) == null)
                 return false;
 
             return AddComment(postId, npcName, false, commentText);
         }
 
-        public static bool AddComment(string postId, string authorName, bool authorIsPlayer, string commentText)
+        public static bool AddComment(
+            string postId,
+            string authorName,
+            bool authorIsPlayer,
+            string commentText,
+            string? forcedCommentId = null,
+            bool broadcastChange = true)
         {
             StardewConnectPost? post = GetPost(postId);
             if (post == null)
@@ -507,6 +730,14 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(text))
                 return false;
 
+            string normalizedForcedCommentId = (forcedCommentId ?? "").Trim();
+            if (!string.IsNullOrWhiteSpace(normalizedForcedCommentId)
+                && post.Comments != null
+                && post.Comments.Any(existing => string.Equals(existing?.Id, normalizedForcedCommentId, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
             if (!authorIsPlayer
                 && string.Equals(post.AuthorName, resolvedAuthorName, StringComparison.OrdinalIgnoreCase)
                 && !CanNpcPostAuthorCommentOnOwnPost(post, resolvedAuthorName))
@@ -516,7 +747,9 @@ namespace Smartphone
 
             var comment = new StardewConnectComment
             {
-                Id = CreateShortAlphanumericId(),
+                Id = string.IsNullOrWhiteSpace(normalizedForcedCommentId)
+                    ? CreateShortAlphanumericId()
+                    : normalizedForcedCommentId,
                 AuthorName = resolvedAuthorName,
                 AuthorIsPlayer = authorIsPlayer,
                 Text = text,
@@ -546,6 +779,9 @@ namespace Smartphone
             if (!authorIsPlayer)
                 TryShowSocialHudForNewComment(post, comment);
 
+            if (broadcastChange && ModEntry.ShouldBroadcastAuthoritativeSocialChanges())
+                ModEntry.BroadcastSyncedSocialComment(post.Id, comment, post.PlayerReadCommentCount, GetProfileStatsSnapshot());
+
             return true;
         }
 
@@ -573,10 +809,18 @@ namespace Smartphone
                 return false;
 
             bool alreadyLiked = IsPostLikedBy(post, actorName);
-            return SetPostLike(postId, actorName, !alreadyLiked);
+            bool desiredLiked = !alreadyLiked;
+
+            if (ModEntry.ShouldRoutePlayerSocialActionToHost())
+            {
+                bool queued = ModEntry.TryRequestHostSetPlayerLike(postId, actorName, desiredLiked);
+                return queued ? desiredLiked : alreadyLiked;
+            }
+
+            return SetPostLike(postId, actorName, desiredLiked);
         }
 
-        public static bool SetPostLike(string postId, string actorName, bool liked)
+        public static bool SetPostLike(string postId, string actorName, bool liked, bool broadcastChange = true)
         {
             StardewConnectPost? post = GetPost(postId);
             if (post == null)
@@ -613,6 +857,9 @@ namespace Smartphone
                 bool actorIsPlayer = IsCurrentPlayerName(resolvedActorName);
                 ApplyLikeStats(post, resolvedActorName, actorIsPlayer, added: liked);
                 NotifyPhoneMenuDataChanged();
+
+                if (broadcastChange && ModEntry.ShouldBroadcastAuthoritativeSocialChanges())
+                    ModEntry.BroadcastSyncedSocialLike(postId, resolvedActorName, liked, GetProfileStatsSnapshot());
             }
 
             return true;
@@ -747,6 +994,7 @@ namespace Smartphone
             PrunePosts(GetMaxPostCount());
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/stardewConnectPosts", Posts);
             Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/stardewConnectProfileStats", ProfileStats);
+            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/{SharedPlayerAvatarsDataFileName}", SharedPlayerAvatars);
             SaveSocialNotificationDismissals();
             SaveLastSocialVisitSnapshot();
         }
@@ -768,7 +1016,12 @@ namespace Smartphone
                 Helper.Data.ReadJsonFile<List<string>>($"./userdata/{Constants.SaveFolderName}/{SocialNotificationDismissalsDataFileName}")
                 ?? new List<string>();
 
+            Dictionary<string, string> loadedSharedPlayerAvatars =
+                Helper.Data.ReadJsonFile<Dictionary<string, string>>($"./userdata/{Constants.SaveFolderName}/{SharedPlayerAvatarsDataFileName}")
+                ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
             ProfileStats = new Dictionary<string, StardewConnectProfileStats>(loadedProfileStats, StringComparer.OrdinalIgnoreCase);
+            SharedPlayerAvatars = new Dictionary<string, string>(loadedSharedPlayerAvatars, StringComparer.OrdinalIgnoreCase);
             SocialNotificationDismissedKeys = new HashSet<string>(
                 loadedDismissedNotificationKeys
                     .Where(key => !string.IsNullOrWhiteSpace(key))
@@ -782,6 +1035,8 @@ namespace Smartphone
 
             if (ProfileStats.Count == 0)
                 RebuildProfileStatsFromPosts();
+
+            SetSharedPlayerAvatarSnapshot(SharedPlayerAvatars, notifyPhoneMenu: false);
 
             SaveSocialNotificationDismissals();
         }

@@ -1012,7 +1012,10 @@ namespace Smartphone
                         ResetPhoneBackgroundToDefault();
 
                     if (deletedAvatarImage)
+                    {
                         MessageManager.currentPlayerAvatar = "";
+                        ModEntry.PublishLocalPlayerAvatarSelection("");
+                    }
 
                     Game1.playSound("trashcan");
                 }
@@ -1078,6 +1081,8 @@ namespace Smartphone
                     MessageManager.currentPlayerAvatar = "";
                 else
                     MessageManager.currentPlayerAvatar = currentImagePath;
+
+                ModEntry.PublishLocalPlayerAvatarSelection(MessageManager.currentPlayerAvatar);
 
                 Game1.playSound("smallSelect");
                 return;

@@ -75,6 +75,7 @@ namespace Smartphone
             helper.Events.Display.MenuChanged += OnMenuChanged;
             helper.Events.Display.WindowResized += OnWindowResized;
             helper.Events.Display.Rendered += OnRendered;
+            helper.Events.Multiplayer.ModMessageReceived += OnModMessageReceived;
 
 
             var harmony = new Harmony(this.ModManifest.UniqueID);
@@ -194,6 +195,7 @@ namespace Smartphone
             LoadImageTags();
             UpdatePostInteractionLimit();
             PhoneDialogueRuntime.ClearDailyState();
+            StardewConnectManager.LoadData();
 
             string npc_characteristic_minimal = Helper.ModContent.GetInternalAssetName("assets/npc_characteristics_minimal.json").BaseName;
             string npc_characteristic_short = Helper.ModContent.GetInternalAssetName("assets/npc_characteristics_short.json").BaseName;
@@ -260,6 +262,8 @@ namespace Smartphone
                     }
                 });
             }
+
+            InitializeSocialCoopOnSaveLoaded();
         }
 
         private static string TruncateCharacteristicValue(string? value, int maxLength)
@@ -291,7 +295,8 @@ namespace Smartphone
             MessageManager.LoadData();
             ApplySavedPhoneTheme();
             NotificationManager.LoadNoticationData();
-            StardewConnectManager.LoadData();
+            if (!IsFarmhandSocialPeer())
+                StardewConnectManager.LoadData();
             HandlePhoneUsageInactivityOnDayStarted();
             HandleAiModelSettingTimeChanged(600);
             GiftMemories = Helper.Data.ReadJsonFile<Dictionary<string, GiftMemory>>($"./userdata/{Constants.SaveFolderName}/GiftMemoryData")
@@ -315,7 +320,8 @@ namespace Smartphone
                 }
             }
 
-            PrepareDailyRandomNpcSocialPosts();
+            if (ShouldHostRunSocialSimulation())
+                PrepareDailyRandomNpcSocialPosts();
 
             // send conversationSummary to iModApi
             if (iUnlimitedEventExpansionApi != null)
@@ -437,13 +443,16 @@ namespace Smartphone
             HandleAiUsageTimeChanged(e.NewTime);
             HandleAiModelSettingTimeChanged(e.NewTime);
 
-            HandleScheduledSocialPostsOnTimeChanged(e.NewTime);
+            if (ShouldHostRunSocialSimulation())
+            {
+                HandleScheduledSocialPostsOnTimeChanged(e.NewTime);
 
-            if (GetSocialCommentEngagementIntervalFromConfig().Contains(e.NewTime))
-                QueueRandomNpcCommentEngagement();
+                if (GetSocialCommentEngagementIntervalFromConfig().Contains(e.NewTime))
+                    QueueRandomNpcCommentEngagement();
 
-            if (GetSocialLikeEngagementIntervalFromConfig().Contains(e.NewTime))
-                QueueRandomNpcLikeEngagement();
+                if (GetSocialLikeEngagementIntervalFromConfig().Contains(e.NewTime))
+                    QueueRandomNpcLikeEngagement();
+            }
 
             if (Game1.timeOfDay < 2200)
                 CheckSendNewMessage();
