@@ -1,0 +1,8 @@
+- Folder /userdata contain all the data you generated, for example photos, messages, posts...
+- Folder /phone_themes may contain your custom themes if you ever added any.
+
+Both these 2 folders will be lost if you delete this folder.
+
+When you update the mod to a newer version, use one of these 2 methods:
+    - PREFERED: Rename this folder to Smartphone_OLD, extract the new mod zip file, and copy /userdata and /phone_themes from this OLD folder to the new folder.
+    - Or you can extract the new zip file into /Mods directly. When prompt that duplicate file exist, choose Overwrite option.

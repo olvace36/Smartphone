@@ -2,14 +2,15 @@
 *** IMPORTANT ***
 *** IMPORTANT ***
 
-When updating to newer version of the mod, bring the folder ** userdata ** to the new mod folder
-This folder contain all data you created (photo, chat history, setting, ...)
+When updating to a newer version of the mod, copy the folder ** userdata ** to the new mod folder.
+This folder contains all data you created (photos, chat history, settings, ...).
 
 
 *** EXTERNAL APP API (FOR OTHER MODDERS) ***
 
 This mod now exposes a phone app registration API.
 Other mods can register their own app icon on the Smartphone home screen and provide a click callback.
+Check out my another mod call Smartphone - Game App, which is a very basic mod that give you an example of how to register app, app group, and text quick action button
 
 1) Get the API from Smartphone in your mod (usually in GameLaunched):
 
@@ -42,6 +43,10 @@ Other mods can register their own app icon on the Smartphone home screen and pro
 API method summary:
 - RegisterPhoneApp(ownerModId, appId, displayName, iconTexture, onClick, closePhoneOnLaunch, sortOrder, sourceRect, isVisible, getBadgeCount)
 - UnregisterPhoneApp(ownerModId, appId)
+
+Notes:
+- ownerModId + appId is the unique key. Registering the same key again updates the existing app.
+- If sourceRect is provided, width and height must both be > 0.
 
 
 *** APP GROUP API (MAX 9 ITEMS) ***
@@ -90,6 +95,31 @@ Additional method summary:
 - RegisterPhoneAppGroupItem(ownerModId, groupId, itemId, displayName, iconTexture, onClick, closePhoneOnLaunch, sortOrder, sourceRect, isVisible, getBadgeCount)
 - UnregisterPhoneAppGroupItem(ownerModId, groupId, itemId)
 
+Notes:
+- RegisterPhoneAppGroup must be called before RegisterPhoneAppGroupItem.
+- ownerModId + groupId + itemId is the unique key. Registering the same key again updates that item.
+- A group can contain at most 9 items. Adding a new 10th item fails.
+- If sourceRect is provided, width and height must both be > 0.
+
+
+*** PHONE NAVIGATION API ***
+
+You can programmatically open Smartphone home or jump directly to a registered app group.
+This is useful for custom app UIs that need a Back button to return to Smartphone.
+
+Example usage:
+
+	bool openedHome = smartphoneApi.OpenPhoneHomeScreen();
+	bool openedGroup = smartphoneApi.OpenPhoneAppGroup(this.ModManifest.UniqueID, "market-tools");
+
+Method summary:
+- OpenPhoneHomeScreen()
+- OpenPhoneAppGroup(ownerModId, groupId)
+
+Notes:
+- OpenPhoneAppGroup returns false if the group is not registered or currently not visible.
+- Both methods return false when the game world is not ready.
+
 
 *** TEXT CHAT QUICK ACTION BUTTON API ***
 
@@ -124,6 +154,73 @@ Method summary:
 - RegisterChatQuickActionButton(ownerModId, actionId, iconTexture, onClick, closePhoneOnLaunch, sortOrder, sourceRect, npcNames)
 - UnregisterChatQuickActionButton(ownerModId, actionId)
 
+Notes:
+- ownerModId + actionId is the unique key. Registering the same key again updates the action.
+- npcNames is optional. If provided, only listed NPC names can see the action.
+- Custom actions are only shown in NPC conversations (not player-to-player conversations).
+
+
+*** MESSENGER API ***
+
+You can interact with the Smartphone messenger app from another mod.
+
+Example usage:
+
+	// Get list for local player
+	List<string> localNpcList = smartphoneApi.GetPhoneNpcList();
+
+	// Optional target player (UniqueMultiplayerID as string)
+	string targetPlayerId = Game1.player.UniqueMultiplayerID.ToString();
+
+	smartphoneApi.SendSmartphoneMessageFromNPC("Abigail", "Meet me at the beach tonight.", targetPlayerId);
+	smartphoneApi.SendSmartphoneMessageFromPlayer("Abigail", "I will be there!", targetPlayerId);
+	smartphoneApi.SendSmartphoneNotification("New chat message", "Smartphone", targetPlayerId);
+
+Method summary:
+- GetPhoneNpcList(playerId)
+- SendSmartphoneMessageFromNPC(npcName, message, playerId)
+- SendSmartphoneMessageFromPlayer(npcName, message, playerId)
+- SendSmartphoneNotification(message, notificationName, playerId)
+
+Notes:
+- playerId is optional and should be UniqueMultiplayerID as string.
+- For SendSmartphoneMessageFromNPC / SendSmartphoneMessageFromPlayer / SendSmartphoneNotification:
+  - Empty or invalid playerId broadcasts to all online players.
+- For GetPhoneNpcList:
+  - Empty playerId returns local player's list.
+  - Non-empty invalid playerId returns an empty list.
+- npcName must be a valid in-game NPC internal name.
+
+
+*** STARDEWCONNECT SOCIAL API ***
+
+You can create social posts/comments/likes authored by NPCs.
+
+Example usage:
+
+	string? postId = smartphoneApi.CreateStardewConnectPostFromNpc(
+		npcName: "Abigail",
+		postText: "Beautiful sunset at the mountain lake!",
+		attachedImageFile: "abigail_sunset.png"
+	);
+
+	if (!string.IsNullOrWhiteSpace(postId))
+	{
+		smartphoneApi.AddStardewConnectCommentFromNpc(postId, "Leah", "That looks amazing!");
+		smartphoneApi.SetStardewConnectPostLikedFromNpc(postId, "Sebastian", true);
+	}
+
+Method summary:
+- CreateStardewConnectPostFromNpc(npcName, postText, attachedImageFile)
+- AddStardewConnectCommentFromNpc(postId, npcName, commentText)
+- SetStardewConnectPostLikedFromNpc(postId, npcName, liked)
+
+Notes:
+- attachedImageFile should be a file name from the NPC smartphone photo folder.
+- CreateStardewConnectPostFromNpc returns the new post ID, or null if creation failed.
+- AddStardewConnectCommentFromNpc / SetStardewConnectPostLikedFromNpc return false when the operation cannot be applied.
+- In multiplayer, call these from the host/main player for authoritative social state.
+
 
 *** DYNAMIC UNLIMITED EVENT API ***
 
@@ -152,3 +249,5 @@ Notes:
 - eventType becomes the enum value used by the Schedule_Event tool.
 - minimumHeartLevel controls when the event appears in AI tools.
 - triggerEvent is invoked by Smartphone when the scheduled time is reached.
+- eventType is globally unique. Another mod cannot overwrite an event type owned by a different mod.
+- minimumHeartLevel is clamped to 0 or higher.

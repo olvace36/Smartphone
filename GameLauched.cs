@@ -43,8 +43,6 @@ namespace Smartphone
         private const int CameraViewportWidth = 520;
         private const int CameraViewportHeight = 810;
 
-        // Image-tagging state and helpers moved to ImageTagging.cs.
-
         // *************************** ENTRY ***************************
         //
 
@@ -70,6 +68,7 @@ namespace Smartphone
             helper.Events.GameLoop.DayEnding += OnDayEnding;
             helper.Events.GameLoop.TimeChanged += OnTimeChange;
             helper.Events.GameLoop.DayStarted += OnDayStarted;
+            helper.Events.GameLoop.ReturnedToTitle += OnReturnedToTitle;
             helper.Events.GameLoop.OneSecondUpdateTicked += OnOneSecondUpdateTicked;
             helper.Events.Player.Warped += OnWarped;
             helper.Events.Display.MenuChanged += OnMenuChanged;
@@ -137,13 +136,14 @@ namespace Smartphone
                 return;
 
 
-            if (e.Button == Config.ModKey && Game1.activeClickableMenu == null && Game1.currentMinigame == null)
+            if (e.Button == Config.ModKey && Context.IsPlayerFree)
             {
                 if (phoneMenu == null)
                     phoneMenu = new PhoneMenu();
 
+                phoneMenu.OpenLockScreen();
+
                 Game1.activeClickableMenu = phoneMenu;
-                MessageManager.MarkPhoneOpenedToday();
             }
 
             // DEVTOOL
@@ -169,21 +169,24 @@ namespace Smartphone
             NotificationManager.SaveNoticationData();
             StardewConnectManager.SaveData();
             SaveImageTags();
+            Helper.Data.WriteJsonFile(GetSaveDataPath("GiftMemoryData"), GiftMemories);
 
             if (phoneMenu != null)
                 phoneMenu.ClosePhoneMenu();
-            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/recent_event_memory", RecentEvents);
+            Helper.Data.WriteJsonFile(GetSaveDataPath("recent_event_memory"), RecentEvents);
         }
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
-            npcConversationSummary = Helper.Data.ReadJsonFile<Dictionary<string, string>>($"./userdata/{Constants.SaveFolderName}/npcConversationSummary")
+            RefreshActiveSaveFolderName();
+
+            npcConversationSummary = Helper.Data.ReadJsonFile<Dictionary<string, string>>(GetSaveDataPath("npcConversationSummary"))
                    ?? new Dictionary<string, string>();
 
-            IndoorAreasByLocation = SHelper.Data.ReadJsonFile<Dictionary<string, Dictionary<string, AreaData>>>("assets/indoor_area.json")
+            IndoorAreasByLocation = SHelper.Data.ReadJsonFile<Dictionary<string, Dictionary<string, AreaData>>>("assets/area_indoor.json")
                         ?? new Dictionary<string, Dictionary<string, AreaData>>();
 
-            OutdoorAreasByLocation = SHelper.Data.ReadJsonFile<Dictionary<string, Dictionary<string, AreaData>>>("assets/outdoor_area.json")
+            OutdoorAreasByLocation = SHelper.Data.ReadJsonFile<Dictionary<string, Dictionary<string, AreaData>>>("assets/area_outdoor.json")
                         ?? new Dictionary<string, Dictionary<string, AreaData>>();
 
             areaTags = new Dictionary<string, Dictionary<string, AreaData>>(IndoorAreasByLocation);
@@ -232,6 +235,10 @@ namespace Smartphone
                 }
             }
 
+            // send conversationSummary to iModApi
+            if (iUnlimitedEventExpansionApi != null)
+                iUnlimitedEventExpansionApi.SendNpcConversationSummary(npcConversationSummary);
+
             string targetModId = this.ModManifest.UniqueID;
             var modInfo = this.Helper.ModRegistry.Get(targetModId);
 
@@ -247,7 +254,7 @@ namespace Smartphone
                         {
                             try
                             {
-                                SMonitor.Log($"Smartphone: Newer version available", LogLevel.Error);
+                                SMonitor.Log($"Smartphone: Newer version available", LogLevel.Warn);
                                 Game1.drawLetterMessage("=== Smartphone ===^^Newer version of Smartphone are available. Your current version may be outdated and no longer working.^^" +
                                     "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in        $$/Mods/Smartphone/Userdata$$ folder.^    ]] YOU MUST COPY IT WHEN UPDATE THE MOD [[^^");
 
@@ -299,10 +306,10 @@ namespace Smartphone
                 StardewConnectManager.LoadData();
             HandlePhoneUsageInactivityOnDayStarted();
             HandleAiModelSettingTimeChanged(600);
-            GiftMemories = Helper.Data.ReadJsonFile<Dictionary<string, GiftMemory>>($"./userdata/{Constants.SaveFolderName}/GiftMemoryData")
-                   ?? new Dictionary<string, GiftMemory>();
-            RecentEvents = Helper.Data.ReadJsonFile<List<RecentEvent>>($"./userdata/{Constants.SaveFolderName}/recent_event_memory")
-                   ?? new List<RecentEvent>();
+            GiftMemories = Helper.Data.ReadJsonFile<Dictionary<string, GiftMemory>>(GetSaveDataPath("GiftMemoryData"))
+                ?? new Dictionary<string, GiftMemory>();
+            RecentEvents = Helper.Data.ReadJsonFile<List<RecentEvent>>(GetSaveDataPath("recent_event_memory"))
+                ?? new List<RecentEvent>();
 
 
             foreach (var terrainFeature in Game1.getFarm().terrainFeatures.Values)
@@ -323,15 +330,11 @@ namespace Smartphone
             if (ShouldHostRunSocialSimulation())
                 PrepareDailyRandomNpcSocialPosts();
 
-            // send conversationSummary to iModApi
-            if (iUnlimitedEventExpansionApi != null)
-                iUnlimitedEventExpansionApi.SendNpcConversationSummary(npcConversationSummary);
         }
 
         private void HandlePhoneUsageInactivityOnDayStarted()
         {
             IsAiDisabledForPhoneInactivityToday = false;
-            return;
 
             if (!IsAiUsageLimitEnabled())
                 return;
@@ -428,7 +431,11 @@ namespace Smartphone
                     foreach (var kvp in batchSummaries)
                         npcConversationSummary[kvp.Key] = kvp.Value;
 
-                    Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/npcConversationSummary", npcConversationSummary);
+                    Helper.Data.WriteJsonFile(GetSaveDataPath("npcConversationSummary"), npcConversationSummary);
+
+                    // send conversationSummary to iModApi
+                    if (iUnlimitedEventExpansionApi != null)
+                        iUnlimitedEventExpansionApi.SendNpcConversationSummary(npcConversationSummary);
                 }
                 catch (Exception ex)
                 {
@@ -437,8 +444,15 @@ namespace Smartphone
             });
         }
 
+        private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
+        {
+            ClearActiveSaveFolderName();
+        }
+
         private void OnTimeChange(object sender, TimeChangedEventArgs e)
         {
+            
+
 
             HandleAiUsageTimeChanged(e.NewTime);
             HandleAiModelSettingTimeChanged(e.NewTime);
@@ -457,7 +471,7 @@ namespace Smartphone
             if (Game1.timeOfDay < 2200)
                 CheckSendNewMessage();
 
-            if (pendingInitNotification && isPlayerFree())
+            if (pendingInitNotification && Context.IsPlayerFree)
             {
                 Game1.drawLetterMessage("=== Smartphone ===^^Looks like this is your first time here, or you have recently updated the mod and >> LOST YOUR DATA @@^^" +
                     "Please note that your data, including conversations, photos, StardewSocial, everything,... are saved in             $$/Mods/Smartphone/Userdata$$ folder.^     >> YOU MUST COPY IT WHEN UPDATE THE MOD @@^^                                      > continue >" +
@@ -499,22 +513,6 @@ namespace Smartphone
             if (e.IsMultipleOf(6000))
                 CheckCurrentEvent();
 
-        }
-
-
-
-        private bool isPlayerFree()
-        {
-            return Game1.timeOfDay > 600
-            && Game1.player.CanMove
-            && !(Game1.player.isRidingHorse()
-                || Game1.currentLocation == null
-                || Game1.eventUp
-                || Game1.isFestival()
-                || Game1.IsFading()
-                || Game1.activeClickableMenu != null
-                || Game1.dialogueUp
-                || Game1.player.UsingTool);
         }
 
 

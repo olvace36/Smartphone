@@ -356,6 +356,7 @@ namespace Smartphone
             socialDetailScrollTarget = 0f;
             currentApp = SocialAppState;
             SnapSocialFeedOnOpen();
+            MessageManager.MarkPhoneOpenedToday();
             StardewConnectManager.MarkSocialAppVisitedNow();
         }
 
@@ -455,14 +456,18 @@ namespace Smartphone
                 return false;
 
             int totalComments = post.Comments.Count;
-            int readCount = Math.Clamp(post.PlayerReadCommentCount, 0, totalComments);
+            int readCount = Math.Clamp(
+                StardewConnectManager.GetPlayerReadCommentCount(post, Game1.player?.Name ?? string.Empty),
+                0,
+                totalComments);
+
             if (readCount >= totalComments)
                 return false;
 
             for (int i = readCount; i < totalComments; i++)
             {
                 StardewConnectComment comment = post.Comments[i];
-                if (comment == null || comment.AuthorIsPlayer)
+                if (comment == null || IsLocalPlayerAuthor(comment.AuthorName))
                     continue;
 
                 return true;
@@ -576,29 +581,30 @@ namespace Smartphone
                 return null;
 
             post.Comments ??= new List<StardewConnectComment>();
-            int readCount = Math.Clamp(post.PlayerReadCommentCount, 0, post.Comments.Count);
+            int readCount = Math.Clamp(
+                StardewConnectManager.GetPlayerReadCommentCount(post, Game1.player?.Name ?? string.Empty),
+                0,
+                post.Comments.Count);
 
-            List<StardewConnectComment> unreadNpcComments = post.Comments
+            List<StardewConnectComment> unreadComments = post.Comments
                 .Skip(readCount)
-                .Where(comment => comment != null && !comment.AuthorIsPlayer)
+                .Where(comment => comment != null && !IsLocalPlayerAuthor(comment.AuthorName))
                 .ToList();
 
-            if (unreadNpcComments.Count == 0)
+            if (unreadComments.Count == 0)
                 return null;
 
-            StardewConnectComment firstUnread = unreadNpcComments[0];
-            StardewConnectComment latestUnread = unreadNpcComments[unreadNpcComments.Count - 1];
-            int unreadCount = unreadNpcComments.Count;
+            StardewConnectComment firstUnread = unreadComments[0];
+            StardewConnectComment latestUnread = unreadComments[unreadComments.Count - 1];
+            int unreadCount = unreadComments.Count;
 
             string authorName = ResolveSocialActorDisplayName(firstUnread.AuthorName, firstUnread.AuthorIsPlayer);
             if (string.IsNullOrWhiteSpace(authorName))
                 authorName = "Someone";
 
-            NPC commenter = Game1.getCharacterFromName(firstUnread.AuthorName, mustBeVillager: false);
-
             string message = unreadCount <= 1
-                ? $"{commenter.displayName} commented on your post (1 new comment)"
-                : $"{commenter.displayName} and {unreadCount - 1} others commented on your post ({unreadCount} new comments)";
+                ? $"{authorName} commented on your post (1 new comment)"
+                : $"{authorName} and {unreadCount - 1} others commented on your post ({unreadCount} new comments)";
 
             return new SocialNotificationEntry
             {
@@ -676,7 +682,10 @@ namespace Smartphone
             for (int i = post.Comments.Count - 1; i >= 0; i--)
             {
                 StardewConnectComment comment = post.Comments[i];
-                if (comment == null || comment.AuthorIsPlayer)
+                if (comment == null)
+                    continue;
+
+                if (IsLocalPlayerAuthor(comment.AuthorName))
                     continue;
 
                 if (!ContainsPlayerMention(comment.Text))
@@ -1291,7 +1300,7 @@ namespace Smartphone
             socialDetailCommentSendBounds = okButton.bounds;
             okButton.draw(b);
 
-            if (selectedPost.AuthorIsPlayer)
+            if (selectedPost.AuthorIsPlayer && IsLocalPlayerAuthor(selectedPost.AuthorName))
             {
                 b.Draw(
                     removeButton.texture,
@@ -2851,7 +2860,10 @@ namespace Smartphone
 
             StardewConnectPost? selectedPost = StardewConnectManager.GetPost(selectedSocialPostId);
 
-            if (selectedPost != null && selectedPost.AuthorIsPlayer && removeButton.containsPoint(x, y))
+            if (selectedPost != null
+                && selectedPost.AuthorIsPlayer
+                && IsLocalPlayerAuthor(selectedPost.AuthorName)
+                && removeButton.containsPoint(x, y))
             {
                 bool deleted = TryDeleteSelectedSocialPost(selectedPost);
                 Game1.playSound(deleted ? "trashcan" : "cancel");
@@ -3115,7 +3127,9 @@ namespace Smartphone
 
         private bool TryDeleteSelectedSocialPost(StardewConnectPost? selectedPost)
         {
-            if (selectedPost == null || !selectedPost.AuthorIsPlayer)
+            if (selectedPost == null
+                || !selectedPost.AuthorIsPlayer
+                || !IsLocalPlayerAuthor(selectedPost.AuthorName))
                 return false;
 
             bool returnToProfile = socialDetailReturnToProfile;

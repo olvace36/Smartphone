@@ -21,12 +21,22 @@ namespace Smartphone
         private const string SocialMessageCreatePostRequest = "social-create-post-request";
         private const string SocialMessageAddCommentRequest = "social-add-comment-request";
         private const string SocialMessageSetLikeRequest = "social-set-like-request";
+        private const string SocialMessageDeletePostRequest = "social-delete-post-request";
         private const string SocialMessageUpdateAvatarRequest = "social-update-avatar-request";
+        private const string SocialMessageDirectPlayerChat = "social-direct-player-chat";
 
         private const string SocialMessagePostDelta = "social-post-delta";
         private const string SocialMessageCommentDelta = "social-comment-delta";
         private const string SocialMessageLikeDelta = "social-like-delta";
+        private const string SocialMessageDeletePostDelta = "social-delete-post-delta";
         private const string SocialMessageAvatarDelta = "social-avatar-delta";
+
+        private const string PhoneApiMessageNpcRequest = "phone-api-message-npc-request";
+        private const string PhoneApiMessageNpcApply = "phone-api-message-npc-apply";
+        private const string PhoneApiMessagePlayerRequest = "phone-api-message-player-request";
+        private const string PhoneApiMessagePlayerApply = "phone-api-message-player-apply";
+        private const string PhoneApiNotificationRequest = "phone-api-notification-request";
+        private const string PhoneApiNotificationApply = "phone-api-notification-apply";
 
         private static string PendingSocialSyncRequestId = string.Empty;
 
@@ -40,6 +50,7 @@ namespace Smartphone
         private sealed class SocialPhotoUpsertMessage
         {
             public string ProtocolVersion { get; set; } = SocialSyncProtocolVersion;
+            public string SaveFolderName { get; set; } = string.Empty;
             public string FileName { get; set; } = string.Empty;
             public string Base64Image { get; set; } = string.Empty;
             public string ImageTag { get; set; } = string.Empty;
@@ -50,6 +61,7 @@ namespace Smartphone
             public string ProtocolVersion { get; set; } = SocialSyncProtocolVersion;
             public string RequestId { get; set; } = string.Empty;
             public string RequestingPlayerName { get; set; } = string.Empty;
+            public string RequestingSaveFolderName { get; set; } = string.Empty;
             public List<string> ExistingNpcPhotoNames { get; set; } = new();
             public List<string> ExistingPlayerAvatarNames { get; set; } = new();
         }
@@ -58,6 +70,7 @@ namespace Smartphone
         {
             public string ProtocolVersion { get; set; } = SocialSyncProtocolVersion;
             public string RequestId { get; set; } = string.Empty;
+            public string SaveFolderName { get; set; } = string.Empty;
             public List<StardewConnectPost> Posts { get; set; } = new();
             public Dictionary<string, StardewConnectProfileStats> ProfileStats { get; set; } = new(StringComparer.OrdinalIgnoreCase);
             public Dictionary<string, string> SharedPlayerAvatars { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -92,6 +105,13 @@ namespace Smartphone
             public bool Liked { get; set; }
         }
 
+        private sealed class SocialDeletePostRequestMessage
+        {
+            public string ProtocolVersion { get; set; } = SocialSyncProtocolVersion;
+            public string PostId { get; set; } = string.Empty;
+            public string DeletingPlayerName { get; set; } = string.Empty;
+        }
+
         private sealed class SocialPostDeltaMessage
         {
             public string ProtocolVersion { get; set; } = SocialSyncProtocolVersion;
@@ -105,7 +125,7 @@ namespace Smartphone
             public string ProtocolVersion { get; set; } = SocialSyncProtocolVersion;
             public string PostId { get; set; } = string.Empty;
             public StardewConnectComment Comment { get; set; } = new();
-            public int PlayerReadCommentCount { get; set; }
+            public Dictionary<string, int> PlayerReadCommentCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
             public Dictionary<string, StardewConnectProfileStats> ProfileStats { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         }
 
@@ -118,6 +138,13 @@ namespace Smartphone
             public Dictionary<string, StardewConnectProfileStats> ProfileStats { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         }
 
+        private sealed class SocialDeletePostDeltaMessage
+        {
+            public string ProtocolVersion { get; set; } = SocialSyncProtocolVersion;
+            public string PostId { get; set; } = string.Empty;
+            public Dictionary<string, StardewConnectProfileStats> ProfileStats { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        }
+
         private sealed class SocialUpdateAvatarRequestMessage
         {
             public string ProtocolVersion { get; set; } = SocialSyncProtocolVersion;
@@ -126,12 +153,43 @@ namespace Smartphone
             public SocialUploadedImageMessage AvatarImage { get; set; } = new();
         }
 
+        private sealed class SocialDirectPlayerChatMessage
+        {
+            public string ProtocolVersion { get; set; } = SocialSyncProtocolVersion;
+            public string SenderPlayerName { get; set; } = string.Empty;
+            public string ReceiverPlayerName { get; set; } = string.Empty;
+            public string Text { get; set; } = string.Empty;
+            public List<SocialPhotoUpsertMessage> SharedPhotos { get; set; } = new();
+        }
+
         private sealed class SocialAvatarDeltaMessage
         {
             public string ProtocolVersion { get; set; } = SocialSyncProtocolVersion;
+            public string SaveFolderName { get; set; } = string.Empty;
             public string PlayerName { get; set; } = string.Empty;
             public bool ClearAvatar { get; set; }
             public SocialPhotoUpsertMessage AvatarImage { get; set; } = new();
+        }
+
+        private sealed class PhoneApiNpcMessagePayload
+        {
+            public string NpcName { get; set; } = string.Empty;
+            public string Message { get; set; } = string.Empty;
+            public string PlayerId { get; set; } = string.Empty;
+        }
+
+        private sealed class PhoneApiPlayerMessagePayload
+        {
+            public string NpcName { get; set; } = string.Empty;
+            public string Message { get; set; } = string.Empty;
+            public string PlayerId { get; set; } = string.Empty;
+        }
+
+        private sealed class PhoneApiNotificationPayload
+        {
+            public string Message { get; set; } = string.Empty;
+            public string NotificationName { get; set; } = string.Empty;
+            public string PlayerId { get; set; } = string.Empty;
         }
 
         internal static bool IsFarmhandSocialPeer()
@@ -154,6 +212,274 @@ namespace Smartphone
             return !Context.IsMultiplayer || Context.IsMainPlayer;
         }
 
+        internal static List<string> GetPhoneNpcListByPlayerId(string playerId = "")
+        {
+            if (!Context.IsWorldReady)
+                return new List<string>();
+
+            string normalizedPlayerId = (playerId ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedPlayerId))
+                return GetLocalPhoneNpcList();
+
+            if (!TryResolveOnlineFarmerById(normalizedPlayerId, out Farmer? targetFarmer)
+                || targetFarmer == null)
+            {
+                return new List<string>();
+            }
+
+            long localPlayerId = Game1.player?.UniqueMultiplayerID ?? 0;
+            if (targetFarmer.UniqueMultiplayerID == localPlayerId)
+                return GetLocalPhoneNpcList();
+
+            return BuildMessageableConversationKeysForFarmer(targetFarmer);
+        }
+
+        internal static void RouteSmartphoneMessageFromNpc(string npcName, string message, string playerId)
+        {
+            string normalizedNpcName = (npcName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedNpcName) || Game1.getCharacterFromName(normalizedNpcName) == null)
+                return;
+
+            var payload = new PhoneApiNpcMessagePayload
+            {
+                NpcName = normalizedNpcName,
+                Message = message ?? string.Empty,
+                PlayerId = (playerId ?? string.Empty).Trim()
+            };
+
+            RoutePhoneApiActionFromCaller(
+                payload,
+                PhoneApiMessageNpcRequest,
+                PhoneApiMessageNpcApply,
+                payload.PlayerId,
+                ApplySmartphoneNpcMessagePayload);
+        }
+
+        internal static void RouteSmartphoneMessageFromPlayer(string npcName, string message, string playerId)
+        {
+            string normalizedNpcName = (npcName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedNpcName) || Game1.getCharacterFromName(normalizedNpcName) == null)
+                return;
+
+            var payload = new PhoneApiPlayerMessagePayload
+            {
+                NpcName = normalizedNpcName,
+                Message = message ?? string.Empty,
+                PlayerId = (playerId ?? string.Empty).Trim()
+            };
+
+            RoutePhoneApiActionFromCaller(
+                payload,
+                PhoneApiMessagePlayerRequest,
+                PhoneApiMessagePlayerApply,
+                payload.PlayerId,
+                ApplySmartphonePlayerMessagePayload);
+        }
+
+        internal static void RouteSmartphoneNotification(string message, string notificationName, string playerId)
+        {
+            var payload = new PhoneApiNotificationPayload
+            {
+                Message = message ?? string.Empty,
+                NotificationName = notificationName ?? string.Empty,
+                PlayerId = (playerId ?? string.Empty).Trim()
+            };
+
+            RoutePhoneApiActionFromCaller(
+                payload,
+                PhoneApiNotificationRequest,
+                PhoneApiNotificationApply,
+                payload.PlayerId,
+                ApplySmartphoneNotificationPayload);
+        }
+
+        private static List<string> GetLocalPhoneNpcList()
+        {
+            if (!Context.IsWorldReady)
+                return new List<string>();
+
+            if (phoneMenu == null)
+                phoneMenu = new PhoneMenu();
+
+            phoneMenu.UpdateNpcList(true);
+            return phoneMenu.messageableNpcList
+                .Select(entry => entry.name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToList();
+        }
+
+        private static List<string> BuildMessageableConversationKeysForFarmer(Farmer targetFarmer)
+        {
+            var conversationKeys = new List<string>();
+            var seenConversationKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (NPC npc in Utility.getAllVillagers())
+            {
+                if (npc == null
+                    || npc.IsInvisible
+                    || !npc.CanSocialize
+                    || socialNpcBlacklist.Contains(npc.Name, StringComparer.OrdinalIgnoreCase)
+                    || !CanFarmerMessageNpc(targetFarmer, npc))
+                {
+                    continue;
+                }
+
+                string npcName = (npc.Name ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(npcName) && seenConversationKeys.Add(npcName))
+                    conversationKeys.Add(npcName);
+            }
+
+            foreach (Farmer farmer in Game1.getOnlineFarmers())
+            {
+                if (farmer == null || farmer.UniqueMultiplayerID == targetFarmer.UniqueMultiplayerID)
+                    continue;
+
+                string conversationKey = MessageManager.BuildPlayerConversationKey(farmer.Name);
+                if (!string.IsNullOrWhiteSpace(conversationKey) && seenConversationKeys.Add(conversationKey))
+                    conversationKeys.Add(conversationKey);
+            }
+
+            return conversationKeys
+                .OrderBy(key => MessageManager.GetConversationDisplayName(key), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(key => key, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static bool CanFarmerMessageNpc(Farmer farmer, NPC npc)
+        {
+            if (farmer == null || npc == null || string.IsNullOrWhiteSpace(npc.Name))
+                return false;
+
+            string requirement = ModEntry.Config?.NpcMessageRequirement ?? ModConfig.NpcRequirementFriend;
+            if (string.Equals(requirement, ModConfig.NpcRequirementMeet, StringComparison.OrdinalIgnoreCase))
+                return farmer.friendshipData.ContainsKey(npc.Name);
+
+            return farmer.getFriendshipHeartLevelForNPC(npc.Name) >= 1;
+        }
+
+        private static bool TryResolveOnlineFarmerById(string playerId, out Farmer? farmer)
+        {
+            farmer = null;
+
+            string normalizedPlayerId = (playerId ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedPlayerId)
+                || !long.TryParse(normalizedPlayerId, out long parsedPlayerId)
+                || parsedPlayerId <= 0)
+            {
+                return false;
+            }
+
+            foreach (Farmer candidate in Game1.getOnlineFarmers())
+            {
+                if (candidate == null || candidate.UniqueMultiplayerID != parsedPlayerId)
+                    continue;
+
+                farmer = candidate;
+                return true;
+            }
+
+            if (Game1.player != null && Game1.player.UniqueMultiplayerID == parsedPlayerId)
+            {
+                farmer = Game1.player;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryResolveOnlinePlayerIdByUniqueId(string playerId, out long resolvedPlayerId)
+        {
+            resolvedPlayerId = 0;
+
+            if (!TryResolveOnlineFarmerById(playerId, out Farmer? farmer) || farmer == null)
+                return false;
+
+            resolvedPlayerId = farmer.UniqueMultiplayerID;
+            return resolvedPlayerId > 0;
+        }
+
+        private static void RoutePhoneApiActionFromCaller<TPayload>(
+            TPayload payload,
+            string requestMessageType,
+            string applyMessageType,
+            string targetPlayerId,
+            Action<TPayload> applyLocally)
+        {
+            if (!Context.IsMultiplayer)
+            {
+                applyLocally(payload);
+                return;
+            }
+
+            if (Context.IsMainPlayer)
+            {
+                DispatchPhoneApiActionFromHost(payload, applyMessageType, targetPlayerId, applyLocally);
+                return;
+            }
+
+            if (!SendMessageToHost(payload, requestMessageType))
+                applyLocally(payload);
+        }
+
+        private static void DispatchPhoneApiActionFromHost<TPayload>(
+            TPayload payload,
+            string applyMessageType,
+            string targetPlayerId,
+            Action<TPayload> applyLocally)
+        {
+            if (!Context.IsMultiplayer || !Context.IsMainPlayer)
+            {
+                applyLocally(payload);
+                return;
+            }
+
+            if (TryResolveOnlinePlayerIdByUniqueId(targetPlayerId, out long resolvedPlayerId))
+            {
+                long localPlayerId = Game1.player?.UniqueMultiplayerID ?? 0;
+                if (resolvedPlayerId == localPlayerId)
+                    applyLocally(payload);
+                else
+                    SendMessageToPlayer(payload, applyMessageType, resolvedPlayerId);
+
+                return;
+            }
+
+            applyLocally(payload);
+            BroadcastToFarmhands(payload, applyMessageType);
+        }
+
+        private static void ApplySmartphoneNpcMessagePayload(PhoneApiNpcMessagePayload payload)
+        {
+            if (payload == null)
+                return;
+
+            string npcName = (payload.NpcName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(npcName) || Game1.getCharacterFromName(npcName) == null)
+                return;
+
+            MessageManager.AddMessage(npcName, $"{npcName}: " + (payload.Message ?? string.Empty));
+        }
+
+        private static void ApplySmartphonePlayerMessagePayload(PhoneApiPlayerMessagePayload payload)
+        {
+            if (payload == null)
+                return;
+
+            string npcName = (payload.NpcName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(npcName) || Game1.getCharacterFromName(npcName) == null)
+                return;
+
+            MessageManager.AddMessage(npcName, $"PLAYER: {payload.Message ?? string.Empty}", isFromPlayer: true);
+        }
+
+        private static void ApplySmartphoneNotificationPayload(PhoneApiNotificationPayload payload)
+        {
+            if (payload == null)
+                return;
+
+            NotificationManager.addNotification(payload.Message ?? string.Empty, payload.NotificationName ?? string.Empty);
+        }
+
         internal static string GetNpcPhotoAbsolutePath(string imageFileName)
         {
             string normalizedFileName = Path.GetFileName(imageFileName ?? string.Empty) ?? string.Empty;
@@ -164,7 +490,7 @@ namespace Smartphone
                 SHelper.DirectoryPath,
                 "userdata",
                 GetCurrentSaveFolderName(),
-                "npc_photo",
+                "shared_photo",
                 normalizedFileName);
         }
 
@@ -202,7 +528,7 @@ namespace Smartphone
                 SHelper.DirectoryPath,
                 "userdata",
                 GetCurrentSaveFolderName(),
-                "npc_photo");
+                "shared_photo");
         }
 
         private static string GetPlayerAvatarDirectoryAbsolutePath()
@@ -395,6 +721,148 @@ namespace Smartphone
             return SendMessageToHost(payload, SocialMessageSetLikeRequest);
         }
 
+        internal static bool TryRequestHostDeletePlayerPost(string postId, string deletingPlayerName)
+        {
+            if (!ShouldRoutePlayerSocialActionToHost())
+                return false;
+
+            if (string.IsNullOrWhiteSpace(postId) || string.IsNullOrWhiteSpace(deletingPlayerName))
+                return false;
+
+            var payload = new SocialDeletePostRequestMessage
+            {
+                PostId = postId.Trim(),
+                DeletingPlayerName = deletingPlayerName.Trim()
+            };
+
+            return SendMessageToHost(payload, SocialMessageDeletePostRequest);
+        }
+
+        internal static bool TrySendDirectPlayerChat(
+            string receiverPlayerName,
+            string text,
+            IEnumerable<string>? playerPhotoPaths,
+            out List<string> sharedPhotoFileNames,
+            out string sharedPhotoTagText)
+        {
+            sharedPhotoFileNames = new List<string>();
+            sharedPhotoTagText = string.Empty;
+
+            if (!Context.IsWorldReady || !Context.IsMultiplayer)
+                return false;
+
+            string senderPlayerName = (Game1.player?.Name ?? "Player").Trim();
+            string normalizedReceiverPlayerName = (receiverPlayerName ?? string.Empty).Trim();
+            string normalizedText = (text ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(senderPlayerName)
+                || string.IsNullOrWhiteSpace(normalizedReceiverPlayerName)
+                || string.Equals(senderPlayerName, normalizedReceiverPlayerName, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!TryResolveOnlinePlayerId(normalizedReceiverPlayerName, out long receiverPlayerId))
+                return false;
+
+            var payload = new SocialDirectPlayerChatMessage
+            {
+                SenderPlayerName = senderPlayerName,
+                ReceiverPlayerName = normalizedReceiverPlayerName,
+                Text = normalizedText
+            };
+
+            var mergedTagParts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            List<string> normalizedPhotoPaths = (playerPhotoPaths ?? Enumerable.Empty<string>())
+                .Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(5)
+                .ToList();
+
+            foreach (string photoPath in normalizedPhotoPaths)
+            {
+                string sourceFileName = Path.GetFileName(photoPath) ?? string.Empty;
+                string imageTag = ImageTags != null && ImageTags.TryGetValue(sourceFileName, out string? loadedTag)
+                    ? loadedTag ?? string.Empty
+                    : string.Empty;
+
+                string sharedFileName = CopyImageToNpcPhoto(photoPath, senderPlayerName, sourceFileName, imageTag);
+                if (string.IsNullOrWhiteSpace(sharedFileName))
+                    continue;
+
+                if (!TryCreateNpcPhotoUpsertPayload(sharedFileName, out SocialPhotoUpsertMessage? sharedPhotoPayload)
+                    || sharedPhotoPayload == null)
+                {
+                    continue;
+                }
+
+                payload.SharedPhotos.Add(sharedPhotoPayload);
+                sharedPhotoFileNames.Add(sharedFileName);
+
+                foreach (string tag in SplitImageTagText(sharedPhotoPayload.ImageTag))
+                    mergedTagParts.Add(tag);
+            }
+
+            sharedPhotoTagText = string.Join("; ", mergedTagParts);
+
+            if (string.IsNullOrWhiteSpace(payload.Text) && payload.SharedPhotos.Count == 0)
+                return false;
+
+            return SendMessageToPlayer(payload, SocialMessageDirectPlayerChat, receiverPlayerId);
+        }
+
+        private static bool TryResolveOnlinePlayerId(string playerName, out long playerId)
+        {
+            playerId = 0;
+
+            if (!Context.IsMultiplayer || string.IsNullOrWhiteSpace(playerName))
+                return false;
+
+            string normalizedName = playerName.Trim();
+            long localPlayerId = Game1.player?.UniqueMultiplayerID ?? 0;
+
+            foreach (Farmer farmer in Game1.getOnlineFarmers())
+            {
+                if (farmer == null
+                    || string.IsNullOrWhiteSpace(farmer.Name)
+                    || !string.Equals(farmer.Name, normalizedName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                long candidateId = farmer.UniqueMultiplayerID;
+                if (candidateId == localPlayerId)
+                    return false;
+
+                playerId = candidateId;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryResolveOnlinePlayerName(long playerId, out string playerName)
+        {
+            playerName = string.Empty;
+            if (!Context.IsMultiplayer || playerId <= 0)
+                return false;
+
+            foreach (Farmer farmer in Game1.getOnlineFarmers())
+            {
+                if (farmer == null || farmer.UniqueMultiplayerID != playerId)
+                    continue;
+
+                string normalizedName = (farmer.Name ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(normalizedName))
+                    return false;
+
+                playerName = normalizedName;
+                return true;
+            }
+
+            return false;
+        }
+
         internal static void BroadcastSyncedSocialPost(StardewConnectPost post, Dictionary<string, StardewConnectProfileStats> profileStats)
         {
             if (!ShouldBroadcastAuthoritativeSocialChanges() || post == null)
@@ -413,7 +881,7 @@ namespace Smartphone
         internal static void BroadcastSyncedSocialComment(
             string postId,
             StardewConnectComment comment,
-            int playerReadCommentCount,
+            Dictionary<string, int> playerReadCommentCounts,
             Dictionary<string, StardewConnectProfileStats> profileStats)
         {
             if (!ShouldBroadcastAuthoritativeSocialChanges() || comment == null || string.IsNullOrWhiteSpace(postId))
@@ -423,7 +891,7 @@ namespace Smartphone
             {
                 PostId = postId,
                 Comment = comment,
-                PlayerReadCommentCount = playerReadCommentCount,
+                PlayerReadCommentCounts = playerReadCommentCounts ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
                 ProfileStats = profileStats ?? new Dictionary<string, StardewConnectProfileStats>(StringComparer.OrdinalIgnoreCase)
             };
 
@@ -448,6 +916,22 @@ namespace Smartphone
             };
 
             BroadcastToFarmhands(payload, SocialMessageLikeDelta);
+        }
+
+        internal static void BroadcastSyncedSocialPostDeleted(
+            string postId,
+            Dictionary<string, StardewConnectProfileStats> profileStats)
+        {
+            if (!ShouldBroadcastAuthoritativeSocialChanges() || string.IsNullOrWhiteSpace(postId))
+                return;
+
+            var payload = new SocialDeletePostDeltaMessage
+            {
+                PostId = postId,
+                ProfileStats = profileStats ?? new Dictionary<string, StardewConnectProfileStats>(StringComparer.OrdinalIgnoreCase)
+            };
+
+            BroadcastToFarmhands(payload, SocialMessageDeletePostDelta);
         }
 
         private static List<SocialPhotoUpsertMessage> BuildPostPhotoPayloads(StardewConnectPost post)
@@ -493,6 +977,7 @@ namespace Smartphone
 
                 payload = new SocialPhotoUpsertMessage
                 {
+                    SaveFolderName = GetActiveSaveFolderName(),
                     FileName = normalizedFileName,
                     Base64Image = Convert.ToBase64String(bytes),
                     ImageTag = tag
@@ -629,6 +1114,9 @@ namespace Smartphone
             if (payload == null)
                 return false;
 
+            if (!string.IsNullOrWhiteSpace(payload.SaveFolderName))
+                SetActiveSaveFolderName(payload.SaveFolderName);
+
             string normalizedFileName = Path.GetFileName(payload.FileName ?? string.Empty) ?? string.Empty;
             if (string.IsNullOrWhiteSpace(normalizedFileName) || string.IsNullOrWhiteSpace(payload.Base64Image))
                 return false;
@@ -671,6 +1159,9 @@ namespace Smartphone
         {
             if (payload == null)
                 return false;
+
+            if (!string.IsNullOrWhiteSpace(payload.SaveFolderName))
+                SetActiveSaveFolderName(payload.SaveFolderName);
 
             string normalizedFileName = Path.GetFileName(payload.FileName ?? string.Empty) ?? string.Empty;
             if (string.IsNullOrWhiteSpace(normalizedFileName) || string.IsNullOrWhiteSpace(payload.Base64Image))
@@ -715,6 +1206,7 @@ namespace Smartphone
             {
                 payload = new SocialPhotoUpsertMessage
                 {
+                    SaveFolderName = GetActiveSaveFolderName(),
                     FileName = avatarFileName,
                     Base64Image = Convert.ToBase64String(File.ReadAllBytes(absolutePath)),
                     ImageTag = string.Empty
@@ -950,6 +1442,7 @@ namespace Smartphone
         private void InitializeSocialCoopOnSaveLoaded()
         {
             PendingSocialSyncRequestId = string.Empty;
+            RefreshActiveSaveFolderName();
 
             if (!IsFarmhandSocialPeer())
                 return;
@@ -958,6 +1451,7 @@ namespace Smartphone
             {
                 RequestId = Guid.NewGuid().ToString("N"),
                 RequestingPlayerName = Game1.player?.Name ?? "Player",
+                RequestingSaveFolderName = GetActiveSaveFolderName(),
                 ExistingNpcPhotoNames = GetNpcPhotoFileNames(),
                 ExistingPlayerAvatarNames = GetPlayerAvatarFileNames()
             };
@@ -991,6 +1485,9 @@ namespace Smartphone
                 case SocialMessageSetLikeRequest:
                     HandleSocialSetLikeRequest(e);
                     break;
+                case SocialMessageDeletePostRequest:
+                    HandleSocialDeletePostRequest(e);
+                    break;
                 case SocialMessagePostDelta:
                     HandleSocialPostDelta(e);
                     break;
@@ -1000,19 +1497,130 @@ namespace Smartphone
                 case SocialMessageLikeDelta:
                     HandleSocialLikeDelta(e);
                     break;
+                case SocialMessageDeletePostDelta:
+                    HandleSocialDeletePostDelta(e);
+                    break;
                 case SocialMessageUpdateAvatarRequest:
                     HandleSocialUpdateAvatarRequest(e);
                     break;
                 case SocialMessageAvatarDelta:
                     HandleSocialAvatarDelta(e);
                     break;
+                case SocialMessageDirectPlayerChat:
+                    HandleSocialDirectPlayerChat(e);
+                    break;
+                case PhoneApiMessageNpcRequest:
+                    HandlePhoneApiNpcMessageRequest(e);
+                    break;
+                case PhoneApiMessageNpcApply:
+                    HandlePhoneApiNpcMessageApply(e);
+                    break;
+                case PhoneApiMessagePlayerRequest:
+                    HandlePhoneApiPlayerMessageRequest(e);
+                    break;
+                case PhoneApiMessagePlayerApply:
+                    HandlePhoneApiPlayerMessageApply(e);
+                    break;
+                case PhoneApiNotificationRequest:
+                    HandlePhoneApiNotificationRequest(e);
+                    break;
+                case PhoneApiNotificationApply:
+                    HandlePhoneApiNotificationApply(e);
+                    break;
             }
+        }
+
+        private void HandlePhoneApiNpcMessageRequest(ModMessageReceivedEventArgs e)
+        {
+            if (!ShouldBroadcastAuthoritativeSocialChanges())
+                return;
+
+            PhoneApiNpcMessagePayload? payload = e.ReadAs<PhoneApiNpcMessagePayload>();
+            if (payload == null)
+                return;
+
+            DispatchPhoneApiActionFromHost(
+                payload,
+                PhoneApiMessageNpcApply,
+                payload.PlayerId,
+                ApplySmartphoneNpcMessagePayload);
+        }
+
+        private void HandlePhoneApiNpcMessageApply(ModMessageReceivedEventArgs e)
+        {
+            if (!IsFarmhandSocialPeer() || !IsMessageFromHost(e.FromPlayerID))
+                return;
+
+            PhoneApiNpcMessagePayload? payload = e.ReadAs<PhoneApiNpcMessagePayload>();
+            if (payload == null)
+                return;
+
+            ApplySmartphoneNpcMessagePayload(payload);
+        }
+
+        private void HandlePhoneApiPlayerMessageRequest(ModMessageReceivedEventArgs e)
+        {
+            if (!ShouldBroadcastAuthoritativeSocialChanges())
+                return;
+
+            PhoneApiPlayerMessagePayload? payload = e.ReadAs<PhoneApiPlayerMessagePayload>();
+            if (payload == null)
+                return;
+
+            DispatchPhoneApiActionFromHost(
+                payload,
+                PhoneApiMessagePlayerApply,
+                payload.PlayerId,
+                ApplySmartphonePlayerMessagePayload);
+        }
+
+        private void HandlePhoneApiPlayerMessageApply(ModMessageReceivedEventArgs e)
+        {
+            if (!IsFarmhandSocialPeer() || !IsMessageFromHost(e.FromPlayerID))
+                return;
+
+            PhoneApiPlayerMessagePayload? payload = e.ReadAs<PhoneApiPlayerMessagePayload>();
+            if (payload == null)
+                return;
+
+            ApplySmartphonePlayerMessagePayload(payload);
+        }
+
+        private void HandlePhoneApiNotificationRequest(ModMessageReceivedEventArgs e)
+        {
+            if (!ShouldBroadcastAuthoritativeSocialChanges())
+                return;
+
+            PhoneApiNotificationPayload? payload = e.ReadAs<PhoneApiNotificationPayload>();
+            if (payload == null)
+                return;
+
+            DispatchPhoneApiActionFromHost(
+                payload,
+                PhoneApiNotificationApply,
+                payload.PlayerId,
+                ApplySmartphoneNotificationPayload);
+        }
+
+        private void HandlePhoneApiNotificationApply(ModMessageReceivedEventArgs e)
+        {
+            if (!IsFarmhandSocialPeer() || !IsMessageFromHost(e.FromPlayerID))
+                return;
+
+            PhoneApiNotificationPayload? payload = e.ReadAs<PhoneApiNotificationPayload>();
+            if (payload == null)
+                return;
+
+            ApplySmartphoneNotificationPayload(payload);
         }
 
         private void HandleSocialFullSyncRequest(ModMessageReceivedEventArgs e)
         {
             if (!ShouldBroadcastAuthoritativeSocialChanges())
                 return;
+
+            RefreshActiveSaveFolderName();
+            string hostSaveFolderName = GetActiveSaveFolderName();
 
             SocialFullSyncRequestMessage? request = e.ReadAs<SocialFullSyncRequestMessage>();
             if (request == null)
@@ -1051,6 +1659,7 @@ namespace Smartphone
             var snapshot = new SocialFullSyncSnapshotMessage
             {
                 RequestId = request.RequestId ?? string.Empty,
+                SaveFolderName = hostSaveFolderName,
                 Posts = StardewConnectManager.GetPostsSnapshot(),
                 ProfileStats = StardewConnectManager.GetProfileStatsSnapshot(),
                 SharedPlayerAvatars = sharedPlayerAvatars,
@@ -1084,6 +1693,7 @@ namespace Smartphone
 
                 var avatarDelta = new SocialAvatarDeltaMessage
                 {
+                    SaveFolderName = hostSaveFolderName,
                     PlayerName = playerName,
                     ClearAvatar = false,
                     AvatarImage = avatarPayload
@@ -1108,6 +1718,9 @@ namespace Smartphone
                 return;
             }
 
+            if (!string.IsNullOrWhiteSpace(snapshot.SaveFolderName))
+                SetActiveSaveFolderName(snapshot.SaveFolderName);
+
             StardewConnectManager.ApplySocialStateSnapshot(snapshot.Posts, snapshot.ProfileStats, snapshot.SharedPlayerAvatars);
             ApplyNpcImageTagSnapshot(snapshot.NpcImageTags);
             DeleteNpcPhotos(snapshot.DeleteNpcPhotoNames);
@@ -1125,6 +1738,9 @@ namespace Smartphone
             SocialPhotoUpsertMessage? payload = e.ReadAs<SocialPhotoUpsertMessage>();
             if (payload == null)
                 return;
+
+            if (!string.IsNullOrWhiteSpace(payload.SaveFolderName))
+                SetActiveSaveFolderName(payload.SaveFolderName);
 
             if (TryApplyNpcPhotoUpsert(payload))
                 InvalidateSocialImageLoadCaches();
@@ -1205,6 +1821,24 @@ namespace Smartphone
             StardewConnectManager.SetPostLike(request.PostId, request.ActorName, request.Liked, broadcastChange: true);
         }
 
+        private void HandleSocialDeletePostRequest(ModMessageReceivedEventArgs e)
+        {
+            if (!ShouldBroadcastAuthoritativeSocialChanges())
+                return;
+
+            SocialDeletePostRequestMessage? request = e.ReadAs<SocialDeletePostRequestMessage>();
+            if (request == null)
+                return;
+
+            if (!TryResolveOnlinePlayerName(e.FromPlayerID, out string requestingPlayerName))
+                return;
+
+            StardewConnectManager.DeletePost(
+                request.PostId,
+                deletingPlayerName: requestingPlayerName,
+                broadcastChange: true);
+        }
+
         private void HandleSocialPostDelta(ModMessageReceivedEventArgs e)
         {
             if (!IsFarmhandSocialPeer() || !IsMessageFromHost(e.FromPlayerID))
@@ -1239,7 +1873,7 @@ namespace Smartphone
             StardewConnectManager.ApplySyncedComment(
                 payload.PostId,
                 payload.Comment,
-                payload.PlayerReadCommentCount,
+                payload.PlayerReadCommentCounts,
                 payload.ProfileStats);
         }
 
@@ -1253,6 +1887,18 @@ namespace Smartphone
                 return;
 
             StardewConnectManager.ApplySyncedLike(payload.PostId, payload.ActorName, payload.Liked, payload.ProfileStats);
+        }
+
+        private void HandleSocialDeletePostDelta(ModMessageReceivedEventArgs e)
+        {
+            if (!IsFarmhandSocialPeer() || !IsMessageFromHost(e.FromPlayerID))
+                return;
+
+            SocialDeletePostDeltaMessage? payload = e.ReadAs<SocialDeletePostDeltaMessage>();
+            if (payload == null)
+                return;
+
+            StardewConnectManager.ApplySyncedPostDeletion(payload.PostId, payload.ProfileStats);
         }
 
         public static void PublishLocalPlayerAvatarSelection(string avatarPath)
@@ -1367,6 +2013,7 @@ namespace Smartphone
 
             var payload = new SocialAvatarDeltaMessage
             {
+                SaveFolderName = GetActiveSaveFolderName(),
                 PlayerName = playerName,
                 ClearAvatar = clearAvatar
             };
@@ -1419,6 +2066,9 @@ namespace Smartphone
             if (payload == null)
                 return;
 
+            if (!string.IsNullOrWhiteSpace(payload.SaveFolderName))
+                SetActiveSaveFolderName(payload.SaveFolderName);
+
             string playerName = (payload.PlayerName ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(playerName))
                 return;
@@ -1435,6 +2085,94 @@ namespace Smartphone
             {
                 StardewConnectManager.SetSharedPlayerAvatarFileName(playerName, payload.AvatarImage.FileName, saveData: true, notifyPhoneMenu: true);
                 InvalidateSocialImageLoadCaches();
+            }
+        }
+
+        private void HandleSocialDirectPlayerChat(ModMessageReceivedEventArgs e)
+        {
+            if (!Context.IsWorldReady || !Context.IsMultiplayer)
+                return;
+
+            SocialDirectPlayerChatMessage? payload = e.ReadAs<SocialDirectPlayerChatMessage>();
+            if (payload == null)
+                return;
+
+            string receiverPlayerName = (payload.ReceiverPlayerName ?? string.Empty).Trim();
+            string localPlayerName = (Game1.player?.Name ?? "Player").Trim();
+            if (string.IsNullOrWhiteSpace(receiverPlayerName)
+                || string.IsNullOrWhiteSpace(localPlayerName)
+                || !string.Equals(receiverPlayerName, localPlayerName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            string senderPlayerName = (payload.SenderPlayerName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(senderPlayerName))
+                return;
+
+            var receivedSharedPhotoNames = new List<string>();
+            var mergedTagParts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (SocialPhotoUpsertMessage sharedPhotoPayload in payload.SharedPhotos ?? new List<SocialPhotoUpsertMessage>())
+            {
+                if (!TryApplyNpcPhotoUpsert(sharedPhotoPayload))
+                    continue;
+
+                string sharedPhotoFileName = Path.GetFileName(sharedPhotoPayload.FileName ?? string.Empty) ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(sharedPhotoFileName))
+                    receivedSharedPhotoNames.Add(sharedPhotoFileName);
+
+                foreach (string tag in SplitImageTagText(sharedPhotoPayload.ImageTag))
+                    mergedTagParts.Add(tag);
+            }
+
+            string conversationKey = MessageManager.BuildPlayerConversationKey(senderPlayerName);
+            if (string.IsNullOrWhiteSpace(conversationKey))
+                return;
+
+            string text = (payload.Text ?? string.Empty).Trim();
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                MessageManager.AddMessage(
+                    conversationKey,
+                    $"{senderPlayerName}: {text}",
+                    addCount: true,
+                    isFromPlayer: false,
+                    notify: true,
+                    allowNonNpc: true);
+            }
+
+            if (receivedSharedPhotoNames.Count > 0)
+            {
+                bool addUnreadCount = string.IsNullOrWhiteSpace(text);
+                string photoPayload = string.Join("||", receivedSharedPhotoNames.Distinct(StringComparer.OrdinalIgnoreCase));
+                MessageManager.AddMessage(
+                    conversationKey,
+                    $"{MessageManager.NpcPhotoMessagePrefix} {photoPayload}",
+                    addCount: addUnreadCount,
+                    isFromPlayer: false,
+                    notify: true,
+                    allowNonNpc: true);
+
+                string photoTagText = string.Join("; ", mergedTagParts);
+                if (!string.IsNullOrWhiteSpace(photoTagText))
+                {
+                    MessageManager.AddMessage(
+                        conversationKey,
+                        $"{MessageManager.NpcPhotoTagMessagePrefix} {photoTagText}",
+                        addCount: false,
+                        isFromPlayer: false,
+                        notify: false,
+                        allowNonNpc: true);
+                }
+            }
+
+            if (phoneMenu != null && PhoneMenu.currentApp == "appText")
+            {
+                if (string.Equals(PhoneMenu.selectedNpc, conversationKey, StringComparison.OrdinalIgnoreCase))
+                    PhoneMenu.messageHistory = MessageManager.GetMessages(conversationKey);
+                else
+                    phoneMenu.UpdateNpcList();
             }
         }
 

@@ -53,19 +53,23 @@ namespace Smartphone
 
         public static void SaveNoticationData()
         {
-            ModEntry.SHelper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/notificationList", notificationList);
+            ModEntry.SHelper.Data.WriteJsonFile(ModEntry.GetSaveDataPath("notificationList"), notificationList);
         }
 
         public static void LoadNoticationData()
         {
-            string fullPath = Path.Combine(ModEntry.SHelper.DirectoryPath, "userdata", Constants.SaveFolderName, "notificationList");
+            string fullPath = Path.Combine(
+                ModEntry.SHelper.DirectoryPath,
+                "userdata",
+                ModEntry.GetActiveSaveFolderName(),
+                "notificationList");
             if (!File.Exists(fullPath))
             {
                 ModEntry.pendingInitNotification = true;
             }
 
 
-            notificationList = ModEntry.SHelper.Data.ReadJsonFile<List<string>>($"./userdata/{Constants.SaveFolderName}/notificationList")
+            notificationList = ModEntry.SHelper.Data.ReadJsonFile<List<string>>(ModEntry.GetSaveDataPath("notificationList"))
                           ?? new List<string>();
         }
     }

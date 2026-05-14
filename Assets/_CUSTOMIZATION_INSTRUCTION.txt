@@ -12,8 +12,8 @@ What this changes for you:
 1) FILES IN THIS FOLDER
 ========================================
 
-indoor_area.json
-outdoor_area.json
+area_indoor.json
+area_outdoor.json
 - These files control where NPC photos can be generated.
 - If you add more areas, you get more photo variety.
 - This 2 file are quite complex to edit.
@@ -39,7 +39,7 @@ npc_characteristics_long.json
 
 
 ========================================
-3) EDITING indoor_area.json / outdoor_area.json
+3) EDITING area_indoor.json / area_outdoor.json
 ========================================
 
 Purpose:

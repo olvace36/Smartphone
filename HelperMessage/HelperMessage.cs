@@ -27,10 +27,28 @@ namespace Smartphone
             return currentApp == TextAppState;
         }
 
+        private static bool IsPlayerConversation(string conversationKey)
+        {
+            return MessageManager.IsPlayerConversationKey(conversationKey);
+        }
+
+        private static bool TryGetPlayerConversationName(string conversationKey, out string playerName)
+        {
+            return MessageManager.TryGetPlayerNameFromConversationKey(conversationKey, out playerName);
+        }
+
+        private static string GetConversationDisplayName(string conversationKey)
+        {
+            return MessageManager.GetConversationDisplayName(conversationKey);
+        }
+
         private bool IsTextChatInputEnabledForSelectedNpc()
         {
             if (string.IsNullOrWhiteSpace(selectedNpc))
                 return false;
+
+            if (IsPlayerConversation(selectedNpc))
+                return true;
 
             if (ModEntry.Config.DisableDailyMessage)
                 return true;
@@ -65,7 +83,9 @@ namespace Smartphone
                     int index = i + scrollOffset;
                     if (index >= messageableNpcList.Count) break;
 
-                    var npc = messageableNpcList[index];
+                    ClickableComponent conversation = messageableNpcList[index];
+                    string conversationKey = conversation.name ?? string.Empty;
+                    bool isPlayerConversation = TryGetPlayerConversationName(conversationKey, out string conversationPlayerName);
                     int y = yStart + i * spacing;
 
 
@@ -76,7 +96,7 @@ namespace Smartphone
 
                     Vector2 boxPosition = new Vector2(xPositionOnScreen + 100, y);
 
-                    int unread = MessageManager.GetUnreadCount(npc.name);
+                    int unread = MessageManager.GetUnreadCount(conversationKey);
                     if (unread > 0)
                     {
                         string number = Math.Min(unread, 9).ToString(); // display max 9
@@ -137,31 +157,66 @@ namespace Smartphone
                         effects: SpriteEffects.None,
                         layerDepth: 0f
                     );
-                    var realNpc = Game1.getCharacterFromName(npc.name, mustBeVillager: false);
-                    string npcDisplayName = GetNpcDisplayNameOrFallback(realNpc);
-                    if (string.IsNullOrWhiteSpace(npcDisplayName))
-                        npcDisplayName = GetNpcDisplayName(npc.name);
+                    int nameX = (int)boxPosition.X + portraitSize + 40;
+                    conversation.bounds = new Rectangle(nameX, y, 200, portraitSize);
 
-                    // === Draw NPC portrait ===
-                    if (realNpc?.Portrait != null)
+                    if (isPlayerConversation)
                     {
+                        string playerDisplayName = string.IsNullOrWhiteSpace(conversationPlayerName)
+                            ? GetConversationDisplayName(conversationKey)
+                            : conversationPlayerName;
+
+                        bool hasAvatar = TryGetSelectedPlayerAvatarTexture(playerDisplayName, out Texture2D avatarTexture);
                         Rectangle portraitRect = new Rectangle((int)boxPosition.X + 9, (int)boxPosition.Y + 10, 67, 67);
-                        Rectangle sourceRect = new Rectangle(0, 0, 64, 64);
-                        b.Draw(realNpc.Portrait, portraitRect, sourceRect, Color.White);
+                        if (hasAvatar && avatarTexture != null)
+                        {
+                            b.Draw(avatarTexture, portraitRect, Color.White);
+                        }
+                        else
+                        {
+                            IClickableMenu.drawTextureBox(
+                                b,
+                                Game1.menuTexture,
+                                new Rectangle(0, 256, 60, 60),
+                                portraitRect.X,
+                                portraitRect.Y,
+                                portraitRect.Width,
+                                portraitRect.Height,
+                                new Color(235, 235, 235, 220),
+                                1f,
+                                false);
+
+                            string initial = string.IsNullOrWhiteSpace(playerDisplayName)
+                                ? "P"
+                                : playerDisplayName.Trim()[0].ToString().ToUpperInvariant();
+                            b.DrawString(Game1.smallFont, initial, new Vector2(portraitRect.X + 24, portraitRect.Y + 20), Color.Gray);
+                        }
+
+                        b.DrawString(Game1.dialogueFont, playerDisplayName, new Vector2(nameX, y + 15), Color.Black);
+                    }
+                    else
+                    {
+                        NPC? realNpc = Game1.getCharacterFromName(conversationKey, mustBeVillager: false);
+                        string npcDisplayName = GetNpcDisplayNameOrFallback(realNpc);
+                        if (string.IsNullOrWhiteSpace(npcDisplayName))
+                            npcDisplayName = GetNpcDisplayName(conversationKey);
+
+                        if (realNpc?.Portrait != null)
+                        {
+                            Rectangle portraitRect = new Rectangle((int)boxPosition.X + 9, (int)boxPosition.Y + 10, 67, 67);
+                            Rectangle sourceRect = new Rectangle(0, 0, 64, 64);
+                            b.Draw(realNpc.Portrait, portraitRect, sourceRect, Color.White);
+                        }
+
+                        b.DrawString(Game1.dialogueFont, npcDisplayName, new Vector2(nameX, y + 15), Color.Black);
                     }
 
-                    // === Draw NPC name ===
-                    int nameX = (int)boxPosition.X + portraitSize + 40;
-                    npc.bounds = new Rectangle(nameX, y, 200, portraitSize);
-                    b.DrawString(Game1.dialogueFont, npcDisplayName, new Vector2(nameX, y + 15), Color.Black);
-
-
                     var rect = new Rectangle(218, 428, 7, 7);
-                    if (MessageManager.favouriteNpc.Contains(npc.name))
+                    if (MessageManager.favouriteNpc.Contains(conversationKey))
                         rect = new Rectangle(211, 428, 7, 7);
 
                     heartButton = new ClickableTextureComponent(
-                    name: npc.name,
+                    name: conversationKey,
                     bounds: new Rectangle(nameX + 280, y + 20, 35, 35),
                         label: null,
                         hoverText: "",
@@ -170,11 +225,11 @@ namespace Smartphone
                         scale: 5f
                     );
 
-                    favourityNpcButton[npc.name] = heartButton;
+                    favourityNpcButton[conversationKey] = heartButton;
                     heartButton.draw(b);
 
                     Rectangle profileButtonBounds = new Rectangle(nameX + 330, y + 20, 35, 35);
-                    socialProfileNpcButtonBounds[npc.name] = profileButtonBounds;
+                    socialProfileNpcButtonBounds[conversationKey] = profileButtonBounds;
                     DrawOpenSocialProfileButton(b, profileButtonBounds);
 
                 }
@@ -199,7 +254,7 @@ namespace Smartphone
             }
             else
             {
-                string selectedNpcDisplayName = GetNpcDisplayName(selectedNpc ?? "");
+                string selectedNpcDisplayName = GetConversationDisplayName(selectedNpc ?? "");
                 b.DrawString(Game1.dialogueFont, selectedNpcDisplayName, new Vector2(xPositionOnScreen + 105, yPositionOnScreen + 65), Color.Black);
 
                 backButton.draw(b);
@@ -464,7 +519,7 @@ namespace Smartphone
                     if (Game1.keyboardDispatcher.Subscriber == textBox)
                         Game1.keyboardDispatcher.Subscriber = null;
 
-                    string firstMessageNpcDisplayName = GetNpcDisplayName(selectedNpc ?? "");
+                    string firstMessageNpcDisplayName = GetConversationDisplayName(selectedNpc ?? "");
                     string firstMessage = Game1.timeOfDay < 1200
                         ? $"Good morning {firstMessageNpcDisplayName}"
                         : Game1.timeOfDay < 1800
@@ -694,13 +749,16 @@ namespace Smartphone
             if (selectedNpc == null || !firstMessageBounds.Contains(x, y))
                 return false;
 
+            if (IsPlayerConversation(selectedNpc))
+                return false;
+
             if (IsTextChatInputEnabledForSelectedNpc())
                 return false;
 
             if (ModEntry.npcMessagesToday.ContainsKey(selectedNpc) && ModEntry.npcMessagesToday[selectedNpc].Count > 0)
                 return false;
 
-            string selectedNpcDisplayName = GetNpcDisplayName(selectedNpc ?? "");
+            string selectedNpcDisplayName = GetConversationDisplayName(selectedNpc ?? "");
             string firstMessage = Game1.timeOfDay < 1200
                 ? $"Good morning {selectedNpcDisplayName}"
                 : Game1.timeOfDay < 1800
@@ -794,8 +852,13 @@ namespace Smartphone
                     if (!profileButton.Value.Contains(x, y))
                         continue;
 
+                    bool actorIsPlayer = TryGetPlayerConversationName(profileButton.Key, out string playerName);
+                    string actorName = actorIsPlayer
+                        ? playerName
+                        : profileButton.Key;
+
                     OpenSocialApp();
-                    OpenSocialProfile(profileButton.Key, actorIsPlayer: false);
+                    OpenSocialProfile(actorName, actorIsPlayer);
                     Game1.playSound("smallSelect");
                     return true;
                 }
@@ -1365,6 +1428,42 @@ namespace Smartphone
 
             if (!hasTextMessage && selectedPhotoPaths.Count == 0)
                 return;
+
+            if (TryGetPlayerConversationName(selectedNpc, out string receiverPlayerName))
+            {
+                bool sent = ModEntry.TrySendDirectPlayerChat(
+                    receiverPlayerName,
+                    hasTextMessage ? playerMessage : string.Empty,
+                    selectedPhotoPaths,
+                    out List<string> sharedPhotoFileNames,
+                    out string sharedPhotoTagText);
+
+                if (!sent)
+                {
+                    Game1.playSound("cancel");
+                    Game1.showRedMessage("Could not send message. Player may be offline.");
+                    return;
+                }
+
+                if (hasTextMessage)
+                    MessageManager.AddMessage(selectedNpc, $"PLAYER: {playerMessage}", isFromPlayer: true, allowNonNpc: true);
+
+                if (sharedPhotoFileNames.Count > 0)
+                {
+                    string photoPayload = BuildPhotoPayload(sharedPhotoFileNames);
+                    MessageManager.AddMessage(selectedNpc, $"{PlayerPhotoPrefix} {photoPayload}", isFromPlayer: true, allowNonNpc: true);
+
+                    if (!string.IsNullOrWhiteSpace(sharedPhotoTagText))
+                        MessageManager.AddMessage(selectedNpc, $"{PlayerPhotoTagPrefix} {sharedPhotoTagText}", addCount: false, isFromPlayer: true, allowNonNpc: true);
+                }
+
+                messageHistory = MessageManager.GetMessages(selectedNpc);
+                ResetEditableTextFieldState(EditableTextFieldKind.Chat);
+                chatSelectedPhotos.Clear();
+                ResetChatQuickActionsState();
+                SnapChatScrollToBottom();
+                return;
+            }
 
             if (hasTextMessage)
                 MessageManager.AddMessage(selectedNpc, $"PLAYER: {playerMessage}", isFromPlayer: true);
@@ -2105,6 +2204,8 @@ namespace Smartphone
 
         private bool TryHandleChatQuickActionClick(int x, int y)
         {
+            bool isPlayerConversation = IsPlayerConversation(selectedNpc ?? string.Empty);
+
             if (chatPhotoButtonBounds.Contains(x, y))
             {
                 if (chatQuickActionsOpen)
@@ -2138,7 +2239,7 @@ namespace Smartphone
                 return true;
             }
 
-            if (chatQuickScheduleActionBounds.Contains(x, y))
+            if (!isPlayerConversation && chatQuickScheduleActionBounds.Contains(x, y))
             {
                 chatScheduleOptionsOpen = !chatScheduleOptionsOpen;
                 if (!chatScheduleOptionsOpen)
@@ -2147,6 +2248,9 @@ namespace Smartphone
                 Game1.playSound("smallSelect");
                 return true;
             }
+
+            if (isPlayerConversation)
+                return false;
 
             foreach (KeyValuePair<string, Rectangle> actionButton in chatRegisteredQuickActionButtonBounds)
             {
@@ -2188,6 +2292,9 @@ namespace Smartphone
         private List<RegisteredUnlimitedEvent> GetSchedulableEventsForSelectedNpc()
         {
             if (string.IsNullOrWhiteSpace(selectedNpc))
+                return new List<RegisteredUnlimitedEvent>();
+
+            if (IsPlayerConversation(selectedNpc))
                 return new List<RegisteredUnlimitedEvent>();
 
             int heartLevel = 0;
@@ -2252,6 +2359,10 @@ namespace Smartphone
             if (chatPhotoButtonBounds == Rectangle.Empty)
                 return;
 
+            bool isPlayerConversation = IsPlayerConversation(selectedNpc ?? string.Empty);
+            if (isPlayerConversation)
+                chatScheduleOptionsOpen = false;
+
             int actionX = chatPhotoButtonBounds.X;
             int quickActionWidth = chatPhotoButtonBounds.Width;
             int quickActionHeight = chatPhotoButtonBounds.Height;
@@ -2263,23 +2374,27 @@ namespace Smartphone
 
             var quickActionButtons = new List<(string ActionId, bool Active, Texture2D? TextureIcon, Rectangle? TextureSourceRect, Rectangle? CursorIcon, int BadgeCount, bool IsAiInfoButton)>
             {
-                (ChatQuickActionIdPhoto, false, textureAppPhoto, null, null, chatSelectedPhotos.Count, false),
-                (ChatQuickActionIdSchedule, chatScheduleOptionsOpen, null, null, ChatQuickScheduleIconSource, 0, false)
+                (ChatQuickActionIdPhoto, false, textureAppPhoto, null, null, chatSelectedPhotos.Count, false)
             };
 
-            if (ShouldShowAiCreditButton())
-                quickActionButtons.Add((ChatQuickActionIdAiCredit, false, null, null, null, 0, true));
-
-            foreach (RegisteredChatQuickActionButton action in ModEntry.GetRegisteredChatQuickActionButtonsSnapshot(selectedNpc ?? string.Empty))
+            if (!isPlayerConversation)
             {
-                quickActionButtons.Add((
-                    action.CompositeId,
-                    false,
-                    action.IconTexture,
-                    action.SourceRect,
-                    null,
-                    0,
-                    false));
+                quickActionButtons.Add((ChatQuickActionIdSchedule, chatScheduleOptionsOpen, null, null, ChatQuickScheduleIconSource, 0, false));
+
+                if (ShouldShowAiCreditButton())
+                    quickActionButtons.Add((ChatQuickActionIdAiCredit, false, null, null, null, 0, true));
+
+                foreach (RegisteredChatQuickActionButton action in ModEntry.GetRegisteredChatQuickActionButtonsSnapshot(selectedNpc ?? string.Empty))
+                {
+                    quickActionButtons.Add((
+                        action.CompositeId,
+                        false,
+                        action.IconTexture,
+                        action.SourceRect,
+                        null,
+                        0,
+                        false));
+                }
             }
 
             for (int i = 0; i < quickActionButtons.Count; i++)
@@ -2315,11 +2430,11 @@ namespace Smartphone
             }
 
             chatScheduleEventButtonBounds.Clear();
-            if (!chatScheduleOptionsOpen)
+            if (isPlayerConversation || !chatScheduleOptionsOpen)
                 return;
 
             List<RegisteredUnlimitedEvent> events = GetSchedulableEventsForSelectedNpc();
-            int panelWidth = 320;
+            int panelWidth = 370;
             int rowHeight = ChatQuickActionButtonHeight * 2;
             int rowSpacing = 6;
             int panelPadding = 10;
@@ -2345,12 +2460,32 @@ namespace Smartphone
                 1f,
                 false);
 
-            if (events.Count == 0)
+            if(ModEntry.iUnlimitedEventExpansionApi == null)
             {
                 b.DrawString(
                     Game1.smallFont,
-                    "No events available.",
-                    new Vector2(panelX + panelPadding, panelY + panelPadding + 8),
+                    "Get UnlimitedEventExpansion",
+                    new Vector2(panelX + panelPadding, panelY + panelPadding + 3),
+                    Color.Black);
+                    
+                b.DrawString(
+                    Game1.smallFont,
+                    "to schedule events!!!",
+                    new Vector2(panelX + panelPadding, panelY + panelPadding + 30),
+                    Color.Black);
+                return;
+            }
+            else if (events.Count == 0)
+            {
+                b.DrawString(
+                    Game1.smallFont,
+                    "No event available",
+                    new Vector2(panelX + panelPadding, panelY + panelPadding + 3),
+                    Color.Black);
+                b.DrawString(
+                    Game1.smallFont,
+                    "at current friendship!!!",
+                    new Vector2(panelX + panelPadding, panelY + panelPadding + 30),
                     Color.Black);
                 return;
             }

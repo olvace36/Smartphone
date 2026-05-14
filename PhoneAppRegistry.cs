@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
+using StardewValley;
 
 namespace Smartphone
 {
@@ -551,6 +552,68 @@ namespace Smartphone
                 SMonitor?.Log($"Error while opening smartphone app '{app.CompositeId}': {ex}", LogLevel.Error);
                 return false;
             }
+        }
+
+        internal static bool TryOpenRegisteredPhoneAppGroup(string groupCompositeId, PhoneMenu menu)
+        {
+            if (string.IsNullOrWhiteSpace(groupCompositeId))
+                return false;
+
+            RegisteredPhoneApp? app;
+            lock (RegisteredPhoneAppsLock)
+                RegisteredPhoneApps.TryGetValue(groupCompositeId, out app);
+
+            if (app == null || app.Kind != RegisteredPhoneAppKind.Group)
+                return false;
+
+            if (!IsRegisteredPhoneAppVisible(app))
+                return false;
+
+            try
+            {
+                menu.OpenRegisteredAppGroup(app.CompositeId, app.DisplayName);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                SMonitor?.Log($"Error while opening smartphone app group '{groupCompositeId}': {ex}", LogLevel.Error);
+                return false;
+            }
+        }
+
+        internal static bool OpenPhoneHomeScreenInternal()
+        {
+            if (!Context.IsWorldReady)
+                return false;
+
+            if (phoneMenu == null)
+                phoneMenu = new PhoneMenu();
+
+            phoneMenu.OpenHomeScreen();
+            Game1.activeClickableMenu = phoneMenu;
+            return true;
+        }
+
+        internal static bool OpenPhoneAppGroupInternal(string ownerModId, string groupId)
+        {
+            if (!Context.IsWorldReady
+                || string.IsNullOrWhiteSpace(ownerModId)
+                || string.IsNullOrWhiteSpace(groupId))
+            {
+                return false;
+            }
+
+            if (phoneMenu == null)
+                phoneMenu = new PhoneMenu();
+
+            phoneMenu.OpenHomeScreen();
+
+            string groupCompositeId = RegisteredPhoneApp.BuildCompositeId(ownerModId, groupId);
+            if (!TryOpenRegisteredPhoneAppGroup(groupCompositeId, phoneMenu))
+                return false;
+
+            Game1.activeClickableMenu = phoneMenu;
+            return true;
         }
 
         internal static bool TryInvokeRegisteredPhoneAppGroupItem(string groupCompositeId, string itemCompositeId, PhoneMenu menu)

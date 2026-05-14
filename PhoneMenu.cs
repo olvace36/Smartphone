@@ -66,16 +66,25 @@ namespace Smartphone
             SocialPost,
             SocialComment
         }
+        private enum RootLandingState
+        {
+            LockScreen,
+            Home
+        }
 
         private bool isDragging = false;
         private int dragOffsetX;
         private int dragOffsetY;
+        private RootLandingState rootLandingState = RootLandingState.LockScreen;
+        private bool lockScreenUnlockAnimating = false;
+        private double lockScreenUnlockElapsedSeconds = 0d;
+        private Rectangle lockScreenTapBounds = Rectangle.Empty;
 
         private static readonly Dictionary<string, List<string>> pendingMessages = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, CancellationTokenSource> replyTimers = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, DateTime> lastInputActivityUtc = new(StringComparer.OrdinalIgnoreCase);
         private static readonly object replyQueueLock = new();
-        private static readonly TimeSpan ReplyInactivityDelay = TimeSpan.FromSeconds(7);
+        private static readonly TimeSpan ReplyInactivityDelay = TimeSpan.FromSeconds(10);
         Texture2D furnitureTexture = Game1.content.Load<Texture2D>("TileSheets\\furniture");
 
 
@@ -115,10 +124,10 @@ namespace Smartphone
         private const float ChatImageScale = 0.5f;
         private const int ChatPhotoPickerMaxCount = 5;
         private const int ChatAttachmentButtonWidth = 52;
-        private const string PlayerPhotoPrefix = "PlayerPhoto:";
-        private const string PlayerPhotoTagPrefix = "PlayerPhotoTag:";
-        private const string NpcPhotoPrefix = "NpcPhoto:";
-        private const string NpcPhotoTagPrefix = "NpcPhotoTag:";
+        private const string PlayerPhotoPrefix = MessageManager.PlayerPhotoMessagePrefix;
+        private const string PlayerPhotoTagPrefix = MessageManager.PlayerPhotoTagMessagePrefix;
+        private const string NpcPhotoPrefix = MessageManager.NpcPhotoMessagePrefix;
+        private const string NpcPhotoTagPrefix = MessageManager.NpcPhotoTagMessagePrefix;
 
         private const int ChatViewportYOffset = 125;
         private const int ChatViewportHeight = 715;
@@ -164,6 +173,7 @@ namespace Smartphone
         private Rectangle cameraZoomInButtonBounds = Rectangle.Empty;
         private Rectangle cameraRotateButtonBounds = Rectangle.Empty;
         private Rectangle cameraSquareButtonBounds = Rectangle.Empty;
+        private double cameraCaptureFlashRemainingSeconds = 0d;
 
         // apps
         public static string? currentApp = null;
@@ -203,6 +213,21 @@ namespace Smartphone
         private const float CameraZoomStep = 0.05f;
         private const float CameraZoomMin = 1f;
         private const float CameraZoomMax = 2f;
+        private const double CameraCaptureFlashDurationSeconds = 0.5d;
+        private const float CameraCaptureFlashMaxOpacity = 0.9f;
+        private const int CameraOverlayMargin = 16;
+        private const int CameraToolAreaHeight = 138;
+        private const int CameraControlButtonHeight = 52;
+        private const int CameraModeButtonWidth = 62;
+        private const int CameraZoomButtonWidth = 52;
+        private const int CameraControlButtonSpacing = 8;
+        private const int CameraCaptureGroupGap = 14;
+        private const int CameraCaptureButtonWidth = 118;
+        private const int CameraCaptureButtonHeight = 64;
+        private const int CameraCaptureButtonMinWidth = 80;
+        private const int CameraCaptureButtonMinHeight = 44;
+        private static readonly Rectangle CameraZoomMinusIconSource = new Rectangle(177, 345, 7, 8);
+        private static readonly Rectangle CameraZoomPlusIconSource = new Rectangle(184, 345, 7, 8);
 
         private readonly Dictionary<string, Rectangle> homeAppClickBounds = new();
         private Rectangle homeAppPrevPageBounds = Rectangle.Empty;
@@ -217,7 +242,7 @@ namespace Smartphone
 
 
         private const string PlayerPhotoFolderName = "player_photo";
-        private const string NpcPhotoFolderName = "npc_photo";
+        private const string NpcPhotoFolderName = "shared_photo";
         private List<string> capturedImages;
         private int currentImageIndex = -1;
         private Texture2D currentDisplayedImage = null;
@@ -261,6 +286,10 @@ namespace Smartphone
         private const int TextUndoHistoryLimit = 128;
         private const int DefaultMenuOffsetX = 400;
         private const int DefaultMenuOffsetY = 500;
+        private const double LockScreenUnlockDurationSeconds = 0.24d;
+        private const float LockScreenTimeTextScale = 1.45f;
+        private const float LockScreenDateTextScale = 1.2f;
+        private const float LockScreenHintTextScale = 1.05f;
 
         private bool forcedFreeControllerCursor = false;
 
@@ -269,19 +298,7 @@ namespace Smartphone
             this.upperRightCloseButton = null;
 
             messageableNpcList = new List<ClickableComponent>();
-            Dictionary<string, long> latestTimestamps = MessageManager.GetLatestAddDictionary();
-            List<NPC> villagers = Utility.getAllVillagers()
-            .Where(n => !n.IsInvisible && n.CanSocialize && CanMessageNpc(n) && !ModEntry.socialNpcBlacklist.Contains(n.Name, StringComparer.OrdinalIgnoreCase))
-            .OrderByDescending(npc => MessageManager.favouriteNpc.Contains(npc.Name))
-            .ThenByDescending(npc => latestTimestamps.TryGetValue(npc.Name, out long ts) ? ts : 0)
-            .ThenBy(npc => GetNpcDisplayNameOrFallback(npc), StringComparer.OrdinalIgnoreCase)
-            .ThenBy(npc => npc.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-            for (int i = 0; i < villagers.Count; i++)
-            {
-                messageableNpcList.Add(new ClickableComponent(new Rectangle(0, 0, 0, 0), villagers[i].Name));
-            }
+            UpdateNpcList(true);
 
 
             textBox = new TextBox(
@@ -401,16 +418,7 @@ namespace Smartphone
 
             if (currentApp == null)
             {
-                b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
-                b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
-                b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
-                if (phoneBackgroundImage != null)
-                {
-                    Vector2 imagePosition = new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116);
-                    b.Draw(phoneBackgroundImage, imagePosition, Color.White * 0.8f);
-                }
-
-                DrawHomeApps(b);
+                DrawRootPhoneScreen(b);
 
             }
             else if (currentApp == ExternalGroupAppState)
@@ -431,25 +439,44 @@ namespace Smartphone
             {
                 Rectangle phoneRect = ModEntry.GetPhoneCameraPreviewBounds(xPositionOnScreen, yPositionOnScreen);
                 Rectangle captureRect = ModEntry.GetPlayerPhotoCaptureBounds(xPositionOnScreen, yPositionOnScreen);
-
-                Rectangle zoomOutDrawBounds = new Rectangle(xPositionOnScreen + 255, yPositionOnScreen + 65, 45, 45);
-                Rectangle zoomInDrawBounds = new Rectangle(xPositionOnScreen + 305, yPositionOnScreen + 65, 45, 45);
-                Rectangle rotateDrawBounds = new Rectangle(xPositionOnScreen + 355, yPositionOnScreen + 65, 95, 45);
-                Rectangle squareDrawBounds = new Rectangle(xPositionOnScreen + 455, yPositionOnScreen + 65, 95, 45);
-
-                if (ModEntry.cameraLandscapeMode)
+                Rectangle toolAreaBounds = Rectangle.Empty;
+                bool hideCameraOverlayButtons = ModEntry.IsPlayerCaptureCursorHidden();
+                if (hideCameraOverlayButtons)
                 {
-                    cameraZoomOutButtonBounds = GetLandscapeRotatedBounds(zoomOutDrawBounds);
-                    cameraZoomInButtonBounds = GetLandscapeRotatedBounds(zoomInDrawBounds);
-                    cameraRotateButtonBounds = GetLandscapeRotatedBounds(rotateDrawBounds);
-                    cameraSquareButtonBounds = GetLandscapeRotatedBounds(squareDrawBounds);
+                    captureButton.bounds = Rectangle.Empty;
+                    cameraZoomOutButtonBounds = Rectangle.Empty;
+                    cameraZoomInButtonBounds = Rectangle.Empty;
+                    cameraRotateButtonBounds = Rectangle.Empty;
+                    cameraSquareButtonBounds = Rectangle.Empty;
                 }
                 else
                 {
-                    cameraZoomOutButtonBounds = zoomOutDrawBounds;
-                    cameraZoomInButtonBounds = zoomInDrawBounds;
-                    cameraRotateButtonBounds = rotateDrawBounds;
-                    cameraSquareButtonBounds = squareDrawBounds;
+                    int minToolAreaHeight = Math.Max(CameraCaptureButtonMinHeight, CameraControlButtonHeight) + (CameraOverlayMargin * 2);
+                    int toolAreaHeight = Math.Clamp(CameraToolAreaHeight, minToolAreaHeight, Math.Max(minToolAreaHeight, phoneRect.Height));
+                    toolAreaBounds = new Rectangle(phoneRect.X, phoneRect.Bottom - toolAreaHeight, phoneRect.Width, toolAreaHeight);
+
+                    int maxCaptureWidth = Math.Max(CameraCaptureButtonMinWidth, toolAreaBounds.Width - (CameraOverlayMargin * 2));
+                    int maxCaptureHeight = Math.Max(CameraCaptureButtonMinHeight, toolAreaBounds.Height - (CameraOverlayMargin * 2));
+                    int captureWidth = Math.Clamp(CameraCaptureButtonWidth, CameraCaptureButtonMinWidth, maxCaptureWidth);
+                    int captureHeight = Math.Clamp(CameraCaptureButtonHeight, CameraCaptureButtonMinHeight, maxCaptureHeight);
+
+                    captureButton.bounds = new Rectangle(
+                        phoneRect.Center.X - (captureWidth / 2),
+                        toolAreaBounds.Center.Y - (captureHeight / 2),
+                        captureWidth,
+                        captureHeight);
+
+                    int controlY = toolAreaBounds.Center.Y - (CameraControlButtonHeight / 2);
+
+                    int leftSquareX = captureButton.bounds.Left - CameraCaptureGroupGap - CameraModeButtonWidth;
+                    int leftRotateX = leftSquareX - CameraControlButtonSpacing - CameraModeButtonWidth;
+                    int rightZoomOutX = captureButton.bounds.Right + CameraCaptureGroupGap;
+                    int rightZoomInX = rightZoomOutX + CameraZoomButtonWidth + CameraControlButtonSpacing;
+
+                    cameraRotateButtonBounds = new Rectangle(leftRotateX, controlY, CameraModeButtonWidth, CameraControlButtonHeight);
+                    cameraSquareButtonBounds = new Rectangle(leftSquareX, controlY, CameraModeButtonWidth, CameraControlButtonHeight);
+                    cameraZoomOutButtonBounds = new Rectangle(rightZoomOutX, controlY, CameraZoomButtonWidth, CameraControlButtonHeight);
+                    cameraZoomInButtonBounds = new Rectangle(rightZoomInX, controlY, CameraZoomButtonWidth, CameraControlButtonHeight);
                 }
 
                 Rectangle uiViewportBounds = GetUiViewportBounds();
@@ -512,13 +539,7 @@ namespace Smartphone
                         landscapeTransform);
 
                     b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
-                    captureButton.draw(b);
                     backButton.draw(b);
-
-                    DrawCameraControlButton(b, zoomOutDrawBounds, "-", false);
-                    DrawCameraControlButton(b, zoomInDrawBounds, "+", false);
-                    DrawCameraControlButton(b, rotateDrawBounds, "LAND", ModEntry.cameraLandscapeMode);
-                    DrawCameraControlButton(b, squareDrawBounds, "SQR", ModEntry.cameraSquareMode);
 
                     b.End();
                     b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
@@ -526,16 +547,23 @@ namespace Smartphone
                 else
                 {
                     b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
-                    captureButton.draw(b);
                     backButton.draw(b);
+                }
 
-                    DrawCameraControlButton(b, cameraZoomOutButtonBounds, "-", false);
+                if (!hideCameraOverlayButtons)
+                {
+                    if (toolAreaBounds.Width > 0 && toolAreaBounds.Height > 0)
+                        b.Draw(Game1.staminaRect, toolAreaBounds, new Color(0, 0, 0, 50));
+
+                    DrawCameraCaptureButton(b, captureButton.bounds);
                     DrawCameraControlButton(b, cameraZoomInButtonBounds, "+", false);
+                    DrawCameraControlButton(b, cameraZoomOutButtonBounds, "-", false);
                     DrawCameraControlButton(b, cameraRotateButtonBounds, "LAND", ModEntry.cameraLandscapeMode);
                     DrawCameraControlButton(b, cameraSquareButtonBounds, "SQR", ModEntry.cameraSquareMode);
                 }
 
                 DrawCaptureOutline(b, captureRect, new Color(255, 255, 255, 220));
+                DrawCameraCaptureFlash(b, phoneRect);
             }
             else if (currentApp == "appPhoto")
             {
@@ -573,7 +601,8 @@ namespace Smartphone
                         displayName = displayName.Replace("-", " ");
 
                         Vector2 namePos = new Vector2(imagePosition.X, imagePosition.Y + currentDisplayedImage.Height - 50);
-                        b.DrawString(Game1.dialogueFont, displayName, namePos, Color.White);
+                        float photoNameViewportWidth = Math.Max(1f, currentDisplayedImage.Width - 8f);
+                        DrawLoopingPhotoName(b, displayName, namePos, photoNameViewportWidth);
 
                         var rect = new Rectangle(218, 428, 7, 7);
                         if (IsSameFilePath(MessageManager.currentPhoneBackground, capturedImages[currentImageIndex]))
@@ -725,7 +754,10 @@ namespace Smartphone
 
             // base
             base.draw(b);
-            drawMouse(b);
+
+            bool suppressCursorForPendingCapture = currentApp == "appCamera" && ModEntry.IsPlayerCaptureCursorHidden();
+            if (!suppressCursorForPendingCapture)
+                drawMouse(b);
 
 
 
@@ -740,6 +772,7 @@ namespace Smartphone
         {
             base.update(time);
             EnsureFreeControllerCursor();
+            UpdateLockScreenUnlockAnimation(time);
 
             appLabelMarqueeElapsedSeconds += time.ElapsedGameTime.TotalSeconds;
             if (appLabelMarqueeElapsedSeconds >= 1_000_000d)
@@ -750,6 +783,12 @@ namespace Smartphone
                 textCursorBlinkElapsedSeconds %= 1_000_000d;
 
             UpdateTextInputRepeat(time);
+            ModEntry.UpdatePlayerCaptureTimers(time.ElapsedGameTime.TotalSeconds);
+
+            if (cameraCaptureFlashRemainingSeconds > 0d)
+            {
+                cameraCaptureFlashRemainingSeconds = Math.Max(0d, cameraCaptureFlashRemainingSeconds - time.ElapsedGameTime.TotalSeconds);
+            }
 
             if (isDragging)
             {
@@ -825,7 +864,6 @@ namespace Smartphone
 
 
         }
-
         public override void leftClickHeld(int x, int y)
         {
             base.leftClickHeld(x, y);
@@ -850,7 +888,10 @@ namespace Smartphone
             if (HandleTextFirstMessageClick(x, y))
                 return;
 
-            if (currentApp == null)
+            if (HandleLockScreenTap(x, y))
+                return;
+
+            if (IsHomeLandingInteractive())
             {
                 if (homeAppPrevPageBounds.Contains(x, y) && TryChangeHomeAppPage(-1))
                 {
@@ -893,7 +934,9 @@ namespace Smartphone
 
 
 
-            if (currentApp == "appCamera")
+            bool hideCameraOverlayButtons = currentApp == "appCamera" && ModEntry.IsPlayerCaptureCursorHidden();
+
+            if (currentApp == "appCamera" && !hideCameraOverlayButtons)
             {
                 if (cameraZoomOutButtonBounds.Contains(x, y))
                 {
@@ -922,9 +965,10 @@ namespace Smartphone
                 }
             }
 
-            if (currentApp == "appCamera" && IsCameraCaptureButtonPressed(x, y))
+            if (currentApp == "appCamera" && !hideCameraOverlayButtons && IsCameraCaptureButtonPressed(x, y))
             {
-                ModEntry.takeScreenshot = true;
+                ModEntry.QueuePlayerPhotoCapture();
+                TriggerCameraCaptureFlash();
                 return;
             }
 
@@ -1164,7 +1208,7 @@ namespace Smartphone
             {
                 HandleSocialScroll(direction);
             }
-            else if (currentApp == null)
+            else if (IsHomeLandingInteractive())
             {
                 if (TryChangeHomeAppPage(direction > 0 ? -1 : 1))
                     Game1.playSound("shwip");
@@ -2147,21 +2191,77 @@ namespace Smartphone
         {
             messageableNpcList.Clear();
             Dictionary<string, long> latestTimestamps = MessageManager.GetLatestAddDictionary();
-            string filter = currentMessage?.ToLower() ?? "";
+            string filter = (currentMessage ?? "").Trim();
 
-            List<NPC> villagers = Utility.getAllVillagers()
-            .Where(n => !n.IsInvisible && n.CanSocialize && CanMessageNpc(n) && !ModEntry.socialNpcBlacklist.Contains(n.Name, StringComparer.OrdinalIgnoreCase)
-                && (bypassFilter || DoesNpcMatchTextFilter(n, filter))
-            )
-            .OrderByDescending(npc => MessageManager.favouriteNpc.Contains(npc.Name))
-            .ThenByDescending(npc => latestTimestamps.TryGetValue(npc.Name, out long ts) ? ts : 0)
-            .ThenBy(npc => GetNpcDisplayNameOrFallback(npc), StringComparer.OrdinalIgnoreCase)
-            .ThenBy(npc => npc.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            var entries = new List<(string ConversationKey, string DisplayName, bool IsFavourite)>();
 
-            for (int i = 0; i < villagers.Count; i++)
+            foreach (NPC npc in Utility.getAllVillagers())
             {
-                messageableNpcList.Add(new ClickableComponent(new Rectangle(0, 0, 0, 0), villagers[i].Name));
+                if (npc == null
+                    || npc.IsInvisible
+                    || !npc.CanSocialize
+                    || !CanMessageNpc(npc)
+                    || ModEntry.socialNpcBlacklist.Contains(npc.Name, StringComparer.OrdinalIgnoreCase)
+                    || (!bypassFilter && !DoesNpcMatchTextFilter(npc, filter)))
+                {
+                    continue;
+                }
+
+                entries.Add((
+                    npc.Name,
+                    GetNpcDisplayNameOrFallback(npc),
+                    MessageManager.favouriteNpc.Contains(npc.Name)));
+            }
+
+            foreach (string playerName in GetConnectedOtherPlayerNames())
+            {
+                if (!bypassFilter && !DoesPlayerNameMatchTextFilter(playerName, filter))
+                    continue;
+
+                string conversationKey = MessageManager.BuildPlayerConversationKey(playerName);
+                if (string.IsNullOrWhiteSpace(conversationKey))
+                    continue;
+
+                entries.Add((
+                    conversationKey,
+                    playerName,
+                    MessageManager.favouriteNpc.Contains(conversationKey)));
+            }
+
+            var seenConversationKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in entries
+                .Where(entry => seenConversationKeys.Add(entry.ConversationKey))
+                .OrderByDescending(entry => entry.IsFavourite)
+                .ThenByDescending(entry => latestTimestamps.TryGetValue(entry.ConversationKey, out long ts) ? ts : 0)
+                .ThenBy(entry => entry.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(entry => entry.ConversationKey, StringComparer.OrdinalIgnoreCase))
+            {
+                messageableNpcList.Add(new ClickableComponent(new Rectangle(0, 0, 0, 0), entry.ConversationKey));
+            }
+        }
+
+        private static IEnumerable<string> GetConnectedOtherPlayerNames()
+        {
+            if (!Context.IsWorldReady)
+                yield break;
+
+            string localPlayerName = (Game1.player?.Name ?? string.Empty).Trim();
+            var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (Farmer farmer in Game1.getOnlineFarmers())
+            {
+                if (farmer == null || string.IsNullOrWhiteSpace(farmer.Name))
+                    continue;
+
+                string candidateName = farmer.Name.Trim();
+                if (string.IsNullOrWhiteSpace(candidateName)
+                    || string.Equals(candidateName, localPlayerName, StringComparison.OrdinalIgnoreCase)
+                    || !seenNames.Add(candidateName))
+                {
+                    continue;
+                }
+
+                yield return candidateName;
             }
         }
 
@@ -2212,6 +2312,14 @@ namespace Smartphone
 
             return internalName.Contains(filter, StringComparison.OrdinalIgnoreCase)
                 || displayName.Contains(filter, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool DoesPlayerNameMatchTextFilter(string playerName, string filter)
+        {
+            if (string.IsNullOrWhiteSpace(filter))
+                return true;
+
+            return (playerName ?? string.Empty).Contains(filter, StringComparison.OrdinalIgnoreCase);
         }
 
         private Texture2D CropTexture(Texture2D source, int x = 0, int y = 0, int width = 520, int height = 810)
@@ -2353,6 +2461,237 @@ namespace Smartphone
             }
 
             return false;
+        }
+
+        private bool IsHomeLandingInteractive()
+        {
+            return currentApp == null
+                && rootLandingState == RootLandingState.Home
+                && !lockScreenUnlockAnimating;
+        }
+
+        private void DrawRootPhoneScreen(SpriteBatch b)
+        {
+            homeAppClickBounds.Clear();
+            homeAppPrevPageBounds = Rectangle.Empty;
+            homeAppNextPageBounds = Rectangle.Empty;
+            lockScreenTapBounds = Rectangle.Empty;
+
+            b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
+
+            if (lockScreenUnlockAnimating)
+            {
+                DrawHomeLandingScreen(b, xOffset: 0, drawApps: true);
+
+                float progress = GetLockScreenUnlockProgress();
+                int swipeOffset = (int)Math.Round(-GetPhoneContentBounds().Width * progress);
+                DrawLockScreenScreen(b, swipeOffset);
+                DrawPhoneFrame(b);
+                return;
+            }
+
+            if (rootLandingState == RootLandingState.LockScreen)
+            {
+                DrawLockScreenScreen(b, xOffset: 0);
+                DrawPhoneFrame(b);
+                return;
+            }
+
+            DrawHomeLandingScreen(b, xOffset: 0, drawApps: true);
+            DrawPhoneFrame(b);
+        }
+
+        private void DrawHomeLandingScreen(SpriteBatch b, int xOffset, bool drawApps)
+        {
+            DrawPhoneScreenBackground(b, xOffset);
+
+            if (!drawApps)
+                return;
+
+            if (xOffset == 0)
+            {
+                DrawHomeApps(b);
+                return;
+            }
+
+            int originalX = xPositionOnScreen;
+            xPositionOnScreen = originalX + xOffset;
+            try
+            {
+                DrawHomeApps(b);
+            }
+            finally
+            {
+                xPositionOnScreen = originalX;
+            }
+        }
+
+        private void DrawLockScreenScreen(SpriteBatch b, int xOffset)
+        {
+            Rectangle contentBounds = GetPhoneContentBounds();
+            lockScreenTapBounds = contentBounds;
+            if (contentBounds.Width <= 0 || contentBounds.Height <= 0)
+                return;
+
+            DrawWithinPhoneContentClip(b, () =>
+            {
+                DrawPhoneScreenBackground(b, xOffset);
+
+                string timeText = FormatTimeOfDay(Game1.timeOfDay);
+                string dateText = BuildLockScreenDateText();
+
+                Vector2 timeSize = Game1.dialogueFont.MeasureString(timeText) * LockScreenTimeTextScale;
+                Vector2 dateSize = Game1.smallFont.MeasureString(dateText) * LockScreenDateTextScale;
+
+                float centerX = contentBounds.Center.X + xOffset;
+                float topY = contentBounds.Top + 82f;
+
+                Vector2 timePosition = new Vector2(centerX - (timeSize.X / 2f), topY);
+                Vector2 datePosition = new Vector2(centerX - (dateSize.X / 2f), topY + timeSize.Y + 10f);
+
+                DrawShadowedText(
+                    b,
+                    Game1.dialogueFont,
+                    timeText,
+                    timePosition,
+                    Color.White,
+                    new Color(0, 0, 0, 180),
+                    LockScreenTimeTextScale);
+
+                DrawShadowedText(
+                    b,
+                    Game1.smallFont,
+                    dateText,
+                    datePosition,
+                    Color.White,
+                    new Color(0, 0, 0, 180),
+                    LockScreenDateTextScale);
+
+                string hintText = "Tap to unlock";
+                Vector2 hintSize = Game1.smallFont.MeasureString(hintText) * LockScreenHintTextScale;
+                Vector2 hintPosition = new Vector2(
+                    centerX - (hintSize.X / 2f),
+                    contentBounds.Bottom - hintSize.Y - 28f);
+
+                DrawShadowedText(
+                    b,
+                    Game1.smallFont,
+                    hintText,
+                    hintPosition,
+                    Color.White * 0.9f,
+                    new Color(0, 0, 0, 170),
+                    LockScreenHintTextScale);
+            });
+        }
+
+        private void DrawPhoneFrame(SpriteBatch b)
+        {
+            b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
+        }
+
+        private void DrawPhoneScreenBackground(SpriteBatch b, int xOffset)
+        {
+            b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40 + xOffset, yPositionOnScreen + 116), Color.White);
+
+            if (phoneBackgroundImage != null)
+            {
+                Vector2 imagePosition = new Vector2(xPositionOnScreen + 40 + xOffset, yPositionOnScreen + 116);
+                b.Draw(phoneBackgroundImage, imagePosition, Color.White * 0.8f);
+            }
+        }
+
+        private void DrawWithinPhoneContentClip(SpriteBatch b, Action drawAction)
+        {
+            Rectangle clipRect = GetPhoneContentBounds();
+            Rectangle viewportBounds = Game1.graphics.GraphicsDevice.Viewport.Bounds;
+            clipRect = Rectangle.Intersect(clipRect, viewportBounds);
+            if (clipRect.Width <= 0 || clipRect.Height <= 0)
+                return;
+
+            b.End();
+
+            Rectangle previousScissorRect = Game1.graphics.GraphicsDevice.ScissorRectangle;
+            Game1.graphics.GraphicsDevice.ScissorRectangle = clipRect;
+
+            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, appLabelScissorRasterizer);
+            drawAction();
+            b.End();
+
+            Game1.graphics.GraphicsDevice.ScissorRectangle = previousScissorRect;
+            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+        }
+
+        private Rectangle GetPhoneContentBounds(int xOffset = 0)
+        {
+            return new Rectangle(
+                xPositionOnScreen + 40 + xOffset,
+                yPositionOnScreen + 116,
+                texturePhoneBackground.Width,
+                texturePhoneBackground.Height);
+        }
+
+        private static void DrawShadowedText(SpriteBatch b, SpriteFont font, string text, Vector2 position, Color textColor, Color shadowColor, float scale = 1f)
+        {
+            Vector2 shadowOffset = new Vector2(2f, 2f);
+            b.DrawString(font, text, position + shadowOffset, shadowColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+            b.DrawString(font, text, position, textColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+        }
+
+        private static string BuildLockScreenDateText()
+        {
+            string rawSeason = Game1.currentSeason;
+            string seasonName = string.IsNullOrWhiteSpace(rawSeason)
+                ? "Spring"
+                : char.ToUpperInvariant(rawSeason[0]) + rawSeason.Substring(1).ToLowerInvariant();
+
+            int day = Math.Max(1, Game1.dayOfMonth);
+            int year = Math.Max(1, Game1.year);
+            return $"{seasonName} {day}, Year {year}";
+        }
+
+        private bool HandleLockScreenTap(int x, int y)
+        {
+            if (currentApp != null
+                || rootLandingState != RootLandingState.LockScreen
+                || lockScreenUnlockAnimating)
+            {
+                return false;
+            }
+
+            Rectangle tapBounds = lockScreenTapBounds;
+            if (tapBounds.Width <= 0 || tapBounds.Height <= 0)
+                tapBounds = GetPhoneContentBounds();
+
+            if (!tapBounds.Contains(x, y))
+                return false;
+
+            lockScreenUnlockAnimating = true;
+            lockScreenUnlockElapsedSeconds = 0d;
+            Game1.playSound("shwip");
+            return true;
+        }
+
+        private float GetLockScreenUnlockProgress()
+        {
+            if (!lockScreenUnlockAnimating || LockScreenUnlockDurationSeconds <= 0d)
+                return 0f;
+
+            return (float)Math.Clamp(lockScreenUnlockElapsedSeconds / LockScreenUnlockDurationSeconds, 0d, 1d);
+        }
+
+        private void UpdateLockScreenUnlockAnimation(GameTime time)
+        {
+            if (!lockScreenUnlockAnimating)
+                return;
+
+            lockScreenUnlockElapsedSeconds += time.ElapsedGameTime.TotalSeconds;
+            if (lockScreenUnlockElapsedSeconds < LockScreenUnlockDurationSeconds)
+                return;
+
+            lockScreenUnlockAnimating = false;
+            lockScreenUnlockElapsedSeconds = 0d;
+            rootLandingState = RootLandingState.Home;
+            lockScreenTapBounds = Rectangle.Empty;
         }
 
         private List<HomeAppEntry> BuildHomeAppsSnapshot()
@@ -2583,6 +2922,7 @@ namespace Smartphone
                     scrollOffset = 0;
                     UpdateNpcList();
                     currentApp = "appText";
+                    MessageManager.MarkPhoneOpenedToday();
                     return true;
 
                 case BuiltinAppCameraId:
@@ -2651,9 +2991,7 @@ namespace Smartphone
 
         private static string GetCurrentSaveFolderName()
         {
-            return string.IsNullOrWhiteSpace(Constants.SaveFolderName)
-                ? "default"
-                : Constants.SaveFolderName;
+            return ModEntry.GetActiveSaveFolderName();
         }
 
         private static string GetCaptureFolderPath(string photoFolderName)
@@ -2768,8 +3106,7 @@ namespace Smartphone
 
         private bool IsCameraCaptureButtonPressed(int x, int y)
         {
-            Rectangle hitBounds = GetLandscapeRotatedBounds(captureButton.bounds);
-            return hitBounds.Contains(x, y);
+            return captureButton?.bounds.Contains(x, y) == true;
         }
 
         private bool IsBackButtonPressed(int x, int y)
@@ -2785,9 +3122,29 @@ namespace Smartphone
 
         private void DrawCameraControlButton(SpriteBatch b, Rectangle bounds, string label, bool active)
         {
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+                return;
+
+            if (TryGetCameraZoomIconSource(label, out Rectangle zoomIconSource))
+            {
+                int baseIconSize = Math.Max(1, Math.Min(bounds.Width, bounds.Height) - 20);
+                int iconSize = Math.Max(1, (int)Math.Round(baseIconSize * 1.5f));
+
+                Rectangle iconBounds = new Rectangle(
+                    bounds.Center.X - (iconSize / 2),
+                    bounds.Center.Y - (iconSize / 2),
+                    iconSize,
+                    iconSize);
+
+                Rectangle shadowBounds = new Rectangle(iconBounds.X + 1, iconBounds.Y + 2, iconBounds.Width, iconBounds.Height);
+                b.Draw(Game1.mouseCursors, shadowBounds, zoomIconSource, new Color(0, 0, 0, 70));
+                b.Draw(Game1.mouseCursors, iconBounds, zoomIconSource, new Color(255, 255, 255, 180));
+                return;
+            }
+
             Color boxColor = active
-                ? new Color(160, 220, 255, 230)
-                : new Color(255, 255, 255, 220);
+                ? new Color(120, 200, 255, 145)
+                : new Color(25, 25, 25, 120);
 
             IClickableMenu.drawTextureBox(
                 b,
@@ -2806,7 +3163,69 @@ namespace Smartphone
                 bounds.X + ((bounds.Width - textSize.X) / 2f),
                 bounds.Y + ((bounds.Height - textSize.Y) / 2f) + 5f);
 
-            b.DrawString(Game1.smallFont, label, textPosition, Color.Black);
+            b.DrawString(Game1.smallFont, label, textPosition, new Color(250, 250, 250, 235));
+        }
+
+        private static bool TryGetCameraZoomIconSource(string label, out Rectangle sourceRect)
+        {
+            if (string.Equals(label, "+", StringComparison.Ordinal))
+            {
+                sourceRect = CameraZoomPlusIconSource;
+                return true;
+            }
+
+            if (string.Equals(label, "-", StringComparison.Ordinal))
+            {
+                sourceRect = CameraZoomMinusIconSource;
+                return true;
+            }
+
+            sourceRect = Rectangle.Empty;
+            return false;
+        }
+
+        private void DrawCameraCaptureButton(SpriteBatch b, Rectangle bounds)
+        {
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+                return;
+
+            if (captureButton?.texture == null)
+                return;
+
+            Rectangle sourceRect = captureButton.sourceRect;
+            float scaleX = bounds.Width / (float)Math.Max(1, sourceRect.Width);
+            float scaleY = bounds.Height / (float)Math.Max(1, sourceRect.Height);
+            float iconScale = Math.Min(scaleX, scaleY);
+
+            int iconWidth = Math.Max(1, (int)Math.Round(sourceRect.Width * iconScale));
+            int iconHeight = Math.Max(1, (int)Math.Round(sourceRect.Height * iconScale));
+
+            Rectangle iconBounds = new Rectangle(
+                bounds.X + ((bounds.Width - iconWidth) / 2),
+                bounds.Y + ((bounds.Height - iconHeight) / 2),
+                iconWidth,
+                iconHeight);
+
+            Rectangle shadowBounds = new Rectangle(iconBounds.X + 2, iconBounds.Y + 3, iconBounds.Width, iconBounds.Height);
+            b.Draw(
+                captureButton.texture,
+                shadowBounds,
+                sourceRect,
+                new Color(0, 0, 0, 70),
+                0f,
+                Vector2.Zero,
+                SpriteEffects.None,
+                1f);
+
+            b.Draw(
+                captureButton.texture,
+                iconBounds,
+                sourceRect,
+                Color.White * 0.92f,
+                0f,
+                Vector2.Zero,
+                SpriteEffects.None,
+                1f);
         }
 
         private void DrawCaptureOutline(SpriteBatch b, Rectangle bounds, Color color)
@@ -2818,6 +3237,29 @@ namespace Smartphone
             b.Draw(Game1.staminaRect, new Rectangle(bounds.X, bounds.Bottom - 2, bounds.Width, 2), color);
             b.Draw(Game1.staminaRect, new Rectangle(bounds.X, bounds.Y, 2, bounds.Height), color);
             b.Draw(Game1.staminaRect, new Rectangle(bounds.Right - 2, bounds.Y, 2, bounds.Height), color);
+        }
+
+        private void TriggerCameraCaptureFlash()
+        {
+            cameraCaptureFlashRemainingSeconds = CameraCaptureFlashDurationSeconds;
+        }
+
+        private void DrawCameraCaptureFlash(SpriteBatch b, Rectangle cameraPreviewBounds)
+        {
+            if (ModEntry.takeScreenshot || cameraCaptureFlashRemainingSeconds <= 0d || CameraCaptureFlashDurationSeconds <= 0d)
+                return;
+
+            Rectangle flashBounds = Rectangle.Intersect(cameraPreviewBounds, GetUiViewportBounds());
+            if (flashBounds.Width <= 0 || flashBounds.Height <= 0)
+                return;
+
+            float progress = (float)(cameraCaptureFlashRemainingSeconds / CameraCaptureFlashDurationSeconds);
+            progress = Math.Clamp(progress, 0f, 1f);
+            float opacity = CameraCaptureFlashMaxOpacity * progress * progress;
+            if (opacity <= 0f)
+                return;
+
+            b.Draw(Game1.staminaRect, flashBounds, Color.White * opacity);
         }
 
         private void DrawAppIcon(SpriteBatch b, Texture2D texture, Rectangle bounds, Rectangle? sourceRect)
@@ -2917,6 +3359,57 @@ namespace Smartphone
             b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
         }
 
+        private void DrawLoopingPhotoName(SpriteBatch b, string photoName, Vector2 position, float viewportWidth)
+        {
+            SpriteFont labelFont = Game1.dialogueFont;
+            string safeName = photoName ?? "";
+
+            if (string.IsNullOrEmpty(safeName))
+                return;
+
+            if (labelFont.MeasureString(safeName).X <= viewportWidth)
+            {
+                b.DrawString(labelFont, safeName, position, Color.White);
+                return;
+            }
+
+            string marqueeSource = safeName + new string(' ', AppLabelTrailingSpaces);
+            Rectangle clipRect = new Rectangle(
+                (int)Math.Floor(position.X),
+                (int)Math.Floor(position.Y),
+                Math.Max(1, (int)Math.Ceiling(viewportWidth)),
+                Math.Max(1, (int)Math.Ceiling(labelFont.LineSpacing + 2f)));
+
+            Rectangle viewportBounds = Game1.graphics.GraphicsDevice.Viewport.Bounds;
+            clipRect = Rectangle.Intersect(clipRect, viewportBounds);
+            if (clipRect.Width <= 0 || clipRect.Height <= 0)
+                return;
+
+            float marqueeWidth = labelFont.MeasureString(marqueeSource).X;
+            if (marqueeWidth <= 0f)
+            {
+                b.DrawString(labelFont, safeName, position, Color.White);
+                return;
+            }
+
+            float scrollOffset = (float)((appLabelMarqueeElapsedSeconds * AppLabelMarqueePixelsPerSecond) % marqueeWidth);
+            Vector2 drawPos = new Vector2(position.X - scrollOffset, position.Y);
+
+            b.End();
+
+            Rectangle previousScissorRect = Game1.graphics.GraphicsDevice.ScissorRectangle;
+            Game1.graphics.GraphicsDevice.ScissorRectangle = clipRect;
+
+            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, appLabelScissorRasterizer);
+
+            b.DrawString(labelFont, marqueeSource, drawPos, Color.White);
+            b.DrawString(labelFont, marqueeSource, new Vector2(drawPos.X + marqueeWidth, drawPos.Y), Color.White);
+
+            b.End();
+            Game1.graphics.GraphicsDevice.ScissorRectangle = previousScissorRect;
+            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+        }
+
         private void DrawAppBadge(SpriteBatch b, Rectangle appBounds, int badgeCount)
         {
             string badgeText = Math.Min(99, badgeCount).ToString();
@@ -3008,6 +3501,39 @@ namespace Smartphone
             return true;
         }
 
+        public void OpenHomeScreen()
+        {
+            if (currentApp == TextAppState && selectedNpc != null)
+                MessageManager.SetUnreadCount(selectedNpc);
+
+            if (currentApp == SocialAppState)
+                CloseSocialApp();
+
+            if (currentApp == ExternalGroupAppState)
+                ClearCurrentExternalGroup();
+
+            currentSuggestion = new("", "");
+            selectedNpc = null;
+            scrollOffset = 0;
+            homeAppPage = 0;
+            currentSettingMenuState = SettingMenuMainState;
+            ResetChatQuickActionsState();
+            CloseChatPhotoPicker(clearSelection: true);
+            ResetEditableTextFieldState(EditableTextFieldKind.Search);
+            UpdateNpcList();
+            currentApp = null;
+            rootLandingState = RootLandingState.Home;
+            lockScreenUnlockAnimating = false;
+            lockScreenUnlockElapsedSeconds = 0d;
+            lockScreenTapBounds = Rectangle.Empty;
+        }
+
+        public void OpenLockScreen()
+        {
+            OpenHomeScreen();
+            rootLandingState = RootLandingState.LockScreen;
+        }
+
         public void OpenRegisteredAppGroup(string groupCompositeId, string displayName)
         {
             if (string.IsNullOrWhiteSpace(groupCompositeId))
@@ -3016,7 +3542,8 @@ namespace Smartphone
             currentExternalGroupId = groupCompositeId;
             currentExternalGroupName = (displayName?.Length > 8)
                 ? displayName.Substring(0, 8) + "..."
-                : (displayName ?? ""); currentApp = ExternalGroupAppState;
+                : (displayName ?? "");
+            currentApp = ExternalGroupAppState;
             externalGroupItemClickBounds.Clear();
         }
 
@@ -3032,6 +3559,9 @@ namespace Smartphone
             ResetChatQuickActionsState();
             CloseChatPhotoPicker(clearSelection: true);
             currentMessage = null;
+            lockScreenUnlockAnimating = false;
+            lockScreenUnlockElapsedSeconds = 0d;
+            lockScreenTapBounds = Rectangle.Empty;
 
             if (currentApp == "appText" && selectedNpc != null)
             {

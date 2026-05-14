@@ -1,6 +1,7 @@
 ﻿
 using System;
 using System.Diagnostics.Metrics;
+using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -28,55 +29,30 @@ namespace Smartphone
             this.monitor = monitor;
         }
 
-        public List<string> GetPhoneNpcList()
+        public List<string> GetPhoneNpcList(string playerId = "")
         {
-            // Ensure phoneMenu exists before accessing it (lazy init)
-            if (ModEntry.phoneMenu == null)
-                ModEntry.phoneMenu = new PhoneMenu();
-
-            ModEntry.phoneMenu.UpdateNpcList(true);
-            List<string> npcNames = ModEntry.phoneMenu.messageableNpcList
-                .Select(npc => npc.name)
-                .ToList();
-            return npcNames;
+            return ModEntry.GetPhoneNpcListByPlayerId(playerId);
         }
 
-        public void SendSmartphoneMessageFromNPC(string npcName, string message)
+        public void SendSmartphoneMessageFromNPC(string npcName, string message, string playerId = "")
         {
-            if (Game1.getCharacterFromName(npcName) == null) return;
-            MessageManager.AddMessage(npcName, $"{npcName}: " + message);
+            ModEntry.RouteSmartphoneMessageFromNpc(npcName, message, playerId);
         }
 
-        public void SendSmartphoneMessageFromPlayer(string npcName, string message)
+        public void SendSmartphoneMessageFromPlayer(string npcName, string message, string playerId = "")
         {
-            if (Game1.getCharacterFromName(npcName) == null) return;
-            MessageManager.AddMessage(npcName, $"PLAYER: {message}", isFromPlayer: true);
+            ModEntry.RouteSmartphoneMessageFromPlayer(npcName, message, playerId);
         }
 
-        public void SendSmartphoneNotification(string message, string notificationName = "")
+        public void SendSmartphoneNotification(string message, string notificationName = "", string playerId = "")
         {
-            if (ModEntry.phoneMenu == null) return;
-            NotificationManager.addNotification(message, notificationName);
+            ModEntry.RouteSmartphoneNotification(message, notificationName, playerId);
         }
 
-        public string? CreateStardewConnectPostFromPlayer(string postText, string attachedImageFile = "")
-        {
-            return StardewConnectManager.AddPlayerPost(postText, attachedImageFile);
-        }
-
-        public string? CreateStardewConnectPostFromPlayerWithImages(string postText, IEnumerable<string>? attachedImageFiles = null)
-        {
-            return StardewConnectManager.AddPlayerPostWithAttachments(postText, attachedImageFiles);
-        }
 
         public string? CreateStardewConnectPostFromNpc(string npcName, string postText, string attachedImageFile = "")
         {
             return StardewConnectManager.AddNpcPost(npcName, postText, attachedImageFile);
-        }
-
-        public bool AddStardewConnectCommentFromPlayer(string postId, string commentText)
-        {
-            return StardewConnectManager.AddPlayerComment(postId, commentText);
         }
 
         public bool AddStardewConnectCommentFromNpc(string postId, string npcName, string commentText)
@@ -84,9 +60,9 @@ namespace Smartphone
             return StardewConnectManager.AddNpcComment(postId, npcName, commentText);
         }
 
-        public bool SetStardewConnectPostLiked(string postId, string actorName, bool liked)
+        public bool SetStardewConnectPostLikedFromNpc(string postId, string npcName, bool liked)
         {
-            return StardewConnectManager.SetPostLike(postId, actorName, liked);
+            return StardewConnectManager.SetPostLike(postId, npcName, liked);
         }
 
         public bool RegisterUnlimitedEvent(
@@ -197,6 +173,16 @@ namespace Smartphone
             return ModEntry.UnregisterPhoneAppGroupItemInternal(ownerModId, groupId, itemId);
         }
 
+        public bool OpenPhoneHomeScreen()
+        {
+            return ModEntry.OpenPhoneHomeScreenInternal();
+        }
+
+        public bool OpenPhoneAppGroup(string ownerModId, string groupId)
+        {
+            return ModEntry.OpenPhoneAppGroupInternal(ownerModId, groupId);
+        }
+
         public bool RegisterChatQuickActionButton(
             string ownerModId,
             string actionId,
@@ -271,8 +257,113 @@ namespace Smartphone
         public static Dictionary<string, List<string>> npcMessagesToday = new();
         public static Dictionary<string, string> npcConversationSummary = new();
 
+        private static readonly object SaveFolderNameLock = new();
+        private static string activeSaveFolderName = string.Empty;
+
         public static PhoneMenu phoneMenu;
         private Dictionary<string, Dictionary<string, AreaData>> areaTags;
+        public static string GetActiveSaveFolderName()
+        {
+            lock (SaveFolderNameLock)
+            {
+                if (string.IsNullOrWhiteSpace(activeSaveFolderName))
+                    activeSaveFolderName = ResolveSaveFolderNameFromContext();
+
+                return activeSaveFolderName;
+            }
+        }
+
+        public static string GetSaveDataPath(string fileName = "")
+        {
+            string normalizedFileName = (fileName ?? string.Empty)
+                .Trim()
+                .TrimStart('/', '\\');
+
+            if (string.IsNullOrWhiteSpace(normalizedFileName))
+                return $"./userdata/{GetActiveSaveFolderName()}";
+
+            return $"./userdata/{GetActiveSaveFolderName()}/{normalizedFileName}";
+        }
+
+        public static void RefreshActiveSaveFolderName()
+        {
+            string resolved = ResolveSaveFolderNameFromContext();
+            lock (SaveFolderNameLock)
+                activeSaveFolderName = resolved;
+        }
+
+        public static void SetActiveSaveFolderName(string saveFolderName)
+        {
+            string normalizedSaveFolderName = NormalizeSaveFolderName(saveFolderName);
+            if (string.IsNullOrWhiteSpace(normalizedSaveFolderName))
+                return;
+
+            lock (SaveFolderNameLock)
+                activeSaveFolderName = normalizedSaveFolderName;
+        }
+
+        public static void ClearActiveSaveFolderName()
+        {
+            lock (SaveFolderNameLock)
+                activeSaveFolderName = string.Empty;
+        }
+
+        private static string ResolveSaveFolderNameFromContext()
+        {
+            string constantsSaveFolder = NormalizeSaveFolderName(Constants.SaveFolderName);
+            if (!string.IsNullOrWhiteSpace(constantsSaveFolder))
+                return constantsSaveFolder;
+
+            if (Context.IsWorldReady && Context.IsMultiplayer && Game1.MasterPlayer != null)
+            {
+                string masterPlayerName = NormalizeSaveFolderName(Game1.MasterPlayer.Name);
+                long masterPlayerId = Game1.MasterPlayer.UniqueMultiplayerID;
+
+                if (!string.IsNullOrWhiteSpace(masterPlayerName) && masterPlayerId > 0)
+                    return $"{masterPlayerName}_{masterPlayerId}";
+
+                if (masterPlayerId > 0)
+                    return $"_{masterPlayerId}";
+            }
+
+            if (Context.IsWorldReady && Game1.player != null)
+            {
+                string playerName = NormalizeSaveFolderName(Game1.player.Name);
+                long playerId = Game1.player.UniqueMultiplayerID;
+
+                if (!string.IsNullOrWhiteSpace(playerName) && playerId > 0)
+                    return $"{playerName}_{playerId}";
+
+                if (playerId > 0)
+                    return $"_{playerId}";
+            }
+
+            return "default";
+        }
+
+        private static string NormalizeSaveFolderName(string saveFolderName)
+        {
+            string normalizedValue = (saveFolderName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedValue))
+                return string.Empty;
+
+            char[] invalidChars = Path.GetInvalidFileNameChars();
+            var builder = new StringBuilder(normalizedValue.Length);
+            foreach (char character in normalizedValue)
+            {
+                if (character == '/'
+                    || character == '\\'
+                    || Array.IndexOf(invalidChars, character) >= 0)
+                {
+                    continue;
+                }
+
+                builder.Append(character);
+            }
+
+            return builder.ToString().Trim();
+        }
+
 
 
         // =========================================================================================
@@ -303,8 +394,18 @@ namespace Smartphone
                 if (phoneMenu == null)
                     phoneMenu = new PhoneMenu();
 
+                phoneMenu.UpdateNpcList(true);
+
+                List<string> npcCandidates = phoneMenu.messageableNpcList
+                    .Select(entry => entry.name)
+                    .Where(name => !MessageManager.IsPlayerConversationKey(name))
+                    .ToList();
+
+                if (npcCandidates.Count == 0)
+                    return;
+
                 double power = 1.4;
-                int maxValue = Math.Min(phoneMenu.messageableNpcList.Count, 20);
+                int maxValue = Math.Min(npcCandidates.Count, 20);
                 if (maxValue < 1)
                     return;
 
@@ -315,7 +416,7 @@ namespace Smartphone
 
                 while (counter < 3)
                 {
-                    string npcName = phoneMenu.messageableNpcList[Math.Min(result + counter, maxValue - 1)].name;
+                    string npcName = npcCandidates[Math.Min(result + counter, maxValue - 1)];
                     NPC npc = Game1.getCharacterFromName(npcName, mustBeVillager: false);
 
                     if (npc == null)

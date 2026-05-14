@@ -16,11 +16,11 @@ namespace Smartphone
 {
     public partial class ModEntry
     {
-        public static string k1 = "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";
+        public static string k1 = "";
         public static string k2 = "";
         public static string k3 = "";
 
-        public static string xk1 = "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";
+        public static string xk1 = "";
         public static string xk2 = "";
         public static string xk3 = "";
 
@@ -96,7 +96,7 @@ namespace Smartphone
                     }
 
 
-                    if (regular > 30000000)
+                    if (regular > 25000000)
                     {
                         IsMaxedLimit = true;
                         NotificationManager.addNotification("=== Smartphone ===^^AI usage reached its limit. Chat and StardewSocial are temporarily disabled.^^This will be reset the next day in timezone UTC+0. HaPyke!");
@@ -105,12 +105,12 @@ namespace Smartphone
 
 
                     IsMaxedLimit = false;
-                    if (regular > 14000000 && chatModel != "gpt-5-nano")
+                    if (regular > 15000000 && chatModel != "gpt-5-nano")
                     {
                         chatModel = "gpt-5-nano";
                         chatReasoningEffort = new { effort = "minimal" };
 
-                        summaryModel = "gpt-5-mini";
+                        summaryModel = "gpt-5-nano";
                         summaryReasoningEffort = new { effort = "minimal" };
 
                         IsReducedQuality = true;
@@ -265,14 +265,14 @@ namespace Smartphone
                         responseMessage = GetResponseOutputText(json);
 
 
-                        SMonitor.Log(jsonResponse.ToString(), LogLevel.Error);
-                        SMonitor.Log("system-----", LogLevel.Error);
-                        SMonitor.Log(system, LogLevel.Error);
-                        SMonitor.Log("user-----", LogLevel.Error);
-                        SMonitor.Log(user, LogLevel.Error);
-                        SMonitor.Log("response-----", LogLevel.Error);
-                        SMonitor.Log(responseMessage, LogLevel.Error);
-                        SMonitor.Log("\n\n", LogLevel.Error);
+                        // SMonitor.Log(jsonResponse.ToString(), LogLevel.Error);
+                        // SMonitor.Log("system-----", LogLevel.Error);
+                        // SMonitor.Log(system, LogLevel.Error);
+                        // SMonitor.Log("user-----", LogLevel.Error);
+                        // SMonitor.Log(user, LogLevel.Error);
+                        // SMonitor.Log("response-----", LogLevel.Error);
+                        // SMonitor.Log(responseMessage, LogLevel.Error);
+                        // SMonitor.Log("\n\n", LogLevel.Error);
 
                         if (toolCalls.Count > 0)
                         {
@@ -352,7 +352,7 @@ namespace Smartphone
                         }
 
                         SMonitor.Log($"Unable to receive AI content. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
-                        SMonitor.Log(httpResponse.ToString(), LogLevel.Error);
+                        // SMonitor.Log(httpResponse.ToString(), LogLevel.Error);
                         return "SYSTEM: ---Got an error---";
                     }
                 }
@@ -744,7 +744,7 @@ namespace Smartphone
                     var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
                     RegisterSuccessfulAiCall();
                     JObject json = JObject.Parse(jsonResponse);
-                    SMonitor.Log(json.ToString(), LogLevel.Error);
+                    // SMonitor.Log(json.ToString(), LogLevel.Error);
                     string responseText = GetResponseOutputText(json);
 
                     if (TryParseBatchConversationSummaries(responseText, expectedNpcNames, out Dictionary<string, string> summaries))
@@ -873,8 +873,7 @@ namespace Smartphone
                         string jsonResponse = await httpResponse.Content.ReadAsStringAsync();
                         RegisterSuccessfulAiCall();
                         JObject json = JObject.Parse(jsonResponse);
-                        SMonitor.Log(JsonConvert.SerializeObject(userPayload, Formatting.Indented), LogLevel.Error);
-                        SMonitor.Log(json.ToString(), LogLevel.Error);
+                        
                         string responseText = GetResponseOutputText(json).Trim();
 
                         string[] expectedPostIds = validPlans
@@ -1125,7 +1124,6 @@ namespace Smartphone
                         string jsonResponse = await httpResponse.Content.ReadAsStringAsync();
                         RegisterSuccessfulAiCall();
                         JObject json = JObject.Parse(jsonResponse);
-                        SMonitor.Log(json.ToString(), LogLevel.Error);
                         string responseText = GetResponseOutputText(json).Trim();
 
                         if (TryParseGeneratedNpcSocialCommentsBatch(responseText, expectedCommentersByPost, out Dictionary<string, Dictionary<string, string>> parsedCommentsByPost))
@@ -1913,7 +1911,7 @@ namespace Smartphone
                     }
                 }
 
-                SMonitor.Log($"Premium models: {premiumInputTotal} input tokens, {premiumOutputTotal} output tokens.\nRegular models: {regularInputTotal} input tokens, {regularOutputTotal} output tokens.", LogLevel.Error);
+                // SMonitor.Log($"Premium models: {premiumInputTotal} input tokens, {premiumOutputTotal} output tokens.\nRegular models: {regularInputTotal} input tokens, {regularOutputTotal} output tokens.", LogLevel.Error);
                 return ((int)(premiumInputTotal + premiumOutputTotal), (int)(regularInputTotal + regularOutputTotal));
             }
             catch (Exception ex)

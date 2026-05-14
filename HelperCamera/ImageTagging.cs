@@ -17,13 +17,14 @@ namespace Smartphone
         private const int MaxCropTagsPerImage = 3;
         private const int MaxFruitTreeTagsPerImage = 3;
         private const int MaxAnimalTagsPerImage = 3;
+        private const int MaxNpcTagsPerImage = 5;
         private const int MaxForageTagsPerImage = 3;
         private const int MaxFurnitureTagsPerImage = 5;
         private const int MaxDisplayedItemTagsPerImage = 5;
         private const int MaxPetNamesPerTypeTag = 3;
         // private static string PlayerTag => $"#Player {Game1.player?.displayName}".Trim();
         private const int BuildingFrontTilesLeftRight = 2;
-        private const int BuildingFrontTilesUp = 3;
+        private const int BuildingFrontTilesUp = 2;
         private const int BuildingFrontTilesDown = 1;
         private static string LastTriggeredUnlimitedEventTag = string.Empty;
         private static int LastTriggeredUnlimitedEventYear = -1;
@@ -51,18 +52,16 @@ namespace Smartphone
 
         private static string GetCurrentSaveFolderName()
         {
-            return string.IsNullOrWhiteSpace(Constants.SaveFolderName)
-                ? "default"
-                : Constants.SaveFolderName;
+            return ModEntry.GetActiveSaveFolderName();
         }
 
         private static IEnumerable<string> GetImageFolderPaths()
         {
             string saveRoot = Path.Combine(SHelper.DirectoryPath, "userdata", GetCurrentSaveFolderName());
 
-            // Keep legacy folder support while also scanning active player/npc photo folders.
+            // Scan active image folders used by this mod.
             yield return Path.Combine(saveRoot, "player_photo");
-            yield return Path.Combine(saveRoot, "npc_photo");
+            yield return Path.Combine(saveRoot, "shared_photo");
             yield return Path.Combine(saveRoot, "image");
         }
 
@@ -156,7 +155,7 @@ namespace Smartphone
             AddAreaTags(tags, captureBounds);
             AddWeatherTags(tags);
             AddCharacterTags(tags, captureBounds);
-            AddHeldFishTag(tags);
+            AddHeldItemTag(tags);
             AddCropAndFruitTreeTags(tags, captureBounds);
             AddForageTags(tags, captureBounds);
             AddFurnitureAndDisplayedTags(tags, captureBounds);
@@ -541,6 +540,8 @@ namespace Smartphone
 
             if (Game1.currentLocation?.characters != null)
             {
+                int addedNpcCount = 0;
+
                 foreach (NPC npc in Game1.currentLocation.characters.OfType<NPC>())
                 {
                     if (string.IsNullOrWhiteSpace(npc.Name) || npc.IsInvisible)
@@ -551,7 +552,13 @@ namespace Smartphone
                         continue;
 
                     if (IsCharacterInsideCapture(npc, captureBounds) && !tags.Contains($"#{npc.displayName}"))
+                    {
                         tags.Add($"#{npc.displayName}");
+                        addedNpcCount++;
+                    }
+
+                    if (addedNpcCount >= MaxNpcTagsPerImage)
+                        break;
                 }
             }
         }
@@ -1170,20 +1177,23 @@ namespace Smartphone
                 (int)(captureBounds.Height / zoom));
         }
 
-        private static void AddHeldFishTag(HashSet<string> tags)
+        private static void AddHeldItemTag(HashSet<string> tags)
         {
             if (Game1.player == null || !tags.Contains($"#Player {Game1.player?.displayName}".Trim()))
                 return;
 
             Item? heldItem = Game1.player.ActiveObject ?? Game1.player.CurrentItem;
-            if (heldItem is not StardewValley.Object fishObject || fishObject.Category != -4)
+            if (heldItem == null)
                 return;
 
-            string fishName = fishObject.DisplayName?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(fishName))
+            string heldItemName = heldItem.DisplayName?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(heldItemName))
+                heldItemName = heldItem.Name?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(heldItemName))
                 return;
 
-            tags.Add($"#holding {fishName}");
+            tags.Add($"#holding {heldItemName}");
         }
 
         private static void AddBuildingFrontTags(HashSet<string> tags, Rectangle captureBounds)

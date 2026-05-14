@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -124,6 +120,30 @@ namespace Smartphone
 
 
         /// ======================================
+        /// API to control smartphone screen navigation.
+        /// ======================================
+
+        /// <summary>
+        /// Opens the smartphone home (landing) screen for the current player.
+        /// If the phone is closed, it is opened first.
+        /// </summary>
+        /// <returns>True if the home screen was opened; otherwise false.</returns>
+        bool OpenPhoneHomeScreen();
+
+        /// <summary>
+        /// Opens a registered app-group screen for the current player.
+        /// If the phone is closed, it is opened first.
+        /// </summary>
+        /// <param name="ownerModId">The unique ID of the mod that owns this app group.</param>
+        /// <param name="groupId">The app-group ID that was used during registration.</param>
+        /// <returns>True if the app-group screen was opened; otherwise false.</returns>
+        bool OpenPhoneAppGroup(string ownerModId, string groupId);
+
+
+
+
+
+        /// ======================================
         /// API to register custom quick actions in App Messenger chat menu.
         /// ======================================
 
@@ -168,31 +188,35 @@ namespace Smartphone
         /// ======================================
 
         /// <summary>
-        /// Gets a list of NPCs that have appear in the messenger app. This is used by other mods to determine which NPCs can be sent messages through the API.
+        /// Gets a list of NPCs that have appear in the messenger app for a specific player.
         /// </summary>
+        /// <param name="playerId">(optional) The target player's UniqueMultiplayerID as string. If provided and not a valid online player ID, returns an empty list.</param>
         /// <returns>A list of NPC names.</returns>
-        List<string> GetPhoneNpcList();
+        List<string> GetPhoneNpcList(string playerId = "");
 
         /// <summary>
         /// Sends a message from an NPC to the player. This method is used to simulate receiving messages on the player's smartphone from NPCs in the game. Nothing will happen if the specified NPC is not in the messenger app list.
         /// </summary>
         /// <param name="npcName">The name of the NPC sending the message (case-sensitive).</param>
         /// <param name="message">The content of the message being sent.</param>
-        void SendSmartphoneMessageFromNPC(string npcName, string message);
+        /// <param name="playerId">(optional) The target player's UniqueMultiplayerID as string. If null/empty/invalid, this is broadcast to all online players.</param>
+        void SendSmartphoneMessageFromNPC(string npcName, string message, string playerId = "");
 
         /// <summary>
         /// Sends a message from the player to an NPC. This method is used to simulate sending messages from the player's smartphone to NPCs in the game. Nothing will happen if the specified NPC is not in the messenger app list.
         /// </summary>
         /// <param name="npcName">The name of the NPC receiving the message (case-sensitive).</param>
         /// <param name="message">The content of the message being sent.</param>
-        void SendSmartphoneMessageFromPlayer(string npcName, string message);
+        /// <param name="playerId">(optional) The target player's UniqueMultiplayerID as string. If null/empty/invalid, this is broadcast to all online players.</param>
+        void SendSmartphoneMessageFromPlayer(string npcName, string message, string playerId = "");
 
         /// <summary>
         /// Sends a notification to the player's smartphone.
         /// </summary>
         /// <param name="message">The content of the notification (shown in the phone notification message).</param>
         /// <param name="notificationName">(optional) The name of the notification (shown on ingame notification HUD).</param>
-        void SendSmartphoneNotification(string message, string notificationName = "");
+        /// <param name="playerId">(optional) The target player's UniqueMultiplayerID as string. If null/empty/invalid, this is broadcast to all online players.</param>
+        void SendSmartphoneNotification(string message, string notificationName = "", string playerId = "");
 
 
 
@@ -201,22 +225,6 @@ namespace Smartphone
         /// ======================================
         /// API for interacting with the StardewConnect social media app
         /// ======================================
-
-        /// <summary>
-        /// Creates a StardewConnect post authored by the player.
-        /// </summary>
-        /// <param name="postText">Post content. Can be empty if an image is attached.</param>
-        /// <param name="attachedImageFile">Optional image file name from the player's smartphone photo folder.</param>
-        /// <returns>The new post ID if created; otherwise null.</returns>
-        string? CreateStardewConnectPostFromPlayer(string postText, string attachedImageFile = "");
-
-        /// <summary>
-        /// Creates a StardewConnect post authored by the player with up to three attached images.
-        /// </summary>
-        /// <param name="postText">Post content. Can be empty if at least one image is attached.</param>
-        /// <param name="attachedImageFiles">Optional image file names from the player's smartphone photo folder.</param>
-        /// <returns>The new post ID if created; otherwise null.</returns>
-        string? CreateStardewConnectPostFromPlayerWithImages(string postText, IEnumerable<string>? attachedImageFiles = null);
 
         /// <summary>
         /// Creates a StardewConnect post authored by an NPC.
@@ -228,14 +236,6 @@ namespace Smartphone
         string? CreateStardewConnectPostFromNpc(string npcName, string postText, string attachedImageFile = "");
 
         /// <summary>
-        /// Adds a player-authored comment to a StardewConnect post.
-        /// </summary>
-        /// <param name="postId">Target post ID.</param>
-        /// <param name="commentText">Comment content.</param>
-        /// <returns>True if comment was added.</returns>
-        bool AddStardewConnectCommentFromPlayer(string postId, string commentText);
-
-        /// <summary>
         /// Adds an NPC-authored comment to a StardewConnect post.
         /// </summary>
         /// <param name="postId">Target post ID.</param>
@@ -245,13 +245,13 @@ namespace Smartphone
         bool AddStardewConnectCommentFromNpc(string postId, string npcName, string commentText);
 
         /// <summary>
-        /// Sets whether an actor likes a StardewConnect post.
+        /// Sets whether an NPC likes a StardewConnect post.
         /// </summary>
         /// <param name="postId">Target post ID.</param>
-        /// <param name="actorName">Actor name (player or NPC).</param>
+        /// <param name="npcName">NPC name.</param>
         /// <param name="liked">True to like, false to unlike.</param>
         /// <returns>True if operation succeeded.</returns>
-        bool SetStardewConnectPostLiked(string postId, string actorName, bool liked);
+        bool SetStardewConnectPostLikedFromNpc(string postId, string npcName, bool liked);
 
 
 

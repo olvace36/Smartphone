@@ -18,6 +18,35 @@ namespace Smartphone
     {
         private const float NpcCaptureZoomMin = 0.5f;
         private const float NpcCaptureZoomMax = 2f;
+        private const int SquareCaptureTolerancePixels = 2;
+        private const double PlayerCaptureCursorHideDurationSeconds = 0.5d;
+        private const double PlayerCaptureDelaySeconds = 0.05d;
+        private static double playerCaptureDelayRemainingSeconds = 0d;
+        private static double playerCaptureCursorHideRemainingSeconds = 0d;
+
+        public static void QueuePlayerPhotoCapture()
+        {
+            takeScreenshot = true;
+            playerCaptureDelayRemainingSeconds = Math.Max(playerCaptureDelayRemainingSeconds, PlayerCaptureDelaySeconds);
+            playerCaptureCursorHideRemainingSeconds = Math.Max(playerCaptureCursorHideRemainingSeconds, PlayerCaptureCursorHideDurationSeconds);
+        }
+
+        public static bool IsPlayerCaptureCursorHidden()
+        {
+            return takeScreenshot || playerCaptureCursorHideRemainingSeconds > 0d;
+        }
+
+        public static void UpdatePlayerCaptureTimers(double elapsedSeconds)
+        {
+            if (double.IsNaN(elapsedSeconds) || double.IsInfinity(elapsedSeconds) || elapsedSeconds <= 0d)
+                return;
+
+            if (playerCaptureDelayRemainingSeconds > 0d)
+                playerCaptureDelayRemainingSeconds = Math.Max(0d, playerCaptureDelayRemainingSeconds - elapsedSeconds);
+
+            if (playerCaptureCursorHideRemainingSeconds > 0d)
+                playerCaptureCursorHideRemainingSeconds = Math.Max(0d, playerCaptureCursorHideRemainingSeconds - elapsedSeconds);
+        }
 
         public static Microsoft.Xna.Framework.Rectangle GetPhoneCameraViewportBounds(int menuX, int menuY)
         {
@@ -92,7 +121,25 @@ namespace Smartphone
 
             return new Microsoft.Xna.Framework.Rectangle(clampedX, clampedY, clampedWidth, clampedHeight);
         }
+        private static Microsoft.Xna.Framework.Rectangle ConvertUiBoundsToBackBuffer(Microsoft.Xna.Framework.Rectangle uiBounds, int backBufferWidth, int backBufferHeight)
+        {
+            int uiViewportWidth = Math.Max(1, Game1.uiViewport.Width);
+            int uiViewportHeight = Math.Max(1, Game1.uiViewport.Height);
 
+            float scaleX = backBufferWidth / (float)uiViewportWidth;
+            float scaleY = backBufferHeight / (float)uiViewportHeight;
+
+            int left = (int)Math.Floor(uiBounds.Left * scaleX);
+            int top = (int)Math.Floor(uiBounds.Top * scaleY);
+            int right = (int)Math.Ceiling(uiBounds.Right * scaleX);
+            int bottom = (int)Math.Ceiling(uiBounds.Bottom * scaleY);
+
+            return new Microsoft.Xna.Framework.Rectangle(
+                left,
+                top,
+                Math.Max(1, right - left),
+                Math.Max(1, bottom - top));
+        }
         private void OnRendered(object sender, RenderedEventArgs e)
         {
             // dev tool grid drawing
@@ -103,6 +150,9 @@ namespace Smartphone
 
             if (takeScreenshot)
             {
+                if (playerCaptureDelayRemainingSeconds > 0d)
+                    return;
+
                 takeScreenshot = false;
 
                 GraphicsDevice graphics = Game1.graphics.GraphicsDevice;
@@ -123,7 +173,8 @@ namespace Smartphone
                 graphics.GetBackBufferData(rawData);
 
                 Microsoft.Xna.Framework.Rectangle requestedCaptureBounds = GetCurrentPlayerPhotoCaptureBounds();
-                Microsoft.Xna.Framework.Rectangle captureBounds = ClampCaptureBoundsToBackBuffer(requestedCaptureBounds, backBufferWidth, backBufferHeight);
+                Microsoft.Xna.Framework.Rectangle requestedBackBufferBounds = ConvertUiBoundsToBackBuffer(requestedCaptureBounds, backBufferWidth, backBufferHeight);
+                Microsoft.Xna.Framework.Rectangle captureBounds = ClampCaptureBoundsToBackBuffer(requestedBackBufferBounds, backBufferWidth, backBufferHeight);
 
                 int cropX = captureBounds.X;
                 int cropY = captureBounds.Y;
@@ -146,7 +197,7 @@ namespace Smartphone
                 using Texture2D croppedTexture = new Texture2D(graphics, cropWidth, cropHeight);
                 croppedTexture.SetData(croppedData);
 
-                SaveCapturedPhoto(croppedTexture, Game1.currentLocation?.DisplayName, BuildImageTags(captureBounds).ToList(), true);
+                SaveCapturedPhoto(croppedTexture, Game1.currentLocation?.DisplayName, BuildImageTags(requestedCaptureBounds).ToList(), true, cameraSquareMode);
             }
         }
 
@@ -202,7 +253,7 @@ namespace Smartphone
                 }
             }
 
-            return SaveCapturedPhoto(renderTarget, targetLocation.DisplayName, tags, false);
+            return SaveCapturedPhoto(renderTarget, targetLocation.DisplayName, tags, false, square);
         }
 
         private static (int Width, int Height) GetZoomedCaptureDimensions(int baseCaptureWidth, int baseCaptureHeight, float zoomLevel)
@@ -325,13 +376,13 @@ namespace Smartphone
             return true;
         }
 
-        private static string SaveCapturedPhoto(Texture2D capturedTexture, string? locationName, IEnumerable<string> tags, bool isPlayerPhoto)
+        private static string SaveCapturedPhoto(Texture2D capturedTexture, string? locationName, IEnumerable<string> tags, bool isPlayerPhoto, bool enforceSquareOutput = false)
         {
             string folderPath;
             if (isPlayerPhoto)
                 folderPath = Path.Combine(SHelper.DirectoryPath, "userdata", GetCurrentSaveFolderName(), "player_photo");
             else
-                folderPath = Path.Combine(SHelper.DirectoryPath, "userdata", GetCurrentSaveFolderName(), "npc_photo");
+                folderPath = Path.Combine(SHelper.DirectoryPath, "userdata", GetCurrentSaveFolderName(), "shared_photo");
             Directory.CreateDirectory(folderPath);
 
             string resolvedLocationName = string.IsNullOrWhiteSpace(locationName)
@@ -341,15 +392,67 @@ namespace Smartphone
             string filename = $"{resolvedLocationName}-{Game1.currentSeason}-Y{Game1.year}-D{Game1.dayOfMonth:D2}_{Game1.random.Next(0, 99999)}.png";
             string path = Path.Combine(folderPath, filename);
 
-            using Texture2D opaqueTexture = CreateOpaqueTexture(capturedTexture);
-            using FileStream fs = new FileStream(path, FileMode.Create);
-            opaqueTexture.SaveAsPng(fs, opaqueTexture.Width, opaqueTexture.Height);
+            Texture2D? squareNormalizedTexture = TryNormalizeSquareCapture(capturedTexture, enforceSquareOutput);
+            try
+            {
+                using Texture2D opaqueTexture = CreateOpaqueTexture(squareNormalizedTexture ?? capturedTexture);
+                using FileStream fs = new FileStream(path, FileMode.Create);
+                opaqueTexture.SaveAsPng(fs, opaqueTexture.Width, opaqueTexture.Height);
+            }
+            finally
+            {
+                squareNormalizedTexture?.Dispose();
+            }
 
             SetImageTags(filename, (tags ?? Enumerable.Empty<string>()).ToList());
             EnforcePhotoRetention(folderPath, GetPhotoRetentionLimit(isPlayerPhoto), path);
             if (isPlayerPhoto)
                 Game1.addHUDMessage(new HUDMessage("Photo saved!", HUDMessage.newQuest_type));
             return path;
+        }
+
+        private static Texture2D? TryNormalizeSquareCapture(Texture2D capturedTexture, bool enforceSquareOutput)
+        {
+            if (!enforceSquareOutput)
+                return null;
+
+            int width = capturedTexture.Width;
+            int height = capturedTexture.Height;
+            int difference = Math.Abs(width - height);
+            if (difference == 0 || difference > SquareCaptureTolerancePixels)
+                return null;
+
+            int squareSize = Math.Max(width, height);
+            Color[] sourceData = new Color[width * height];
+            Color[] squareData = new Color[squareSize * squareSize];
+            capturedTexture.GetData(sourceData);
+
+            // Back-buffer rounding can skew an intended square capture by a pixel or two.
+            for (int y = 0; y < squareSize; y++)
+            {
+                int sourceY = MapResizeCoordinate(y, height, squareSize);
+                int sourceRow = sourceY * width;
+                int destinationRow = y * squareSize;
+
+                for (int x = 0; x < squareSize; x++)
+                {
+                    int sourceX = MapResizeCoordinate(x, width, squareSize);
+                    squareData[destinationRow + x] = sourceData[sourceRow + sourceX];
+                }
+            }
+
+            Texture2D squareTexture = new Texture2D(capturedTexture.GraphicsDevice, squareSize, squareSize);
+            squareTexture.SetData(squareData);
+            return squareTexture;
+        }
+
+        private static int MapResizeCoordinate(int destinationCoordinate, int sourceLength, int destinationLength)
+        {
+            if (sourceLength <= 1 || destinationLength <= 1)
+                return 0;
+
+            float scale = (sourceLength - 1f) / (destinationLength - 1f);
+            return Math.Clamp((int)Math.Round(destinationCoordinate * scale), 0, sourceLength - 1);
         }
 
         private static int GetPhotoRetentionLimit(bool isPlayerPhoto)

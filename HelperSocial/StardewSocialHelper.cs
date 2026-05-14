@@ -27,7 +27,7 @@ namespace Smartphone
             "Torts"
         };
         private static int SocialActionMaxDelayMilliseconds = 140000; // 1s = 1000ms
-        private static int SocialPostMaxDelayMilliseconds = 0;
+        private static int SocialPostMaxDelayMilliseconds = 30000;
         private static double SocialRepeatCommentChance = 0.30;
         private static readonly List<DailySocialPostPlan> DailyScheduledSocialPosts = new();
         private static bool DailySocialPostTextGenerationRequested = false;
@@ -52,7 +52,7 @@ namespace Smartphone
         private static int SocialLikesWithin1DayMax = 3;
         private static int SocialCommentsWithin1DayMax = 5;
         private static int SocialLikesWithin3DaysMax = 2;
-        private static int SocialCommentsWithin3DaysMax = 4;
+        private static int SocialCommentsWithin3DaysMax = 3;
 
         // Engagement limits for most popular posts
         private static int SocialLikesMostPopularWithin2DayMax = 2;
@@ -88,37 +88,47 @@ namespace Smartphone
             if (totalNpcs > 130)
             {
                 SocialLikesWithin1DayMax = 6;
-                SocialCommentsWithin1DayMax = 7;
                 SocialLikesWithin3DaysMax = 5;
-                SocialCommentsWithin3DaysMax = 6;
                 SocialLikesMostPopularWithin2DayMax = 5;
-                SocialCommentsMostPopularWithin2DayMax = 5;
+
+                if (!string.IsNullOrWhiteSpace(Config.OpenAIKey))
+                {
+                    SocialCommentsWithin1DayMax = 7;
+                    SocialCommentsWithin3DaysMax = 5;
+                    SocialCommentsMostPopularWithin2DayMax = 5;
+                }
             }
             else if (totalNpcs > 100)
             {
                 SocialLikesWithin1DayMax = 5;
-                SocialCommentsWithin1DayMax = 7;
                 SocialLikesWithin3DaysMax = 4;
-                SocialCommentsWithin3DaysMax = 6;
                 SocialLikesMostPopularWithin2DayMax = 4;
-                SocialCommentsMostPopularWithin2DayMax = 5;
+
+                if (!string.IsNullOrWhiteSpace(Config.OpenAIKey))
+                {
+                    SocialCommentsWithin1DayMax = 7;
+                    SocialCommentsWithin3DaysMax = 5;
+                    SocialCommentsMostPopularWithin2DayMax = 5;
+                }
             }
             else if (totalNpcs > 60)
             {
                 SocialLikesWithin1DayMax = 4;
-                SocialCommentsWithin1DayMax = 7;
                 SocialLikesWithin3DaysMax = 4;
-                SocialCommentsWithin3DaysMax = 6;
                 SocialLikesMostPopularWithin2DayMax = 4;
-                SocialCommentsMostPopularWithin2DayMax = 5;
+
+                SocialCommentsWithin1DayMax = 6;
+                SocialCommentsWithin3DaysMax = 4;
+                SocialCommentsMostPopularWithin2DayMax = 4;
             }
             else if (totalNpcs > 40)
             {
                 SocialLikesWithin1DayMax = 3;
-                SocialCommentsWithin1DayMax = 6;
                 SocialLikesWithin3DaysMax = 3;
-                SocialCommentsWithin3DaysMax = 5;
                 SocialLikesMostPopularWithin2DayMax = 3;
+
+                SocialCommentsWithin1DayMax = 6;
+                SocialCommentsWithin3DaysMax = 4;
                 SocialCommentsMostPopularWithin2DayMax = 4;
             }
         }
@@ -148,39 +158,39 @@ namespace Smartphone
         private static List<int> GetSocialCommentEngagementIntervalFromConfig()
         {
             if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
-                return new List<int> { 900, 1700 };
+                return new List<int> { 1100, 1930 };
 
             return Config?.PostPerDay switch
             {
-                ModConfig.PostPerDayHigh => new List<int> { 800, 1130, 1700, 2030 },
-                ModConfig.PostPerDayLow => new List<int> { 1100, 1900 },
-                _ => new List<int> { 1000, 1400, 1900 }
+                ModConfig.PostPerDayHigh => new List<int> { 800, 1130, 1700, 2130 },
+                ModConfig.PostPerDayLow => new List<int> { 1100, 1930 },
+                _ => new List<int> { 1000, 1400, 1930 }
             };
         }
 
         private static List<int> GetSocialLikeEngagementIntervalFromConfig()
         {
             if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
-                return new List<int> { 730, 1230, 1600, 2000 };
+                return new List<int> { 730, 1230, 1600, 2100 };
 
             return Config?.PostPerDay switch
             {
-                ModConfig.PostPerDayHigh => new List<int> { 610, 900, 1130, 1500, 1800, 2030 },
-                ModConfig.PostPerDayLow => new List<int> { 730, 1200, 1600, 2000 },
-                _ => new List<int> { 700, 1100, 1400, 1700, 2030 }
+                ModConfig.PostPerDayHigh => new List<int> { 610, 900, 1130, 1500, 1800, 2130 },
+                ModConfig.PostPerDayLow => new List<int> { 730, 1200, 1600, 2100 },
+                _ => new List<int> { 700, 1100, 1400, 1700, 2130 }
             };
         }
 
         private static (int MinGapMinutes, int MaxGapMinutes, int MinPosts, int MaxPosts) GetSocialPostSchedulingConfig()
         {
             if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
-                return (330, 420, 1, 3);
+                return (300, 360, 1, 3);
 
             return Config?.PostPerDay switch
             {
-                ModConfig.PostPerDayHigh => (210, 300, 2, 4),
-                ModConfig.PostPerDayLow => (330, 420, 1, 3),
-                _ => (270, 360, 2, 3)
+                ModConfig.PostPerDayHigh => (180, 240, 2, 4),
+                ModConfig.PostPerDayLow => (300, 360, 1, 3),
+                _ => (240, 300, 2, 3)
             };
         }
 

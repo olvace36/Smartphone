@@ -9,6 +9,12 @@ namespace Smartphone
 {
     public static class MessageManager
     {
+        internal const string PlayerConversationPrefix = "@player:";
+        internal const string PlayerPhotoMessagePrefix = "PlayerPhoto:";
+        internal const string PlayerPhotoTagMessagePrefix = "PlayerPhotoTag:";
+        internal const string NpcPhotoMessagePrefix = "NpcPhoto:";
+        internal const string NpcPhotoTagMessagePrefix = "NpcPhotoTag:";
+
         private sealed class PhoneSettingData
         {
             public string CurrentPhoneBackground { get; set; } = "";
@@ -53,6 +59,69 @@ namespace Smartphone
                 return Game1.player.friendshipData.ContainsKey(targetNpc.Name);
 
             return Game1.player.getFriendshipHeartLevelForNPC(targetNpc.Name) >= 1;
+        }
+
+        public static string BuildPlayerConversationKey(string playerName)
+        {
+            string normalizedPlayerName = (playerName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedPlayerName))
+                return string.Empty;
+
+            return PlayerConversationPrefix + normalizedPlayerName;
+        }
+
+        public static bool TryGetPlayerNameFromConversationKey(string conversationKey, out string playerName)
+        {
+            playerName = string.Empty;
+            string normalizedKey = (conversationKey ?? string.Empty).Trim();
+
+            if (!normalizedKey.StartsWith(PlayerConversationPrefix, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            string extractedName = normalizedKey.Substring(PlayerConversationPrefix.Length).Trim();
+            if (string.IsNullOrWhiteSpace(extractedName))
+                return false;
+
+            playerName = extractedName;
+            return true;
+        }
+
+        public static bool IsPlayerConversationKey(string conversationKey)
+        {
+            return TryGetPlayerNameFromConversationKey(conversationKey, out _);
+        }
+
+        public static string GetConversationDisplayName(string conversationKey)
+        {
+            if (TryGetPlayerNameFromConversationKey(conversationKey, out string playerName))
+                return playerName;
+
+            string normalizedNpcName = (conversationKey ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedNpcName))
+                return string.Empty;
+
+            NPC? targetNpc = Game1.getCharacterFromName(normalizedNpcName, mustBeVillager: false);
+            if (targetNpc != null && !string.IsNullOrWhiteSpace(targetNpc.displayName))
+                return targetNpc.displayName;
+
+            return normalizedNpcName;
+        }
+
+        private static bool IsConversationMessageable(string conversationKey)
+        {
+            if (TryGetPlayerNameFromConversationKey(conversationKey, out string playerName))
+            {
+                string localPlayerName = (Game1.player?.Name ?? "Player").Trim();
+                if (string.IsNullOrWhiteSpace(playerName)
+                    || string.Equals(playerName, localPlayerName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                return true;
+            }
+
+            return IsNpcMessageable(conversationKey);
         }
 
         private static int GetMaxMessagesPerNpc()
@@ -118,26 +187,36 @@ namespace Smartphone
                 unreadCounts[npc] = newCount;
         }
 
-        public static void AddMessage(string npc, string message, bool addCount = true, bool isFromPlayer = false, bool notify = true)
+        public static void AddMessage(string npc, string message, bool addCount = true, bool isFromPlayer = false, bool notify = true, bool allowNonNpc = false)
         {
-            if (!IsNpcMessageable(npc))
+            if (!allowNonNpc && !IsConversationMessageable(npc))
                 return;
+
+            bool isPlayerConversation = IsPlayerConversationKey(npc);
             
             if (!npcMessages.ContainsKey(npc))
                 npcMessages[npc] = new List<string>();
             //npcMessages[npc].Add(message);
 
-
-            if (!ModEntry.npcMessagesToday.ContainsKey(npc))
+            if (!isPlayerConversation)
             {
-                ModEntry.npcMessagesToday[npc] = new List<string>();
-                Game1.player.changeFriendship(10, Game1.getCharacterFromName(npc));
+                if (!ModEntry.npcMessagesToday.ContainsKey(npc))
+                {
+                    ModEntry.npcMessagesToday[npc] = new List<string>();
+                    Game1.player.changeFriendship(10, Game1.getCharacterFromName(npc));
+                }
+
+                if (ModEntry.npcMessagesToday[npc].Count == 0)
+                    ModEntry.npcMessagesToday[npc].Add($"SYSTEM: ---{SDate.Now().DayOfWeek}, {SDate.Now().Season} {SDate.Now().Day:00}-Y{SDate.Now().Year}---");
+
+                ModEntry.npcMessagesToday[npc].Add(message);
+            }
+            else
+            {
+                npcMessages[npc].Add(message);
+                TrimMessageListToMax(npcMessages[npc], GetMaxMessagesPerNpc());
             }
 
-            if (ModEntry.npcMessagesToday[npc].Count == 0)
-                ModEntry.npcMessagesToday[npc].Add($"SYSTEM: ---{SDate.Now().DayOfWeek}, {SDate.Now().Season} {SDate.Now().Day:00}-Y{SDate.Now().Year}---");
-
-            ModEntry.npcMessagesToday[npc].Add(message);
             TrimMessagesForNpc(npc);
 
             if (addCount)
@@ -156,10 +235,9 @@ namespace Smartphone
 
             if (!isFromPlayer && notify)
             {
-                string npcDisplayName = npc;
-                NPC? targetNpc = Game1.getCharacterFromName(npc, mustBeVillager: false);
-                if (targetNpc != null && !string.IsNullOrWhiteSpace(targetNpc.displayName))
-                    npcDisplayName = targetNpc.displayName;
+                string npcDisplayName = GetConversationDisplayName(npc);
+                if (string.IsNullOrWhiteSpace(npcDisplayName))
+                    npcDisplayName = npc;
 
                 if (ModEntry.Config?.notifyMessage ?? true)
                     Game1.addHUDMessage(new HUDMessage($"A new message from {npcDisplayName}", HUDMessage.newQuest_type));
@@ -174,6 +252,9 @@ namespace Smartphone
         {
             //if (npcMessages.ContainsKey(npc))
             //    npcMessages[npc].Clear();
+
+            if (IsPlayerConversationKey(npc) && npcMessages.ContainsKey(npc))
+                npcMessages[npc].Clear();
 
             if (ModEntry.npcMessagesToday.ContainsKey(npc))
                 ModEntry.npcMessagesToday[npc].Clear();
@@ -243,7 +324,7 @@ namespace Smartphone
 
         private static string GetPhoneSettingDataPath()
         {
-            return $"./userdata/{Constants.SaveFolderName}/{PhoneSettingFileName}";
+            return ModEntry.GetSaveDataPath(PhoneSettingFileName);
         }
 
         private static void SavePhoneSettingData()
@@ -314,13 +395,13 @@ namespace Smartphone
                 TrimMessageListToMax(mergedMessages[npc], maxMessages);
 
             // Write the merged result
-            Helper.Data.WriteJsonFile($"./userdata/{Constants.SaveFolderName}/npcMessages", mergedMessages);
+            Helper.Data.WriteJsonFile(ModEntry.GetSaveDataPath("npcMessages"), mergedMessages);
             SavePhoneSettingData();
         }
 
         public static void LoadData()
         {
-            npcMessages = Helper.Data.ReadJsonFile<Dictionary<string, List<string>>>($"./userdata/{Constants.SaveFolderName}/npcMessages")
+            npcMessages = Helper.Data.ReadJsonFile<Dictionary<string, List<string>>>(ModEntry.GetSaveDataPath("npcMessages"))
                           ?? new Dictionary<string, List<string>>();
 
             int maxMessages = GetMaxMessagesPerNpc();
