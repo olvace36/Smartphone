@@ -58,17 +58,6 @@ namespace Smartphone
 
         public static void LoadNoticationData()
         {
-            string fullPath = Path.Combine(
-                ModEntry.SHelper.DirectoryPath,
-                "userdata",
-                ModEntry.GetActiveSaveFolderName(),
-                "notificationList");
-            if (!File.Exists(fullPath))
-            {
-                ModEntry.pendingInitNotification = true;
-            }
-
-
             notificationList = ModEntry.SHelper.Data.ReadJsonFile<List<string>>(ModEntry.GetSaveDataPath("notificationList"))
                           ?? new List<string>();
         }

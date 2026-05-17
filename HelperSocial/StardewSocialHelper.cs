@@ -441,11 +441,11 @@ namespace Smartphone
         private static (bool IncludeText, int ImageCount) ChooseRandomSocialPostFormat(int scheduledTime)
         {
             bool badWeather = Game1.currentLocation != null
-                && (Game1.currentLocation.IsRainingHere() || Game1.currentLocation.IsGreenRainingHere());
+                && (Game1.currentLocation.IsRainingHere() || Game1.currentLocation.IsGreenRainingHere() || Game1.currentLocation.IsLightningHere());
 
-            if (scheduledTime >= 2130
-               || (Game1.currentSeason == "winter" && scheduledTime >= 1900)
-               || (badWeather && scheduledTime >= 1800))
+            if (scheduledTime >= 2300
+               || (Game1.currentSeason == "winter" && scheduledTime >= 2100)
+               || (badWeather && scheduledTime >= 2000))
                 return (true, 0);
 
             var weightedFormats = new List<(bool IncludeText, int ImageCount, int Weight)>

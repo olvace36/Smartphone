@@ -237,9 +237,12 @@ namespace Smartphone
         public static int currentMenuY;
         public static bool cameraLandscapeMode = false;
         public static bool cameraSquareMode = false;
+        public static bool cameraFlashMode = false;
         public static float cameraZoomFactor = 1f;
 
         public static bool pendingInitNotification = false;
+        public static bool pendingPhoneOsInitialization = false;
+        public static bool hasNewVersionAvailable = false;
 
         public static Dictionary<string, GiftMemory> GiftMemories = new();
         public static List<RecentEvent> RecentEvents = new();

@@ -94,6 +94,14 @@ namespace Smartphone
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
+                name: () => "Disable update warning",
+                tooltip: () => "Disable warning letter when new version are available.\nBy disabling this warning, you should already know and understand how to update the mod safely without losing your own data.\nYou will still be notified when newer version available on the phone lock screen.",
+                getValue: () => Config.DisableUpdateWarning,
+                setValue: value => Config.DisableUpdateWarning = value
+            );
+
+            configMenu.AddBoolOption(
+                mod: ModManifest,
                 name: () => "Show AI credit button",
                 tooltip: () => "You have a limited number of usage of the AI features each day when no OpenAI key is provided.\nThis option shows how many usages you have left. Check it at Messages -> NPC -> AI Credit.",
                 getValue: () => Config.ShowAiCredit,
@@ -279,6 +287,22 @@ namespace Smartphone
                 tooltip: () => "Shows attached image tags when hovering photo bubbles in the Text app.",
                 getValue: () => Config.ShowMessageImageTags,
                 setValue: value => Config.ShowMessageImageTags = value
+            );
+
+            configMenu.AddNumberOption(
+                mod: ModManifest,
+                name: () => "Camera flash radius",
+                tooltip: () => "Radius of the temporary world light when camera FLASH mode is enabled.",
+                getValue: () => Math.Clamp(Config.PlayerCaptureWorldFlashRadius, 1f, 10f),
+                setValue: value =>
+                {
+                    float clamped = Math.Clamp(value, 1f, 10f);
+                    Config.PlayerCaptureWorldFlashRadius = MathF.Round(clamped * 10f) / 10f;
+                },
+                min: 1f,
+                max: 10f,
+                interval: 0.1f,
+                formatValue: value => $"{value:0.0}"
             );
 
             // notification page

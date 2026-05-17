@@ -21,14 +21,75 @@ namespace Smartphone
         private const int SquareCaptureTolerancePixels = 2;
         private const double PlayerCaptureCursorHideDurationSeconds = 0.5d;
         private const double PlayerCaptureDelaySeconds = 0.05d;
+        private const double PlayerCaptureWorldFlashDurationSeconds = 0.5d;
+        private const float PlayerCaptureWorldFlashRadiusDefault = 3f;
+        private const float PlayerCaptureWorldFlashRadiusMin = 1f;
+        private const float PlayerCaptureWorldFlashRadiusMax = 10f;
+        private const string PlayerCaptureWorldFlashLightIdPrefix = "Smartphone_PlayerCameraFlash_";
+        private const float NpcCaptureFlashRadiusAtOrAboveOne = 2.2f;
+        private const float NpcCaptureFlashRadiusBelowOne = 2.7f;
+        private const string NpcCaptureFlashLightIdPrefix = "Smartphone_NpcCaptureFlash_";
         private static double playerCaptureDelayRemainingSeconds = 0d;
         private static double playerCaptureCursorHideRemainingSeconds = 0d;
+        private static string? activePlayerCaptureFlashLightId;
 
-        public static void QueuePlayerPhotoCapture()
+        private static float PlayerCaptureWorldFlashRadius
         {
+            get
+            {
+                float configuredRadius = Config?.PlayerCaptureWorldFlashRadius ?? PlayerCaptureWorldFlashRadiusDefault;
+                if (float.IsNaN(configuredRadius) || float.IsInfinity(configuredRadius))
+                    return PlayerCaptureWorldFlashRadiusDefault;
+
+                return Math.Clamp(configuredRadius, PlayerCaptureWorldFlashRadiusMin, PlayerCaptureWorldFlashRadiusMax);
+            }
+        }
+
+        public static void QueuePlayerPhotoCapture(Rectangle? captureBoundsForFlash = null)
+        {
+            if (cameraFlashMode)
+                TriggerPlayerCaptureWorldFlash(captureBoundsForFlash ?? GetCurrentPlayerPhotoCaptureBounds());
+
             takeScreenshot = true;
             playerCaptureDelayRemainingSeconds = Math.Max(playerCaptureDelayRemainingSeconds, PlayerCaptureDelaySeconds);
             playerCaptureCursorHideRemainingSeconds = Math.Max(playerCaptureCursorHideRemainingSeconds, PlayerCaptureCursorHideDurationSeconds);
+        }
+
+        private static void TriggerPlayerCaptureWorldFlash(Rectangle captureBounds)
+        {
+            if (!Context.IsWorldReady || Game1.currentLocation == null)
+                return;
+
+            if (captureBounds.Width <= 0 || captureBounds.Height <= 0)
+                captureBounds = GetCurrentPlayerPhotoCaptureBounds();
+
+            if (!string.IsNullOrEmpty(activePlayerCaptureFlashLightId))
+                Game1.currentLightSources.Remove(activePlayerCaptureFlashLightId);
+
+            Point centerTile = GetCenterTileFromCapture(captureBounds);
+            Vector2 lightPosition = new Vector2(
+                (centerTile.X * Game1.tileSize) + (Game1.tileSize / 2f),
+                (centerTile.Y * Game1.tileSize) + (Game1.tileSize / 2f));
+
+            string lightId = $"{PlayerCaptureWorldFlashLightIdPrefix}{Guid.NewGuid():N}";
+            activePlayerCaptureFlashLightId = lightId;
+
+            Game1.currentLightSources[lightId] = new LightSource(
+                lightId,
+                4,
+                lightPosition,
+                PlayerCaptureWorldFlashRadius,
+                LightSource.LightContext.MapLight,
+                0L,
+                Game1.currentLocation.NameOrUniqueName);
+
+            int durationMs = Math.Max(1, (int)Math.Round(PlayerCaptureWorldFlashDurationSeconds * 1000d));
+            DelayedAction.functionAfterDelay(() =>
+            {
+                Game1.currentLightSources.Remove(lightId);
+                if (activePlayerCaptureFlashLightId == lightId)
+                    activePlayerCaptureFlashLightId = null;
+            }, durationMs);
         }
 
         public static bool IsPlayerCaptureCursorHidden()
@@ -224,6 +285,7 @@ namespace Smartphone
                 Game1.viewport = BuildNpcCaptureViewport(targetLocation, captureCenter, captureWidth, captureHeight);
                 Game1.timeOfDay = effectiveCaptureTime;
                 mapAppearanceSnapshot = PrepareLocationRenderState(targetLocation, captureWidth, captureHeight);
+                TryAddNpcCaptureFlashLight(targetLocation, captureCenter, zoomLevel, effectiveCaptureTime);
 
                 graphics.SetRenderTarget(renderTarget);
                 graphics.Clear(Color.Black);
@@ -254,6 +316,58 @@ namespace Smartphone
             }
 
             return SaveCapturedPhoto(renderTarget, targetLocation.DisplayName, tags, false, square);
+        }
+
+        private static void TryAddNpcCaptureFlashLight(GameLocation targetLocation, Vector2 captureCenterTile, float zoomLevel, int captureTimeOfDay)
+        {
+            if (!ShouldEnableNpcCaptureFlash(targetLocation, captureTimeOfDay))
+                return;
+
+            float flashRadius = GetNpcCaptureFlashRadiusForZoom(zoomLevel);
+            Vector2 flashPosition = (captureCenterTile * Game1.tileSize) + new Vector2(Game1.tileSize / 2f, Game1.tileSize / 2f);
+            string lightId = $"{NpcCaptureFlashLightIdPrefix}{Guid.NewGuid():N}";
+
+            Game1.currentLightSources[lightId] = new LightSource(
+                lightId,
+                4,
+                flashPosition,
+                flashRadius,
+                LightSource.LightContext.MapLight,
+                0L,
+                targetLocation.NameOrUniqueName);
+        }
+
+        private static bool ShouldEnableNpcCaptureFlash(GameLocation targetLocation, int captureTimeOfDay)
+        {
+            if (targetLocation == null)
+                return false;
+
+            if (!targetLocation.IsOutdoors)
+                return captureTimeOfDay > 2100;
+
+            bool isBadWeather = targetLocation.IsRainingHere()
+                || targetLocation.IsSnowingHere()
+                || targetLocation.IsLightningHere()
+                || targetLocation.IsGreenRainingHere();
+
+            if (isBadWeather && captureTimeOfDay > 1900)
+                return true;
+
+            if (Game1.GetSeasonForLocation(targetLocation) == Season.Winter && captureTimeOfDay > 1830)
+                return true;
+
+            return captureTimeOfDay > 2000;
+        }
+
+        private static float GetNpcCaptureFlashRadiusForZoom(float zoomLevel)
+        {
+            float safeZoomLevel = zoomLevel;
+            if (float.IsNaN(safeZoomLevel) || float.IsInfinity(safeZoomLevel))
+                safeZoomLevel = 1f;
+
+            return safeZoomLevel < 1f
+                ? NpcCaptureFlashRadiusBelowOne
+                : NpcCaptureFlashRadiusAtOrAboveOne;
         }
 
         private static (int Width, int Height) GetZoomedCaptureDimensions(int baseCaptureWidth, int baseCaptureHeight, float zoomLevel)

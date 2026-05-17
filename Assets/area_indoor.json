@@ -282,7 +282,7 @@
     },
     "ReceptionAndWaiting": {
       "startX": 1,
-      "startY": 13,
+      "startY": 14,
       "endX": 14,
       "endY": 18,
       "description": "Reception desk with files and computer, row of blue waiting chairs, green rug, bookshelf",
@@ -292,7 +292,7 @@
       "startX": 13,
       "startY": 4,
       "endX": 23,
-      "endY": 14,
+      "endY": 13,
       "description": "Three hospital beds with side tables, medical privacy screens, wall charts, trash can",
       "ownerNpc": []
     }

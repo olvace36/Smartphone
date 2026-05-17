@@ -68,6 +68,7 @@ namespace Smartphone
         }
         private enum RootLandingState
         {
+            Initializing,
             LockScreen,
             Home
         }
@@ -79,6 +80,9 @@ namespace Smartphone
         private bool lockScreenUnlockAnimating = false;
         private double lockScreenUnlockElapsedSeconds = 0d;
         private Rectangle lockScreenTapBounds = Rectangle.Empty;
+        private int lockScreenInitializationProgressPercent = 0;
+        private double lockScreenInitializationElapsedSeconds = 0d;
+        private double lockScreenInitializationNextTickSeconds = 0d;
 
         private static readonly Dictionary<string, List<string>> pendingMessages = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, CancellationTokenSource> replyTimers = new(StringComparer.OrdinalIgnoreCase);
@@ -171,9 +175,13 @@ namespace Smartphone
         private Rectangle photoAvatarButtonBounds = Rectangle.Empty;
         private Rectangle cameraZoomOutButtonBounds = Rectangle.Empty;
         private Rectangle cameraZoomInButtonBounds = Rectangle.Empty;
+        private Rectangle cameraFlashButtonBounds = Rectangle.Empty;
         private Rectangle cameraRotateButtonBounds = Rectangle.Empty;
         private Rectangle cameraSquareButtonBounds = Rectangle.Empty;
         private double cameraCaptureFlashRemainingSeconds = 0d;
+        private int cameraZoomHoldDirection = 0;
+        private double cameraZoomHoldElapsedSeconds = 0d;
+        private bool cameraZoomHoldTriggered = false;
 
         // apps
         public static string? currentApp = null;
@@ -217,17 +225,25 @@ namespace Smartphone
         private const float CameraCaptureFlashMaxOpacity = 0.9f;
         private const int CameraOverlayMargin = 16;
         private const int CameraToolAreaHeight = 138;
-        private const int CameraControlButtonHeight = 52;
-        private const int CameraModeButtonWidth = 62;
-        private const int CameraZoomButtonWidth = 52;
+        private const int CameraControlButtonHeight = 44;
+        private const int CameraModeButtonWidth = 53;
+        private const int CameraZoomButtonWidth = 44;
         private const int CameraControlButtonSpacing = 8;
         private const int CameraCaptureGroupGap = 14;
         private const int CameraCaptureButtonWidth = 118;
         private const int CameraCaptureButtonHeight = 64;
         private const int CameraCaptureButtonMinWidth = 80;
         private const int CameraCaptureButtonMinHeight = 44;
+        private const double CameraZoomHoldInitialDelaySeconds = 0.24d;
+        private const double CameraZoomHoldIntervalSeconds = 0.065d;
+        private const string CameraFlashButtonLabel = "FLASH";
+        private const string CameraLandscapeButtonLabel = "LAND";
+        private const string CameraSquareButtonLabel = "SQR";
         private static readonly Rectangle CameraZoomMinusIconSource = new Rectangle(177, 345, 7, 8);
         private static readonly Rectangle CameraZoomPlusIconSource = new Rectangle(184, 345, 7, 8);
+        private static readonly Rectangle CameraFlashIconSource = new Rectangle(193, 373, 9, 9);
+        private static readonly Rectangle CameraSquareIconSource = new Rectangle(155, 384, 9, 9);
+        private static readonly Rectangle CameraLandscapeIconSource = new Rectangle(67, 243, 9, 10);
 
         private readonly Dictionary<string, Rectangle> homeAppClickBounds = new();
         private Rectangle homeAppPrevPageBounds = Rectangle.Empty;
@@ -239,6 +255,7 @@ namespace Smartphone
         private readonly Dictionary<string, Rectangle> externalGroupItemClickBounds = new();
         private string currentExternalGroupId = "";
         private string currentExternalGroupName = "";
+        private readonly Dictionary<int, Texture2D> lockScreenWeatherIconSoftCache = new();
 
 
         private const string PlayerPhotoFolderName = "player_photo";
@@ -286,10 +303,26 @@ namespace Smartphone
         private const int TextUndoHistoryLimit = 128;
         private const int DefaultMenuOffsetX = 400;
         private const int DefaultMenuOffsetY = 500;
+        private const double LockScreenInitializationDurationSeconds = 7d;
+        private const double LockScreenInitializationProgressIntervalMinSeconds = 0.06d;
+        private const double LockScreenInitializationProgressIntervalMaxSeconds = 0.45d;
+        private const float LockScreenInitializationTitleTextScale = 1.08f;
+        private const float LockScreenInitializationProgressTextScale = 1.22f;
         private const double LockScreenUnlockDurationSeconds = 0.24d;
         private const float LockScreenTimeTextScale = 1.45f;
         private const float LockScreenDateTextScale = 1.2f;
         private const float LockScreenHintTextScale = 1.05f;
+        private const float LockScreenWeatherLabelTextScale = 0.95f * 0.75f;
+        private const float LockScreenWeatherPanelTopSpacing = 24f;
+        private const float LockScreenWeatherColumnHalfSpacing = 88f;
+        private const float LockScreenWeatherIconScale = 4f;
+        private const float LockScreenWeatherIconSoftCornerRadius = 6f;
+        private const float LockScreenWeatherIconSoftCornerFeather = 2f;
+        private const int LockScreenWeatherIconWidth = 12;
+        private const int LockScreenWeatherIconHeight = 8;
+        private const int LockScreenWeatherIconStartX = 317;
+        private const int LockScreenWeatherIconStartY = 421;
+        private static readonly Rectangle LockScreenGreenRainWeatherIconSource = new Rectangle(243, 293, 12, 8);
 
         private bool forcedFreeControllerCursor = false;
 
@@ -367,6 +400,7 @@ namespace Smartphone
 
         protected override void cleanupBeforeExit()
         {
+            DisposeLockScreenWeatherIconSoftCache();
             RestoreControllerCursorSetting();
             base.cleanupBeforeExit();
         }
@@ -412,6 +446,7 @@ namespace Smartphone
 
             cameraZoomOutButtonBounds = Rectangle.Empty;
             cameraZoomInButtonBounds = Rectangle.Empty;
+            cameraFlashButtonBounds = Rectangle.Empty;
             cameraRotateButtonBounds = Rectangle.Empty;
             cameraSquareButtonBounds = Rectangle.Empty;
 
@@ -446,6 +481,7 @@ namespace Smartphone
                     captureButton.bounds = Rectangle.Empty;
                     cameraZoomOutButtonBounds = Rectangle.Empty;
                     cameraZoomInButtonBounds = Rectangle.Empty;
+                    cameraFlashButtonBounds = Rectangle.Empty;
                     cameraRotateButtonBounds = Rectangle.Empty;
                     cameraSquareButtonBounds = Rectangle.Empty;
                 }
@@ -472,11 +508,13 @@ namespace Smartphone
                     int leftRotateX = leftSquareX - CameraControlButtonSpacing - CameraModeButtonWidth;
                     int rightZoomOutX = captureButton.bounds.Right + CameraCaptureGroupGap;
                     int rightZoomInX = rightZoomOutX + CameraZoomButtonWidth + CameraControlButtonSpacing;
+                    int rightFlashX = rightZoomInX + CameraZoomButtonWidth + CameraControlButtonSpacing;
 
                     cameraRotateButtonBounds = new Rectangle(leftRotateX, controlY, CameraModeButtonWidth, CameraControlButtonHeight);
                     cameraSquareButtonBounds = new Rectangle(leftSquareX, controlY, CameraModeButtonWidth, CameraControlButtonHeight);
                     cameraZoomOutButtonBounds = new Rectangle(rightZoomOutX, controlY, CameraZoomButtonWidth, CameraControlButtonHeight);
                     cameraZoomInButtonBounds = new Rectangle(rightZoomInX, controlY, CameraZoomButtonWidth, CameraControlButtonHeight);
+                    cameraFlashButtonBounds = new Rectangle(rightFlashX, controlY, CameraModeButtonWidth, CameraControlButtonHeight);
                 }
 
                 Rectangle uiViewportBounds = GetUiViewportBounds();
@@ -556,10 +594,11 @@ namespace Smartphone
                         b.Draw(Game1.staminaRect, toolAreaBounds, new Color(0, 0, 0, 50));
 
                     DrawCameraCaptureButton(b, captureButton.bounds);
-                    DrawCameraControlButton(b, cameraZoomInButtonBounds, "+", false);
                     DrawCameraControlButton(b, cameraZoomOutButtonBounds, "-", false);
-                    DrawCameraControlButton(b, cameraRotateButtonBounds, "LAND", ModEntry.cameraLandscapeMode);
-                    DrawCameraControlButton(b, cameraSquareButtonBounds, "SQR", ModEntry.cameraSquareMode);
+                    DrawCameraControlButton(b, cameraZoomInButtonBounds, "+", false);
+                    DrawCameraControlButton(b, cameraFlashButtonBounds, CameraFlashButtonLabel, ModEntry.cameraFlashMode);
+                    DrawCameraControlButton(b, cameraRotateButtonBounds, CameraLandscapeButtonLabel, ModEntry.cameraLandscapeMode);
+                    DrawCameraControlButton(b, cameraSquareButtonBounds, CameraSquareButtonLabel, ModEntry.cameraSquareMode);
                 }
 
                 DrawCaptureOutline(b, captureRect, new Color(255, 255, 255, 220));
@@ -765,6 +804,7 @@ namespace Smartphone
         public override void releaseLeftClick(int x, int y)
         {
             base.releaseLeftClick(x, y);
+            ResetCameraZoomHoldState();
             isDragging = false;
         }
 
@@ -772,7 +812,9 @@ namespace Smartphone
         {
             base.update(time);
             EnsureFreeControllerCursor();
+            UpdateLockScreenInitialization(time);
             UpdateLockScreenUnlockAnimation(time);
+            UpdateCameraZoomHold(time);
 
             appLabelMarqueeElapsedSeconds += time.ElapsedGameTime.TotalSeconds;
             if (appLabelMarqueeElapsedSeconds >= 1_000_000d)
@@ -867,6 +909,13 @@ namespace Smartphone
         public override void leftClickHeld(int x, int y)
         {
             base.leftClickHeld(x, y);
+
+            if (cameraZoomHoldDirection != 0)
+            {
+                isDragging = false;
+                return;
+            }
+
             if (GetActivePhoneDragBounds().Contains(x, y))
             {
                 isDragging = true;
@@ -941,12 +990,21 @@ namespace Smartphone
                 if (cameraZoomOutButtonBounds.Contains(x, y))
                 {
                     AdjustCameraZoom(-CameraZoomStep);
+                    BeginCameraZoomHold(-1);
                     return;
                 }
 
                 if (cameraZoomInButtonBounds.Contains(x, y))
                 {
                     AdjustCameraZoom(CameraZoomStep);
+                    BeginCameraZoomHold(1);
+                    return;
+                }
+
+                if (cameraFlashButtonBounds.Contains(x, y))
+                {
+                    ModEntry.cameraFlashMode = !ModEntry.cameraFlashMode;
+                    Game1.playSound("smallSelect");
                     return;
                 }
 
@@ -967,7 +1025,8 @@ namespace Smartphone
 
             if (currentApp == "appCamera" && !hideCameraOverlayButtons && IsCameraCaptureButtonPressed(x, y))
             {
-                ModEntry.QueuePlayerPhotoCapture();
+                ModEntry.QueuePlayerPhotoCapture(ModEntry.GetPlayerPhotoCaptureBounds(xPositionOnScreen, yPositionOnScreen));
+                Game1.playSound("cameraNoise");
                 TriggerCameraCaptureFlash();
                 return;
             }
@@ -2490,6 +2549,13 @@ namespace Smartphone
                 return;
             }
 
+            if (rootLandingState == RootLandingState.Initializing)
+            {
+                DrawLockScreenInitializationScreen(b, xOffset: 0);
+                DrawPhoneFrame(b);
+                return;
+            }
+
             if (rootLandingState == RootLandingState.LockScreen)
             {
                 DrawLockScreenScreen(b, xOffset: 0);
@@ -2567,20 +2633,92 @@ namespace Smartphone
                     new Color(0, 0, 0, 180),
                     LockScreenDateTextScale);
 
-                string hintText = "Tap to unlock";
+                DrawLockScreenWeatherSummary(
+                    b,
+                    contentBounds,
+                    centerX,
+                    datePosition.Y + dateSize.Y + LockScreenWeatherPanelTopSpacing);
+
+                bool showUpdateHint = ModEntry.hasNewVersionAvailable;
+                string hintText = showUpdateHint
+                    ? "New version available"
+                    : "Tap to unlock";
                 Vector2 hintSize = Game1.smallFont.MeasureString(hintText) * LockScreenHintTextScale;
                 Vector2 hintPosition = new Vector2(
                     centerX - (hintSize.X / 2f),
                     contentBounds.Bottom - hintSize.Y - 28f);
+
+                if (showUpdateHint)
+                {
+                    Rectangle hintBoxBounds = new Rectangle(
+                        (int)Math.Round(hintPosition.X - 22f),
+                        (int)Math.Round(hintPosition.Y - 8f),
+                        (int)Math.Round(hintSize.X + 44f),
+                        (int)Math.Round(hintSize.Y + 18f));
+
+                    IClickableMenu.drawTextureBox(
+                        b,
+                        Game1.menuTexture,
+                        new Rectangle(0, 256, 60, 60),
+                        hintBoxBounds.X,
+                        hintBoxBounds.Y,
+                        hintBoxBounds.Width,
+                        hintBoxBounds.Height,
+                        new Color(180, 36, 36, 165),
+                        1f,
+                        false);
+                }
 
                 DrawShadowedText(
                     b,
                     Game1.smallFont,
                     hintText,
                     hintPosition,
-                    Color.White * 0.9f,
-                    new Color(0, 0, 0, 170),
+                    showUpdateHint ? Color.White : Color.White * 0.9f,
+                    showUpdateHint ? new Color(32, 0, 0, 185) : new Color(0, 0, 0, 170),
                     LockScreenHintTextScale);
+            });
+        }
+
+        private void DrawLockScreenInitializationScreen(SpriteBatch b, int xOffset)
+        {
+            Rectangle contentBounds = GetPhoneContentBounds(xOffset);
+            if (contentBounds.Width <= 0 || contentBounds.Height <= 0)
+                return;
+
+            DrawWithinPhoneContentClip(b, () =>
+            {
+                b.Draw(Game1.staminaRect, contentBounds, Color.Black);
+
+                string titleText = "Initializing hapykeOS";
+                string progressText = $"{Math.Clamp(lockScreenInitializationProgressPercent, 0, 100)}%";
+
+                Vector2 titleSize = Game1.dialogueFont.MeasureString(titleText) * LockScreenInitializationTitleTextScale;
+                Vector2 progressSize = Game1.dialogueFont.MeasureString(progressText) * LockScreenInitializationProgressTextScale;
+
+                float centerX = contentBounds.Center.X;
+                float centerY = contentBounds.Center.Y;
+
+                Vector2 titlePosition = new Vector2(centerX - (titleSize.X / 2f), centerY - titleSize.Y - 6f);
+                Vector2 progressPosition = new Vector2(centerX - (progressSize.X / 2f), centerY + 10f);
+
+                DrawShadowedText(
+                    b,
+                    Game1.dialogueFont,
+                    titleText,
+                    titlePosition,
+                    Color.White,
+                    new Color(0, 0, 0, 180),
+                    LockScreenInitializationTitleTextScale);
+
+                DrawShadowedText(
+                    b,
+                    Game1.dialogueFont,
+                    progressText,
+                    progressPosition,
+                    new Color(215, 240, 255),
+                    new Color(0, 0, 0, 185),
+                    LockScreenInitializationProgressTextScale);
             });
         }
 
@@ -2637,6 +2775,248 @@ namespace Smartphone
             b.DrawString(font, text, position, textColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
         }
 
+        private void DrawLockScreenWeatherSummary(SpriteBatch b, Rectangle contentBounds, float centerX, float topY)
+        {
+            float leftCenterX = centerX - LockScreenWeatherColumnHalfSpacing;
+            float rightCenterX = centerX + LockScreenWeatherColumnHalfSpacing;
+
+            string todayLabel = "Today";
+            string forecastLabel = "Forecast";
+
+            Vector2 todayLabelSize = Game1.smallFont.MeasureString(todayLabel) * LockScreenWeatherLabelTextScale;
+            Vector2 forecastLabelSize = Game1.smallFont.MeasureString(forecastLabel) * LockScreenWeatherLabelTextScale;
+
+            Vector2 todayLabelPosition = new Vector2(leftCenterX - (todayLabelSize.X / 2f), topY);
+            Vector2 forecastLabelPosition = new Vector2(rightCenterX - (forecastLabelSize.X / 2f), topY);
+
+            DrawShadowedText(
+                b,
+                Game1.smallFont,
+                todayLabel,
+                todayLabelPosition,
+                Color.White,
+                new Color(0, 0, 0, 170),
+                LockScreenWeatherLabelTextScale);
+
+            DrawShadowedText(
+                b,
+                Game1.smallFont,
+                forecastLabel,
+                forecastLabelPosition,
+                Color.White,
+                new Color(0, 0, 0, 170),
+                LockScreenWeatherLabelTextScale);
+
+            int todayIconIndex = GetTodayWeatherIconIndex();
+            int forecastIconIndex = GetForecastWeatherIconIndex(GetForecastWeatherId(), GetTomorrowSeason());
+
+            float iconTopY = topY + Math.Max(todayLabelSize.Y, forecastLabelSize.Y) + 4f;
+            float iconWidth = LockScreenWeatherIconWidth * LockScreenWeatherIconScale;
+
+            DrawLockScreenWeatherIcon(b, new Vector2(leftCenterX - (iconWidth / 2f), iconTopY), todayIconIndex);
+            DrawLockScreenWeatherIcon(b, new Vector2(rightCenterX - (iconWidth / 2f), iconTopY), forecastIconIndex);
+
+            int dividerX = (int)Math.Round(centerX);
+            int dividerY = (int)Math.Round(topY + 4f);
+            int dividerBottom = (int)Math.Round(iconTopY + (LockScreenWeatherIconHeight * LockScreenWeatherIconScale) + 6f);
+            int dividerHeight = Math.Max(0, dividerBottom - dividerY);
+
+            if (dividerHeight > 0)
+                b.Draw(Game1.staminaRect, new Rectangle(dividerX, dividerY, 1, dividerHeight), Color.White * 0.35f);
+        }
+
+        private void DrawLockScreenWeatherIcon(SpriteBatch b, Vector2 position, int iconIndex)
+        {
+            Texture2D iconTexture = GetOrCreateLockScreenSoftWeatherIconTexture(iconIndex);
+            b.Draw(iconTexture, position, Color.White);
+        }
+
+        private Texture2D GetOrCreateLockScreenSoftWeatherIconTexture(int iconIndex)
+        {
+            int safeIconIndex = iconIndex == 999
+                ? 999
+                : Math.Clamp(iconIndex, 0, 7);
+
+            if (lockScreenWeatherIconSoftCache.TryGetValue(safeIconIndex, out Texture2D? cachedTexture)
+                && cachedTexture != null
+                && !cachedTexture.IsDisposed)
+            {
+                return cachedTexture;
+            }
+
+            Texture2D sourceTexture;
+            Rectangle sourceRect;
+
+            if (safeIconIndex == 999)
+            {
+                sourceTexture = Game1.mouseCursors_1_6;
+                sourceRect = LockScreenGreenRainWeatherIconSource;
+            }
+            else
+            {
+                sourceTexture = Game1.mouseCursors;
+                sourceRect = new Rectangle(
+                    LockScreenWeatherIconStartX + (LockScreenWeatherIconWidth * safeIconIndex),
+                    LockScreenWeatherIconStartY,
+                    LockScreenWeatherIconWidth,
+                    LockScreenWeatherIconHeight);
+            }
+
+            Texture2D iconTexture = BuildLockScreenSoftWeatherIconTexture(sourceTexture, sourceRect);
+            lockScreenWeatherIconSoftCache[safeIconIndex] = iconTexture;
+            return iconTexture;
+        }
+
+        private static Texture2D BuildLockScreenSoftWeatherIconTexture(Texture2D sourceTexture, Rectangle sourceRect)
+        {
+            int sourceWidth = Math.Max(1, sourceRect.Width);
+            int sourceHeight = Math.Max(1, sourceRect.Height);
+            float iconScale = Math.Max(0.01f, LockScreenWeatherIconScale);
+
+            int targetWidth = Math.Max(1, (int)Math.Round(sourceWidth * iconScale));
+            int targetHeight = Math.Max(1, (int)Math.Round(sourceHeight * iconScale));
+
+            Color[] sourceData = new Color[sourceWidth * sourceHeight];
+            sourceTexture.GetData(0, sourceRect, sourceData, 0, sourceData.Length);
+
+            Color[] targetData = new Color[targetWidth * targetHeight];
+
+            for (int y = 0; y < targetHeight; y++)
+            {
+                int sourceY = Math.Clamp((int)(y / iconScale), 0, sourceHeight - 1);
+                for (int x = 0; x < targetWidth; x++)
+                {
+                    int sourceX = Math.Clamp((int)(x / iconScale), 0, sourceWidth - 1);
+                    Color sourceColor = sourceData[(sourceY * sourceWidth) + sourceX];
+
+                    float cornerAlpha = GetRoundedCornerAlpha(
+                        x,
+                        y,
+                        targetWidth,
+                        targetHeight,
+                        LockScreenWeatherIconSoftCornerRadius,
+                        LockScreenWeatherIconSoftCornerFeather);
+
+                    byte alpha = (byte)Math.Clamp((int)Math.Round(sourceColor.A * cornerAlpha), 0, 255);
+                    targetData[(y * targetWidth) + x] = new Color(sourceColor.R, sourceColor.G, sourceColor.B, alpha);
+                }
+            }
+
+            Texture2D output = new Texture2D(Game1.graphics.GraphicsDevice, targetWidth, targetHeight);
+            output.SetData(targetData);
+            return output;
+        }
+
+        private static float GetRoundedCornerAlpha(
+            int pixelX,
+            int pixelY,
+            int width,
+            int height,
+            float cornerRadius,
+            float feather)
+        {
+            float safeRadius = Math.Clamp(cornerRadius, 0f, Math.Min(width, height) / 2f);
+            if (safeRadius <= 0f)
+                return 1f;
+
+            float safeFeather = Math.Max(0.001f, feather);
+
+            float centerX = width / 2f;
+            float centerY = height / 2f;
+            float pointX = pixelX + 0.5f;
+            float pointY = pixelY + 0.5f;
+
+            float qx = Math.Abs(pointX - centerX) - (centerX - safeRadius);
+            float qy = Math.Abs(pointY - centerY) - (centerY - safeRadius);
+
+            float outsideX = Math.Max(qx, 0f);
+            float outsideY = Math.Max(qy, 0f);
+            float outsideDistance = MathF.Sqrt((outsideX * outsideX) + (outsideY * outsideY));
+            float insideDistance = Math.Min(Math.Max(qx, qy), 0f);
+            float signedDistance = outsideDistance + insideDistance - safeRadius;
+
+            if (signedDistance >= 0f)
+                return 0f;
+
+            if (signedDistance <= -safeFeather)
+                return 1f;
+
+            return 1f - ((signedDistance + safeFeather) / safeFeather);
+        }
+
+        private void DisposeLockScreenWeatherIconSoftCache()
+        {
+            foreach (Texture2D iconTexture in lockScreenWeatherIconSoftCache.Values)
+            {
+                if (iconTexture != null && !iconTexture.IsDisposed)
+                    iconTexture.Dispose();
+            }
+
+            lockScreenWeatherIconSoftCache.Clear();
+        }
+
+        private static int GetTodayWeatherIconIndex()
+        {
+            if (Game1.weatherIcon == 999)
+                return 999;
+
+            return Math.Clamp(Game1.weatherIcon, 0, 7);
+        }
+
+        private static string GetForecastWeatherId()
+        {
+            string weatherId = Game1.currentLocation?.GetWeather()?.WeatherForTomorrow;
+            if (string.IsNullOrWhiteSpace(weatherId))
+                weatherId = Game1.weatherForTomorrow;
+
+            return string.IsNullOrWhiteSpace(weatherId)
+                ? Game1.weather_sunny
+                : weatherId;
+        }
+
+        private static Season GetTomorrowSeason()
+        {
+            WorldDate tomorrow = new WorldDate(Game1.Date);
+            tomorrow.TotalDays++;
+            return tomorrow.Season;
+        }
+
+        private static int GetForecastWeatherIconIndex(string weatherId, Season season)
+        {
+            string safeWeatherId = weatherId?.Trim() ?? "";
+
+            if (string.Equals(safeWeatherId, Game1.weather_green_rain, StringComparison.OrdinalIgnoreCase))
+                return 999;
+
+            if (string.Equals(safeWeatherId, Game1.weather_festival, StringComparison.OrdinalIgnoreCase))
+                return 1;
+
+            if (string.Equals(safeWeatherId, Game1.weather_lightning, StringComparison.OrdinalIgnoreCase))
+                return 5;
+
+            if (string.Equals(safeWeatherId, Game1.weather_snow, StringComparison.OrdinalIgnoreCase))
+                return 7;
+
+            if (string.Equals(safeWeatherId, Game1.weather_rain, StringComparison.OrdinalIgnoreCase))
+                return 4;
+
+            if (string.Equals(safeWeatherId, Game1.weather_debris, StringComparison.OrdinalIgnoreCase))
+            {
+                return season switch
+                {
+                    Season.Spring => 3,
+                    Season.Fall => 6,
+                    Season.Winter => 7,
+                    _ => 2
+                };
+            }
+
+            if (string.Equals(safeWeatherId, Game1.weather_wedding, StringComparison.OrdinalIgnoreCase))
+                return 0;
+
+            return 2;
+        }
+
         private static string BuildLockScreenDateText()
         {
             string rawSeason = Game1.currentSeason;
@@ -2647,6 +3027,60 @@ namespace Smartphone
             int day = Math.Max(1, Game1.dayOfMonth);
             int year = Math.Max(1, Game1.year);
             return $"{seasonName} {day}, Year {year}";
+        }
+
+        private void BeginLockScreenInitializationSequence()
+        {
+            rootLandingState = RootLandingState.Initializing;
+            lockScreenUnlockAnimating = false;
+            lockScreenUnlockElapsedSeconds = 0d;
+            lockScreenTapBounds = Rectangle.Empty;
+
+            lockScreenInitializationProgressPercent = 0;
+            lockScreenInitializationElapsedSeconds = 0d;
+            lockScreenInitializationNextTickSeconds = GetNextLockScreenInitializationTickSeconds();
+        }
+
+        private static double GetNextLockScreenInitializationTickSeconds()
+        {
+            double minDelay = Math.Max(0.01d, LockScreenInitializationProgressIntervalMinSeconds);
+            double maxDelay = Math.Max(minDelay, LockScreenInitializationProgressIntervalMaxSeconds);
+            return minDelay + (Random.Shared.NextDouble() * (maxDelay - minDelay));
+        }
+
+        private void UpdateLockScreenInitialization(GameTime time)
+        {
+            if (rootLandingState != RootLandingState.Initializing)
+                return;
+
+            lockScreenInitializationElapsedSeconds += time.ElapsedGameTime.TotalSeconds;
+            double cappedElapsedSeconds = Math.Min(lockScreenInitializationElapsedSeconds, LockScreenInitializationDurationSeconds);
+            int maxProgressForElapsedTime = (int)Math.Floor((cappedElapsedSeconds / LockScreenInitializationDurationSeconds) * 100d);
+            int visibleMaxProgress = Math.Min(99, maxProgressForElapsedTime);
+
+            lockScreenInitializationNextTickSeconds -= time.ElapsedGameTime.TotalSeconds;
+            while (lockScreenInitializationNextTickSeconds <= 0d
+                && lockScreenInitializationProgressPercent < visibleMaxProgress)
+            {
+                int remainingToVisibleMax = Math.Max(1, visibleMaxProgress - lockScreenInitializationProgressPercent);
+                int progressStep = Random.Shared.Next(1, Math.Min(8, remainingToVisibleMax) + 1);
+
+                lockScreenInitializationProgressPercent = Math.Min(
+                    visibleMaxProgress,
+                    lockScreenInitializationProgressPercent + progressStep);
+
+                lockScreenInitializationNextTickSeconds += GetNextLockScreenInitializationTickSeconds();
+            }
+
+            if (lockScreenInitializationElapsedSeconds < LockScreenInitializationDurationSeconds)
+                return;
+
+            lockScreenInitializationProgressPercent = 100;
+            lockScreenInitializationElapsedSeconds = LockScreenInitializationDurationSeconds;
+            lockScreenInitializationNextTickSeconds = 0d;
+            rootLandingState = RootLandingState.LockScreen;
+            lockScreenTapBounds = Rectangle.Empty;
+            ModEntry.pendingPhoneOsInitialization = false;
         }
 
         private bool HandleLockScreenTap(int x, int y)
@@ -2727,7 +3161,7 @@ namespace Smartphone
                 new HomeAppEntry
                 {
                     Id = BuiltinAppSocialId,
-                    DisplayName = "StardewConnect",
+                    DisplayName = "StardewSocial",
                     IconTexture = textureAppSocial,
                     GetBadgeCount = () => GetTotalSocialNotificationCount()
                 },
@@ -3003,7 +3437,75 @@ namespace Smartphone
                 photoFolderName);
         }
 
-        private void AdjustCameraZoom(float delta)
+        private void BeginCameraZoomHold(int direction)
+        {
+            cameraZoomHoldDirection = Math.Sign(direction);
+            cameraZoomHoldElapsedSeconds = 0d;
+            cameraZoomHoldTriggered = false;
+        }
+
+        private void ResetCameraZoomHoldState()
+        {
+            cameraZoomHoldDirection = 0;
+            cameraZoomHoldElapsedSeconds = 0d;
+            cameraZoomHoldTriggered = false;
+        }
+
+        private void UpdateCameraZoomHold(GameTime time)
+        {
+            if (cameraZoomHoldDirection == 0)
+                return;
+
+            bool hideCameraOverlayButtons = currentApp == "appCamera" && ModEntry.IsPlayerCaptureCursorHidden();
+            if (currentApp != "appCamera" || hideCameraOverlayButtons)
+            {
+                ResetCameraZoomHoldState();
+                return;
+            }
+
+            MouseState mouseState = Mouse.GetState();
+            if (mouseState.LeftButton != ButtonState.Pressed)
+            {
+                ResetCameraZoomHoldState();
+                return;
+            }
+
+            int mouseX = Game1.getMouseX();
+            int mouseY = Game1.getMouseY();
+            Rectangle zoomBounds = cameraZoomHoldDirection > 0
+                ? cameraZoomInButtonBounds
+                : cameraZoomOutButtonBounds;
+
+            if (!zoomBounds.Contains(mouseX, mouseY))
+            {
+                ResetCameraZoomHoldState();
+                return;
+            }
+
+            cameraZoomHoldElapsedSeconds += time.ElapsedGameTime.TotalSeconds;
+
+            if (!cameraZoomHoldTriggered)
+            {
+                if (cameraZoomHoldElapsedSeconds < CameraZoomHoldInitialDelaySeconds)
+                    return;
+
+                cameraZoomHoldElapsedSeconds -= CameraZoomHoldInitialDelaySeconds;
+                cameraZoomHoldTriggered = true;
+            }
+
+            while (cameraZoomHoldElapsedSeconds >= CameraZoomHoldIntervalSeconds)
+            {
+                cameraZoomHoldElapsedSeconds -= CameraZoomHoldIntervalSeconds;
+
+                if (!AdjustCameraZoom(cameraZoomHoldDirection * CameraZoomStep, playSound: false))
+                {
+                    ResetCameraZoomHoldState();
+                    return;
+                }
+            }
+        }
+
+        private bool AdjustCameraZoom(float delta, bool playSound = true)
         {
             float currentZoom = ModEntry.cameraZoomFactor;
             float targetZoom = Math.Clamp(currentZoom + delta, CameraZoomMin, CameraZoomMax);
@@ -3012,12 +3514,16 @@ namespace Smartphone
 
             if (Math.Abs(targetZoom - currentZoom) <= 0.0001f)
             {
-                Game1.playSound("cancel");
-                return;
+                if (playSound)
+                    Game1.playSound("cancel");
+                return false;
             }
 
             ModEntry.cameraZoomFactor = targetZoom;
-            Game1.playSound("drumkit6");
+            if (playSound)
+                Game1.playSound("drumkit6");
+
+            return true;
         }
 
         private Matrix CreateCameraLandscapeRotationMatrix()
@@ -3125,10 +3631,29 @@ namespace Smartphone
             if (bounds.Width <= 0 || bounds.Height <= 0)
                 return;
 
-            if (TryGetCameraZoomIconSource(label, out Rectangle zoomIconSource))
+            if (TryGetCameraControlIconSource(label, out Texture2D iconTexture, out Rectangle iconSource, out bool useDarkInactiveStyle, out float iconScaleFactor))
             {
-                int baseIconSize = Math.Max(1, Math.Min(bounds.Width, bounds.Height) - 20);
-                int iconSize = Math.Max(1, (int)Math.Round(baseIconSize * 1.5f));
+                if (useDarkInactiveStyle)
+                {
+                    Color iconBoxColor = active
+                        ? new Color(95, 145, 185, 110)
+                        : new Color(20, 20, 20, 95);
+
+                    IClickableMenu.drawTextureBox(
+                        b,
+                        Game1.menuTexture,
+                        new Rectangle(0, 256, 60, 60),
+                        bounds.X,
+                        bounds.Y,
+                        bounds.Width,
+                        bounds.Height,
+                        iconBoxColor,
+                        1f,
+                        false);
+                }
+
+                    int baseIconSize = Math.Max(1, Math.Min(bounds.Width, bounds.Height) - (useDarkInactiveStyle ? 16 : 20));
+                int iconSize = Math.Max(1, (int)Math.Round(baseIconSize * iconScaleFactor));
 
                 Rectangle iconBounds = new Rectangle(
                     bounds.Center.X - (iconSize / 2),
@@ -3136,9 +3661,13 @@ namespace Smartphone
                     iconSize,
                     iconSize);
 
+                Color iconColor = useDarkInactiveStyle
+                    ? (active ? new Color(255, 255, 255, 220) : new Color(48, 48, 48, 175))
+                    : new Color(255, 255, 255, 180);
+
                 Rectangle shadowBounds = new Rectangle(iconBounds.X + 1, iconBounds.Y + 2, iconBounds.Width, iconBounds.Height);
-                b.Draw(Game1.mouseCursors, shadowBounds, zoomIconSource, new Color(0, 0, 0, 70));
-                b.Draw(Game1.mouseCursors, iconBounds, zoomIconSource, new Color(255, 255, 255, 180));
+                b.Draw(iconTexture, shadowBounds, iconSource, new Color(0, 0, 0, 70));
+                b.Draw(iconTexture, iconBounds, iconSource, iconColor);
                 return;
             }
 
@@ -3166,21 +3695,63 @@ namespace Smartphone
             b.DrawString(Game1.smallFont, label, textPosition, new Color(250, 250, 250, 235));
         }
 
-        private static bool TryGetCameraZoomIconSource(string label, out Rectangle sourceRect)
+        private static bool TryGetCameraControlIconSource(
+            string label,
+            out Texture2D texture,
+            out Rectangle sourceRect,
+            out bool useDarkInactiveStyle,
+            out float iconScaleFactor)
         {
             if (string.Equals(label, "+", StringComparison.Ordinal))
             {
+                texture = Game1.mouseCursors;
                 sourceRect = CameraZoomPlusIconSource;
+                useDarkInactiveStyle = false;
+                iconScaleFactor = 1.5f;
                 return true;
             }
 
             if (string.Equals(label, "-", StringComparison.Ordinal))
             {
+                texture = Game1.mouseCursors;
                 sourceRect = CameraZoomMinusIconSource;
+                useDarkInactiveStyle = false;
+                iconScaleFactor = 1.5f;
                 return true;
             }
 
+            if (string.Equals(label, CameraFlashButtonLabel, StringComparison.Ordinal))
+            {
+                texture = Game1.mouseCursors;
+                sourceRect = CameraFlashIconSource;
+                useDarkInactiveStyle = true;
+                iconScaleFactor = 1.25f;
+                return true;
+            }
+
+            if (string.Equals(label, CameraSquareButtonLabel, StringComparison.Ordinal))
+            {
+                texture = Game1.mouseCursors;
+                sourceRect = CameraSquareIconSource;
+                useDarkInactiveStyle = true;
+                iconScaleFactor = 1.25f;
+                return true;
+            }
+
+            if (string.Equals(label, CameraLandscapeButtonLabel, StringComparison.Ordinal))
+            {
+                texture = Game1.mouseCursors2;
+                sourceRect = CameraLandscapeIconSource;
+                useDarkInactiveStyle = true;
+                // Slightly stretch the 9x10 icon into a near-square destination for visual consistency.
+                iconScaleFactor = 1.22f;
+                return true;
+            }
+
+            texture = Game1.mouseCursors;
             sourceRect = Rectangle.Empty;
+            useDarkInactiveStyle = false;
+            iconScaleFactor = 1f;
             return false;
         }
 
@@ -3526,11 +4097,21 @@ namespace Smartphone
             lockScreenUnlockAnimating = false;
             lockScreenUnlockElapsedSeconds = 0d;
             lockScreenTapBounds = Rectangle.Empty;
+            lockScreenInitializationProgressPercent = 0;
+            lockScreenInitializationElapsedSeconds = 0d;
+            lockScreenInitializationNextTickSeconds = 0d;
         }
 
         public void OpenLockScreen()
         {
             OpenHomeScreen();
+
+            if (ModEntry.pendingPhoneOsInitialization)
+            {
+                BeginLockScreenInitializationSequence();
+                return;
+            }
+
             rootLandingState = RootLandingState.LockScreen;
         }
 
@@ -3562,6 +4143,9 @@ namespace Smartphone
             lockScreenUnlockAnimating = false;
             lockScreenUnlockElapsedSeconds = 0d;
             lockScreenTapBounds = Rectangle.Empty;
+            lockScreenInitializationProgressPercent = 0;
+            lockScreenInitializationElapsedSeconds = 0d;
+            lockScreenInitializationNextTickSeconds = 0d;
 
             if (currentApp == "appText" && selectedNpc != null)
             {

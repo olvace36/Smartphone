@@ -53,14 +53,16 @@ namespace Smartphone
         public int MaxMessage { get; set; } = 1000;
         public int MaxStardewConnectPosts { get; set; } = 100;
         public int PlayerMaxPhoto { get; set; } = 100;
-        public int NpcMaxPhoto { get; set; } = 200;
-        public bool ShowSocialImageTags { get; set; } = true;
+        public int NpcMaxPhoto { get; set; } = 250;
+        public float PlayerCaptureWorldFlashRadius { get; set; } = 3f;
+        public bool ShowSocialImageTags { get; set; } = false;
         public bool ShowUnreadComment { get; set; } = true;
-        public bool ShowMessageImageTags { get; set; } = true;
+        public bool ShowMessageImageTags { get; set; } = false;
         public bool ShowAiCredit { get; set; } = true;
         public bool notifyNotification { get; set; } = true;
         public bool notifyMessage { get; set; } = true;
         public bool notifyStardewSocial { get; set; } = true;
+        public bool DisableUpdateWarning { get; set; } = false;
 
         public bool DisableDailyMessage { get; set; } = false;
     }

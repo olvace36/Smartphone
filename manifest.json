@@ -6,7 +6,7 @@
   "UniqueID": "d5a1lamdtd.Smartphone",
   "EntryDll": "Smartphone.dll",
   "MinimumApiVersion": "4.0.0",
-  "UpdateKeys": [ "Nexus:00000" ], // 19309 27343
+  "UpdateKeys": [ "Nexus:46248" ], // 19309 27343 46248
   "Dependencies":[
     {  
       "UniqueID": "Pathoschild.ContentPatcher",

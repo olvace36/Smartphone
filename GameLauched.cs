@@ -136,7 +136,7 @@ namespace Smartphone
                 return;
 
 
-            if (e.Button == Config.ModKey && Context.IsPlayerFree)
+            if (e.Button == Config.ModKey && Game1.activeClickableMenu == null && Game1.currentMinigame == null)
             {
                 if (phoneMenu == null)
                     phoneMenu = new PhoneMenu();
@@ -179,6 +179,8 @@ namespace Smartphone
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
             RefreshActiveSaveFolderName();
+            RefreshInitStateForCurrentSave();
+            hasNewVersionAvailable = false;
 
             npcConversationSummary = Helper.Data.ReadJsonFile<Dictionary<string, string>>(GetSaveDataPath("npcConversationSummary"))
                    ?? new Dictionary<string, string>();
@@ -247,8 +249,9 @@ namespace Smartphone
                 Task.Run(async () =>
                 {
                     bool hasNewerVersion = await CheckForNewerVersion(modInfo);
+                    hasNewVersionAvailable = hasNewerVersion;
 
-                    if (hasNewerVersion)
+                    if (hasNewerVersion && !Config.DisableUpdateWarning)
                     {
                         DelayedAction.functionAfterDelay(() =>
                         {
@@ -256,10 +259,10 @@ namespace Smartphone
                             {
                                 SMonitor.Log($"Smartphone: Newer version available", LogLevel.Warn);
                                 Game1.drawLetterMessage("=== Smartphone ===^^Newer version of Smartphone are available. Your current version may be outdated and no longer working.^^" +
-                                    "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in        $$/Mods/Smartphone/Userdata$$ folder.^    ]] YOU MUST COPY IT WHEN UPDATE THE MOD [[^^");
+                                    "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in        $$/Mods/Smartphone/Userdata$$ folder.^    >> YOU MUST COPY IT WHEN UPDATE THE MOD @@");
 
                                 NotificationManager.addNotification("=== Smartphone ===^^Newer version of Smartphone are available. Your current version may be outdated and no longer working.^^" +
-                                    "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in        $$/Mods/Smartphone/Userdata$$ folder.^    ]] YOU MUST COPY IT WHEN UPDATE THE MOD [[^^");
+                                    "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in        $$/Mods/Smartphone/Userdata$$ folder.^    >> YOU MUST COPY IT WHEN UPDATE THE MOD @@");
                             }
                             catch (Exception ex)
                             {
@@ -447,13 +450,13 @@ namespace Smartphone
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
         {
             ClearActiveSaveFolderName();
+            pendingInitNotification = false;
+            pendingPhoneOsInitialization = false;
+            hasNewVersionAvailable = false;
         }
 
         private void OnTimeChange(object sender, TimeChangedEventArgs e)
         {
-            
-
-
             HandleAiUsageTimeChanged(e.NewTime);
             HandleAiModelSettingTimeChanged(e.NewTime);
 
@@ -577,7 +580,22 @@ namespace Smartphone
             return !update.IsLatest;
         }
 
+        public static void RefreshInitStateForCurrentSave()
+        {
+            string saveFolderPath = Path.Combine(
+                SHelper.DirectoryPath,
+                "userdata",
+                GetActiveSaveFolderName());
 
+            bool isFirstTimeForSave = !Directory.Exists(saveFolderPath);
+            if (isFirstTimeForSave)
+            {
+                Directory.CreateDirectory(saveFolderPath);
+            }
+
+            pendingInitNotification = isFirstTimeForSave;
+            pendingPhoneOsInitialization = isFirstTimeForSave;
+        }
 
     }
 }
