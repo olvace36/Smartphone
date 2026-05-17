@@ -171,8 +171,8 @@ namespace Smartphone
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "StardewConnect activity",
-                tooltip: () => "Controls how often StardewConnect posts and engagement are generated.",
+                name: () => "StardewSocial activity",
+                tooltip: () => "Controls how often StardewSocial posts and engagement are generated.",
                 getValue: () => EnsureAllowedValue(Config.PostPerDay, ModConfig.PostPerDayMedium, postPerDayValues),
                 setValue: value => Config.PostPerDay = value,
                 allowedValues: postPerDayValues,
@@ -224,7 +224,7 @@ namespace Smartphone
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "StardewConnect posts to keep",
+                name: () => "StardewSocial posts to keep",
                 tooltip: () => "Older posts are removed first when this limit is exceeded.",
                 getValue: () => Config.MaxStardewConnectPosts,
                 setValue: value => Config.MaxStardewConnectPosts = Math.Clamp(value, 10, 500),
@@ -267,8 +267,8 @@ namespace Smartphone
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Show StardewConnect image tags",
-                tooltip: () => "Shows saved image tag text above attached images in StardewConnect posts.",
+                name: () => "Show StardewSocial image tags",
+                tooltip: () => "Shows saved image tag text above attached images in StardewSocial posts.",
                 getValue: () => Config.ShowSocialImageTags,
                 setValue: value => Config.ShowSocialImageTags = value
             );
@@ -326,8 +326,8 @@ namespace Smartphone
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "StardewConnect popups",
-                tooltip: () => "Show HUD popups for new StardewConnect activity.",
+                name: () => "StardewSocial popups",
+                tooltip: () => "Show HUD popups for new StardewSocial activity.",
                 getValue: () => Config.notifyStardewSocial,
                 setValue: value => Config.notifyStardewSocial = value
             );

@@ -873,7 +873,7 @@ namespace Smartphone
                         string jsonResponse = await httpResponse.Content.ReadAsStringAsync();
                         RegisterSuccessfulAiCall();
                         JObject json = JObject.Parse(jsonResponse);
-                        
+
                         string responseText = GetResponseOutputText(json).Trim();
 
                         string[] expectedPostIds = validPlans
