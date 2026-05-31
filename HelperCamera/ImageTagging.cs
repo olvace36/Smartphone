@@ -1183,7 +1183,7 @@ namespace Smartphone
                 return;
 
             Item? heldItem = Game1.player.ActiveObject ?? Game1.player.CurrentItem;
-            if (heldItem == null)
+            if (heldItem == null || heldItem is Tool || heldItem is Boots || heldItem is Hat || heldItem is Clothing || heldItem is Furniture || heldItem is Wallpaper)
                 return;
 
             string heldItemName = heldItem.DisplayName?.Trim() ?? string.Empty;

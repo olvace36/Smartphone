@@ -160,6 +160,8 @@ namespace Smartphone
         private Dictionary<string, ClickableTextureComponent> phoneTextColorButton = new();
         private List<string> phoneThemeList = new();
         private Dictionary<string, ClickableTextureComponent> phoneThemeButton = new();
+        private readonly Dictionary<string, Rectangle> phoneThemeHoverBounds = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, string> phoneThemeReadmeCache = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Color> phoneTextColorMap = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Rectangle> settingOptionBounds = new();
 
@@ -201,6 +203,7 @@ namespace Smartphone
         private const string SettingMenuOptionTextColor = "textColor";
         private const string SettingMenuOptionSound = "sound";
         private const string SettingMenuOptionTheme = "theme";
+        private const string ThemeReadmeFileName = "readme.txt";
 
         private const int HomeAppsPerPage = 20;
         private const int HomeAppsColumns = 4;
@@ -459,8 +462,8 @@ namespace Smartphone
             else if (currentApp == ExternalGroupAppState)
             {
                 b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
-                b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
                 b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
+                b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
                 backButton.draw(b);
 
                 string title = string.IsNullOrWhiteSpace(currentExternalGroupName)
@@ -607,8 +610,8 @@ namespace Smartphone
             else if (currentApp == "appPhoto")
             {
                 b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
-                b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
                 b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
+                b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
                 backButton.draw(b);
                 photoAvatarButtonBounds = Rectangle.Empty;
                 //okButton.draw(b);
@@ -705,8 +708,8 @@ namespace Smartphone
             else if (currentApp == "appNotification")
             {
                 b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
-                b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
                 b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
+                b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
                 b.Draw(
                         removeButton.texture,
                         new Vector2(removeButton.bounds.X, removeButton.bounds.Y),
@@ -1848,8 +1851,8 @@ namespace Smartphone
         private void DrawSettingMenu(SpriteBatch b)
         {
             b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
-            b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
             b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
+            b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
             backButton.draw(b);
 
             string title = currentSettingMenuState switch
@@ -1877,6 +1880,7 @@ namespace Smartphone
             if (currentSettingMenuState == SettingMenuThemeState)
             {
                 DrawThemeSettingList(b);
+                DrawThemeSettingTooltipIfHovered(b);
                 return;
             }
 
@@ -1889,6 +1893,7 @@ namespace Smartphone
             phoneSoundButton.Clear();
             phoneTextColorButton.Clear();
             phoneThemeButton.Clear();
+            phoneThemeHoverBounds.Clear();
 
             int yStart = yPositionOnScreen + 260;
             DrawSettingOptionRow(b, SettingMenuOptionTextColor, "Text Color", yStart);
@@ -1931,6 +1936,7 @@ namespace Smartphone
             phoneSoundButton.Clear();
             phoneTextColorButton.Clear();
             phoneThemeButton.Clear();
+            phoneThemeHoverBounds.Clear();
             settingOptionBounds.Clear();
             scrollOffset = Math.Max(0, Math.Min(scrollOffset, Math.Max(0, phoneSoundList.Count - maxVisibleNPCs)));
 
@@ -1971,6 +1977,7 @@ namespace Smartphone
             phoneTextColorButton.Clear();
             phoneSoundButton.Clear();
             phoneThemeButton.Clear();
+            phoneThemeHoverBounds.Clear();
             settingOptionBounds.Clear();
             scrollOffset = Math.Max(0, Math.Min(scrollOffset, Math.Max(0, phoneTextColorList.Count - maxVisibleNPCs)));
 
@@ -2015,6 +2022,7 @@ namespace Smartphone
         private void DrawThemeSettingList(SpriteBatch b)
         {
             phoneThemeButton.Clear();
+            phoneThemeHoverBounds.Clear();
             phoneSoundButton.Clear();
             phoneTextColorButton.Clear();
             settingOptionBounds.Clear();
@@ -2031,9 +2039,11 @@ namespace Smartphone
 
                 string themeName = phoneThemeList[index];
                 int y = yStart + i * spacing;
+                string themeReadmeText = GetThemeReadmeTooltipText(themeName);
 
                 int nameX = xPositionOnScreen + 100;
                 b.DrawString(Game1.dialogueFont, themeName, new Vector2(nameX, y + 15), Color.Black);
+                phoneThemeHoverBounds[themeName] = new Rectangle(nameX - 8, y + 8, 420, 58);
 
                 Rectangle rect = new Rectangle(218, 428, 7, 7);
                 if (string.Equals(MessageManager.currentPhoneTheme, themeName, StringComparison.OrdinalIgnoreCase))
@@ -2043,7 +2053,7 @@ namespace Smartphone
                     name: themeName,
                     bounds: new Rectangle(nameX + 370, y + 20, 35, 35),
                     label: null,
-                    hoverText: "",
+                    hoverText: themeReadmeText,
                     texture: Game1.mouseCursors,
                     sourceRect: rect,
                     scale: 5f
@@ -2052,6 +2062,58 @@ namespace Smartphone
                 phoneThemeButton[themeName] = selectButton;
                 selectButton.draw(b);
             }
+        }
+
+        private void DrawThemeSettingTooltipIfHovered(SpriteBatch b)
+        {
+            if (phoneThemeHoverBounds.Count == 0)
+                return;
+
+            int mouseX = Game1.getMouseX();
+            int mouseY = Game1.getMouseY();
+
+            foreach (KeyValuePair<string, Rectangle> hoverEntry in phoneThemeHoverBounds)
+            {
+                if (!hoverEntry.Value.Contains(mouseX, mouseY))
+                    continue;
+
+                string tooltipText = GetThemeReadmeTooltipText(hoverEntry.Key);
+                if (string.IsNullOrWhiteSpace(tooltipText))
+                    return;
+
+                DrawSocialTagTooltip(b, tooltipText, mouseX, mouseY);
+                return;
+            }
+        }
+
+        private string GetThemeReadmeTooltipText(string themeName)
+        {
+            string safeThemeName = (themeName ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(safeThemeName))
+                return "";
+
+            if (phoneThemeReadmeCache.TryGetValue(safeThemeName, out string? cachedText))
+                return cachedText;
+
+            string tooltipText = "";
+
+            try
+            {
+                string? modFolderPath = ModEntry.Instance?.Helper?.DirectoryPath ?? ModEntry.SHelper?.DirectoryPath;
+                if (!string.IsNullOrWhiteSpace(modFolderPath))
+                {
+                    string readmePath = Path.Combine(modFolderPath, AssetHelper.GetPhoneThemesRootPath(), safeThemeName, ThemeReadmeFileName);
+                    if (File.Exists(readmePath))
+                        tooltipText = (File.ReadAllText(readmePath) ?? "").Trim();
+                }
+            }
+            catch (Exception ex)
+            {
+                ModEntry.SMonitor.Log($"Failed to load theme readme for '{safeThemeName}': {ex.Message}", LogLevel.Trace);
+            }
+
+            phoneThemeReadmeCache[safeThemeName] = tooltipText;
+            return tooltipText;
         }
 
         private void RefreshPhoneThemeList()

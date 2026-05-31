@@ -45,6 +45,8 @@ namespace Smartphone
         private const int SocialProfileSectionSpacing = 12;
         private const int SocialProfilePostsHeaderHeight = 46;
         private const int SocialProfileStatIconSize = 18;
+        private const int SocialProfileAvatarCameraButtonSize = 44;
+        private const int SocialProfileAvatarCameraButtonMargin = 3;
         private const int SocialLikeTooltipMaxNames = 5;
         private const int SocialNotificationButtonSize = 40;
         private const int SocialNotificationCardPadding = 14;
@@ -125,6 +127,7 @@ namespace Smartphone
         private Rectangle socialDetailImagePrevBounds = Rectangle.Empty;
         private Rectangle socialDetailImageNextBounds = Rectangle.Empty;
         private Rectangle socialDetailTagHoverBounds = Rectangle.Empty;
+        private Rectangle socialProfileAvatarCameraButtonBounds = Rectangle.Empty;
 
         private string selectedSocialPostId = "";
         private string selectedSocialProfileActorName = "";
@@ -485,6 +488,15 @@ namespace Smartphone
                 return false;
 
             return string.Equals(localPlayerName, normalizedAuthorName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsSelectedSocialProfileLocalPlayer()
+        {
+            if (!selectedSocialProfileActorIsPlayer)
+                return false;
+
+            string resolvedActorName = ResolveSocialProfileActorName(selectedSocialProfileActorName, actorIsPlayer: true);
+            return IsLocalPlayerAuthor(resolvedActorName);
         }
 
         private bool IsFavouriteNpcPostNotification(StardewConnectPost post)
@@ -903,8 +915,8 @@ namespace Smartphone
         private void DrawSocialApp(SpriteBatch b)
         {
             b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
-            b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
             b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
+            b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
             backButton.draw(b);
 
             //string title = socialCreateMenuOpen
@@ -1534,6 +1546,7 @@ namespace Smartphone
             socialDetailCommentSendBounds = Rectangle.Empty;
             socialDetailImagePrevBounds = Rectangle.Empty;
             socialDetailImageNextBounds = Rectangle.Empty;
+            socialProfileAvatarCameraButtonBounds = Rectangle.Empty;
 
             List<StardewConnectPost> profilePosts = GetSelectedProfilePosts();
             RefreshSocialNotifiedPostIds(StardewConnectManager.GetPostsSnapshot());
@@ -1587,6 +1600,17 @@ namespace Smartphone
                 selectedSocialProfileActorName,
                 selectedSocialProfileActorIsPlayer,
                 avatarBounds);
+
+            if (IsSelectedSocialProfileLocalPlayer())
+            {
+                socialProfileAvatarCameraButtonBounds = new Rectangle(
+                    avatarBounds.Right - SocialProfileAvatarCameraButtonSize - SocialProfileAvatarCameraButtonMargin,
+                    avatarBounds.Bottom - SocialProfileAvatarCameraButtonSize - SocialProfileAvatarCameraButtonMargin,
+                    SocialProfileAvatarCameraButtonSize,
+                    SocialProfileAvatarCameraButtonSize);
+
+                DrawSocialProfileAvatarCameraButton(b, socialProfileAvatarCameraButtonBounds);
+            }
 
             string birthdayLabel = GetSocialProfileBirthdayLabel(selectedSocialProfileActorName, selectedSocialProfileActorIsPlayer);
             string ageLabel = GetSocialProfileAgeLabel(selectedSocialProfileActorName, selectedSocialProfileActorIsPlayer);
@@ -2759,6 +2783,38 @@ namespace Smartphone
                 Color.White);
         }
 
+        private void DrawSocialProfileAvatarCameraButton(SpriteBatch b, Rectangle bounds)
+        {
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+                return;
+
+            bool hovered = bounds.Contains(Game1.getMouseX(), Game1.getMouseY());
+            Color boxColor = hovered
+                ? new Color(95, 145, 185, 135)
+                : new Color(20, 20, 20, 110);
+
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.menuTexture,
+                new Rectangle(0, 256, 60, 60),
+                bounds.X,
+                bounds.Y,
+                bounds.Width,
+                bounds.Height,
+                boxColor,
+                1f,
+                false);
+
+            const int IconPadding = 7;
+            Rectangle iconBounds = new Rectangle(
+                bounds.X + IconPadding,
+                bounds.Y + IconPadding,
+                Math.Max(1, bounds.Width - (IconPadding * 2)),
+                Math.Max(1, bounds.Height - (IconPadding * 2)));
+
+            DrawCameraCaptureButton(b, iconBounds);
+        }
+
         private bool HandleSocialLeftClick(int x, int y)
         {
             if (socialCreateMenuOpen)
@@ -2953,6 +3009,15 @@ namespace Smartphone
             Rectangle viewportRect = SocialContentViewportRect;
             if (!viewportRect.Contains(x, y))
                 return false;
+
+            if (IsPointOnVisibleBounds(socialProfileAvatarCameraButtonBounds, x, y, viewportRect)
+                && IsSelectedSocialProfileLocalPlayer())
+            {
+                ModEntry.cameraSquareMode = true;
+                OpenCameraApp();
+                Game1.playSound("smallSelect");
+                return true;
+            }
 
             foreach (SocialProfileClickableTarget target in socialProfileIconBounds)
             {

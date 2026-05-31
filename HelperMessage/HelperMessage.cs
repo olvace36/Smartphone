@@ -65,8 +65,8 @@ namespace Smartphone
         private void DrawTextApp(SpriteBatch b)
         {
             b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
-            b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
             b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
+            b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
             backButton.draw(b);
 
 
