@@ -29,7 +29,7 @@ namespace Smartphone
 
         public static bool IsAiUsageLimitEnabled()
         {
-            return string.IsNullOrWhiteSpace(Config?.OpenAIKey);
+            return string.IsNullOrWhiteSpace(Config?.Key);
         }
 
         public static bool IsAiTemporarilyDisabledForPhoneInactivity()

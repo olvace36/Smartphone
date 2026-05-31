@@ -18,6 +18,25 @@ namespace Smartphone
         public const string OpenAIModel_5nano = "gpt-5-nano";
         public const string OpenAIModel_54mini = "gpt-5.4-mini";
         public const string OpenAIModel_54nano = "gpt-5.4-nano";
+        public const string GeminiModel_35Flash = "gemini-3.5-flash";
+        public const string GeminiModel_31FlashLite = "gemini-3.1-flash-lite";
+        public const string GeminiModel_3FlashPreview = "gemini-3-flash-preview";
+
+        public static readonly List<string> geminiModels = new()
+        {
+            GeminiModel_35Flash,
+            GeminiModel_31FlashLite,
+            GeminiModel_3FlashPreview
+        };
+
+        public static readonly List<string> openAIModels = new()
+        {
+            OpenAIModel_51,
+            OpenAIModel_5mini,
+            OpenAIModel_5nano,
+            OpenAIModel_54mini,
+            OpenAIModel_54nano
+        };
 
         public const string CharacteristicModeMinimal = "minimal";
         public const string CharacteristicModeShort = "short";
@@ -28,9 +47,46 @@ namespace Smartphone
         public string NpcMessageRequirement { get; set; } = NpcRequirementMeet;
         public string PostPerDay { get; set; } = PostPerDayLow;
 
+        private string _key = string.Empty;
+        private string _model = OpenAIModel_54mini;
+
         // advance
-        public string OpenAIKey { get; set; } = "";
-        public string OpenAIModel { get; set; } = OpenAIModel_54mini;
+        public string Key
+        {
+            get => _key;
+            set => _key = (value ?? string.Empty).Trim();
+        }
+
+        public string Model
+        {
+            get => string.IsNullOrWhiteSpace(_model) ? OpenAIModel_54mini : _model;
+            set => _model = string.IsNullOrWhiteSpace(value) ? OpenAIModel_54mini : value.Trim();
+        }
+
+        // Legacy aliases for older config.json files.
+        public string OpenAIKey
+        {
+            get => Key;
+            set
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                    Key = value;
+                else if (string.IsNullOrWhiteSpace(_key))
+                    _key = string.Empty;
+            }
+        }
+
+        public string OpenAIModel
+        {
+            get => Model;
+            set
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                    Model = value;
+                else if (string.IsNullOrWhiteSpace(_model))
+                    _model = OpenAIModel_54mini;
+            }
+        }
         public string CharacteristicMode { get; set; } = CharacteristicModeShort;
         public bool BetterQualityComment { get; set; } = false;
 

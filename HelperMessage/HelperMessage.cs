@@ -2146,7 +2146,7 @@ namespace Smartphone
             if (!(ModEntry.Config?.ShowAiCredit ?? true))
                 return false;
 
-            return string.IsNullOrWhiteSpace(ModEntry.Config?.OpenAIKey);
+            return string.IsNullOrWhiteSpace(ModEntry.Config?.Key);
         }
 
         private static string FormatAiRefillTime(int rawTime)

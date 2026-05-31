@@ -91,7 +91,7 @@ namespace Smartphone
                 SocialLikesWithin3DaysMax = 5;
                 SocialLikesMostPopularWithin2DayMax = 5;
 
-                if (!string.IsNullOrWhiteSpace(Config.OpenAIKey))
+                if (!string.IsNullOrWhiteSpace(Config.Key))
                 {
                     SocialCommentsWithin1DayMax = 7;
                     SocialCommentsWithin3DaysMax = 5;
@@ -104,7 +104,7 @@ namespace Smartphone
                 SocialLikesWithin3DaysMax = 4;
                 SocialLikesMostPopularWithin2DayMax = 4;
 
-                if (!string.IsNullOrWhiteSpace(Config.OpenAIKey))
+                if (!string.IsNullOrWhiteSpace(Config.Key))
                 {
                     SocialCommentsWithin1DayMax = 7;
                     SocialCommentsWithin3DaysMax = 5;
@@ -135,7 +135,7 @@ namespace Smartphone
 
         internal static void UpdateSocialPostLimit()
         {
-            if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
+            if (string.IsNullOrWhiteSpace(Config.Key))
                 return;
 
             if (Config.PostPerDay == ModConfig.PostPerDayHigh)
@@ -157,7 +157,7 @@ namespace Smartphone
 
         private static List<int> GetSocialCommentEngagementIntervalFromConfig()
         {
-            if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
+            if (string.IsNullOrWhiteSpace(Config.Key))
                 return new List<int> { 1100, 1930 };
 
             return Config?.PostPerDay switch
@@ -170,7 +170,7 @@ namespace Smartphone
 
         private static List<int> GetSocialLikeEngagementIntervalFromConfig()
         {
-            if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
+            if (string.IsNullOrWhiteSpace(Config.Key))
                 return new List<int> { 730, 1230, 1600, 2100 };
 
             return Config?.PostPerDay switch
@@ -183,7 +183,7 @@ namespace Smartphone
 
         private static (int MinGapMinutes, int MaxGapMinutes, int MinPosts, int MaxPosts) GetSocialPostSchedulingConfig()
         {
-            if (string.IsNullOrWhiteSpace(Config.OpenAIKey))
+            if (string.IsNullOrWhiteSpace(Config.Key))
                 return (300, 360, 1, 3);
 
             return Config?.PostPerDay switch

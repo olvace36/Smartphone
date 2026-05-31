@@ -6,3 +6,10 @@ Both these 2 folders will be lost if you delete this folder.
 When you update the mod to a newer version, use one of these 2 methods:
     - PREFERED: Rename this folder to Smartphone_OLD, extract the new mod zip file, and copy /userdata and /phone_themes from this OLD folder to the new folder.
     - Or you can extract the new zip file into /Mods directly. When prompt that duplicate file exist, choose Overwrite option.
+
+
+Release build secrets:
+    - Copy .env.example to .env in the project root.
+    - Fill OPENAI_SHARED_RUNTIME_KEY and OPENAI_SHARED_ADMIN_KEY in .env.
+    - Build generates obj/<Configuration>/<TargetFramework>/Generated/EmbeddedAiSecrets.g.cs at compile time.
+    - Never commit .env.

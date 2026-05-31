@@ -16,13 +16,9 @@ namespace Smartphone
 {
     public partial class ModEntry
     {
-        public static string k1 = "sk-proj-2cK1u7WPwljBvbTd6y7eYLMCGh1QJEZuMEOOKjjziiKdHS";
-        public static string k2 = "_GxSz6UXgbq2e7Qk9arAS0xlaCLET3BlbkFJ2Dp6fvpuenQfT8w";
-        public static string k3 = "_xUhWJbcdfVC7RRfIaE9DwxDTmkyEh7NZimVPnmeWls33jrWXj38x7O4_QA";
-
-        public static string xk1 = "sk-admin-HaDXAmgzzeg90xvlxvK";
-        public static string xk2 = "_x5RuoPYSxvDhAlNOKzqtNmCJ834YwNWwwt";
-        public static string xk3 = "-j0DT3BlbkFJOCYVTbYVxMZT8QuwGzT1XMkG995Yie4RNX2hiSpW4bFPSmV-FOy8t_GxEA";
+        private const string AiProviderOpenAi = "openai";
+        private const string AiProviderGemini = "gemini";
+        private const string GeminiThinkingLevelMinimal = "MINIMAL";
 
         public static bool IsMaxedLimit = false;
         public static bool IsReducedQuality = false;
@@ -33,20 +29,60 @@ namespace Smartphone
         // gpt-5 variant support reasoning effort: minimal, low, medium, high
         public static string chatModel = "gpt-5.4-mini";
         public static object chatReasoningEffort = new { effort = "none" };
+        public static string chatGeminiThinkingLevel = GeminiThinkingLevelMinimal;
 
 
         public static string summaryModel = "gpt-5.4-mini";
         public static object summaryReasoningEffort = new { effort = "low" };
+        public static string summaryGeminiThinkingLevel = GeminiThinkingLevelMinimal;
+
+        private static bool HasUserProvidedAiKey()
+        {
+            return !string.IsNullOrWhiteSpace(Config?.Key);
+        }
+
+        private static string ResolveAiRuntimeKey()
+        {
+            if (HasUserProvidedAiKey())
+                return (Config.Key ?? string.Empty).Trim();
+
+            return EmbeddedAiSecrets.SharedOpenAiRuntimeKey ?? string.Empty;
+        }
+
+        private static string ResolveOpenAiAdminKey()
+        {
+            return EmbeddedAiSecrets.SharedOpenAiAdminKey ?? string.Empty;
+        }
+
+        private static bool IsGeminiModel(string? model)
+        {
+            return !string.IsNullOrWhiteSpace(model)
+                && ModConfig.geminiModels.Contains(model.Trim(), StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static string GetProviderForModel(string? model)
+        {
+            return IsGeminiModel(model) ? AiProviderGemini : AiProviderOpenAi;
+        }
 
         internal static void HandleAiModelSettingTimeChanged(int newTime)
         {
             if (IsAiTemporarilyDisabledForPhoneInactivity())
                 return;
 
-            if (!string.IsNullOrWhiteSpace(Config.OpenAIKey))
+            if (HasUserProvidedAiKey())
             {
-                chatModel = Config.OpenAIModel;
-                summaryModel = Config.OpenAIModel;
+                chatModel = Config.Model;
+                summaryModel = Config.Model;
+
+                if (IsGeminiModel(chatModel))
+                {
+                    chatGeminiThinkingLevel = GeminiThinkingLevelMinimal;
+                    summaryGeminiThinkingLevel = GeminiThinkingLevelMinimal;
+                    chatReasoningEffort = new { effort = "minimal" };
+                    summaryReasoningEffort = new { effort = "minimal" };
+                    return;
+                }
 
                 switch (chatModel)
                 {
@@ -79,7 +115,7 @@ namespace Smartphone
             }
 
 
-            if (Config.OpenAIKey == "" && newTime % 300 == 0)
+            if (!HasUserProvidedAiKey() && newTime % 300 == 0)
             {
                 Task.Run(async () =>
                 {
@@ -151,11 +187,11 @@ namespace Smartphone
 
             string npcCharacteristic = $" {npc.Name} is {npcAge}, {npcManner}, and is {npcSocial}";
 
-            if (getMinimal && string.IsNullOrWhiteSpace(Config.OpenAIKey))
+            if (getMinimal && !HasUserProvidedAiKey())
                 return npcCharacteristic;
 
             // CUSTOM CHARACTERISTIC OVERRIDE
-            if (!string.IsNullOrWhiteSpace(Config.OpenAIKey))
+            if (HasUserProvidedAiKey())
             {
                 if (Config.CharacteristicMode == ModConfig.CharacteristicModeLong && NpcCharacteristicsLong.TryGetValue(npc.Name, out string? customCharacteristicLong) && !string.IsNullOrWhiteSpace(customCharacteristicLong) && !getMinimal)
                 {
@@ -188,37 +224,114 @@ namespace Smartphone
             }
         }
 
-        /// <summary>Call to OpenAI to generate a response</summary>
+        /// <summary>Call AI provider to generate a response</summary>
         public static async Task<string> SendMessageToAssistant(string npcName, string text = "", string type = "response")
         {
             NPC npc = Game1.getCharacterFromName(npcName);
-            var random = Game1.random;
             if (npc is null || IsMaxedLimit || IsAiTemporarilyDisabledForPhoneInactivity())
             {
                 return "SYSTEM: ---Got an error---";
             }
 
-            if (true)
+            string key = ResolveAiRuntimeKey();
+            if (string.IsNullOrWhiteSpace(key))
             {
-                var key = k1 + k2 + k3;
+                SMonitor.Log("AI key is missing. Add a Key in config or provide shared OpenAI keys in .env before building.", LogLevel.Warn);
+                return "SYSTEM: ---Got an error---";
+            }
 
-                if (Config.OpenAIKey != "")
-                    key = Config.OpenAIKey;
+            string user = type == "response"
+                ? ModEntry.BuildResponseConversationUserInput(npc, text)
+                : text;
+            string system = GetSystemMessage(npc, type);
+            string provider = GetProviderForModel(chatModel);
 
-                string user = type == "response"
-                    ? ModEntry.BuildResponseConversationUserInput(npc, text)
-                    : text;
-                string system = GetSystemMessage(npc, type);
+            string responseMessage = "";
+            using (var httpClient = new HttpClient())
+            {
+                HttpResponseMessage httpResponse;
 
-                string responseMessage = "";
-                using (var httpClient = new HttpClient())
+                if (provider == AiProviderGemini)
+                {
+                    string endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(chatModel)}:generateContent";
+                    httpClient.DefaultRequestHeaders.Add("X-goog-api-key", key);
+
+                    var requestBody = new Dictionary<string, object>
+                    {
+                        {
+                            "systemInstruction", new
+                            {
+                                parts = new object[]
+                                {
+                                    new { text = system }
+                                }
+                            }
+                        },
+                        {
+                            "contents", new object[]
+                            {
+                                new
+                                {
+                                    role = "user",
+                                    parts = new object[]
+                                    {
+                                        new { text = user }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "generationConfig", new
+                            {
+                                thinkingConfig = new
+                                {
+                                    thinkingLevel = chatGeminiThinkingLevel
+                                }
+                            }
+                        }
+                    };
+
+                    if (type == "response")
+                    {
+                        var tools = GetToolList(npc);
+                        if (tools.Length > 0)
+                        {
+                            object[] functionDeclarations = BuildGeminiFunctionDeclarations(tools);
+                            if (functionDeclarations.Length > 0)
+                            {
+                                requestBody.Add("tools", new object[]
+                                {
+                                    new
+                                    {
+                                        functionDeclarations = functionDeclarations
+                                    }
+                                });
+
+                                requestBody.Add("toolConfig", new
+                                {
+                                    functionCallingConfig = new
+                                    {
+                                        mode = "AUTO"
+                                    }
+                                });
+                            }
+                        }
+                    }
+
+                    var jsonRequest = JsonConvert.SerializeObject(requestBody);
+                    var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
+                    httpResponse = await httpClient.PostAsync(endpoint, httpContent);
+                }
+                else
                 {
                     httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+
                     var requestBody = new Dictionary<string, object>
                     {
                         { "model", chatModel },
-                        { "max_output_tokens", 100},
-                        { "input", new object[]
+                        { "max_output_tokens", 100 },
+                        {
+                            "input", new object[]
                             {
                                 new
                                 {
@@ -254,107 +367,125 @@ namespace Smartphone
 
                     var jsonRequest = JsonConvert.SerializeObject(requestBody);
                     var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
-                    var httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/responses", httpContent);
-                    if (httpResponse.IsSuccessStatusCode)
+                    httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/responses", httpContent);
+                }
+
+                if (httpResponse.IsSuccessStatusCode)
+                {
+                    var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
+                    RegisterSuccessfulAiCall();
+
+                    JObject json = JObject.Parse(jsonResponse);
+                    JArray toolCalls = provider == AiProviderGemini
+                        ? GetGeminiResponseFunctionCalls(json)
+                        : GetResponseFunctionCalls(json);
+                    responseMessage = provider == AiProviderGemini
+                        ? GetGeminiResponseOutputText(json)
+                        : GetResponseOutputText(json);
+
+
+                    // SMonitor.Log(jsonResponse.ToString(), LogLevel.Error);
+                    // SMonitor.Log("system-----", LogLevel.Error);
+                    // SMonitor.Log(system, LogLevel.Error);
+                    // SMonitor.Log("user-----", LogLevel.Error);
+                    // SMonitor.Log(user, LogLevel.Error);
+                    // SMonitor.Log("response-----", LogLevel.Error);
+                    // SMonitor.Log(responseMessage, LogLevel.Error);
+                    // SMonitor.Log("\n\n", LogLevel.Error);
+
+                    if (toolCalls.Count > 0)
                     {
-                        var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
-                        RegisterSuccessfulAiCall();
-
-                        JObject json = JObject.Parse(jsonResponse);
-                        JArray toolCalls = GetResponseFunctionCalls(json);
-                        responseMessage = GetResponseOutputText(json);
-
-
-                        // SMonitor.Log(jsonResponse.ToString(), LogLevel.Error);
-                        // SMonitor.Log("system-----", LogLevel.Error);
-                        // SMonitor.Log(system, LogLevel.Error);
-                        // SMonitor.Log("user-----", LogLevel.Error);
-                        // SMonitor.Log(user, LogLevel.Error);
-                        // SMonitor.Log("response-----", LogLevel.Error);
-                        // SMonitor.Log(responseMessage, LogLevel.Error);
-                        // SMonitor.Log("\n\n", LogLevel.Error);
-
-                        if (toolCalls.Count > 0)
+                        foreach (var call in toolCalls)
                         {
-                            foreach (var call in toolCalls)
+                            string functionName = call["name"]?.ToString() ?? string.Empty;
+                            string argumentsJson = call["arguments"]?.ToString() ?? "{}";
+
+                            if (functionName == "schedule_event")
                             {
-                                string functionName = call["name"]?.ToString() ?? string.Empty;
-                                string argumentsJson = call["arguments"]?.ToString() ?? "{}";
-
-                                if (functionName == "schedule_event")
+                                JObject args;
+                                try
                                 {
-                                    var args = JObject.Parse(argumentsJson);
-                                    var eventNpcName = args["npc"]?.ToString();
-                                    var eventType = args["event_type"]?.ToString();
-                                    var textResponse = args["npc_response"]?.ToString();
-
-                                    if (string.IsNullOrWhiteSpace(eventNpcName)
-                                        || string.IsNullOrWhiteSpace(eventType))
-                                    {
-                                        continue;
-                                    }
-
-                                    if (!TryGetRegisteredUnlimitedEvent(eventType, out var registeredEvent) || registeredEvent == null)
-                                    {
-                                        SMonitor.Log($"schedule_event ignored because event type '{eventType}' is not registered.", LogLevel.Warn);
-                                        continue;
-                                    }
-
-                                    if (phoneMenu != null)
-                                        phoneMenu.ClosePhoneMenu();
-
-                                    string npcDisplayName = string.IsNullOrWhiteSpace(npc.displayName)
-                                        ? npc.Name
-                                        : npc.displayName;
-
-                                    Game1.activeClickableMenu = new ConfirmationDialog(
-                                        $"Schedule {registeredEvent.EventType} event with {npcDisplayName}?",
-                                        onConfirm: (Farmer who) =>
-                                        {
-                                            iUnlimitedEventExpansionApi.OpenScheduleEventTimeMenu(
-                                                eventNpcName.Trim(),
-                                                registeredEvent.EventType,
-                                                textResponse);
-
-                                        },
-                                        onCancel: (Farmer who) =>
-                                        {
-                                            Game1.activeClickableMenu = null;
-                                        }
-                                    );
+                                    args = JObject.Parse(argumentsJson);
                                 }
+                                catch (Exception ex)
+                                {
+                                    SMonitor.Log($"Unable to parse schedule_event arguments: {ex}", LogLevel.Trace);
+                                    continue;
+                                }
+
+                                var eventNpcName = args["npc"]?.ToString();
+                                var eventType = args["event_type"]?.ToString();
+                                var textResponse = args["npc_response"]?.ToString();
+
+                                if (string.IsNullOrWhiteSpace(eventNpcName)
+                                    || string.IsNullOrWhiteSpace(eventType))
+                                {
+                                    continue;
+                                }
+
+                                if (!TryGetRegisteredUnlimitedEvent(eventType, out var registeredEvent) || registeredEvent == null)
+                                {
+                                    SMonitor.Log($"schedule_event ignored because event type '{eventType}' is not registered.", LogLevel.Warn);
+                                    continue;
+                                }
+
+                                if (phoneMenu != null)
+                                    phoneMenu.ClosePhoneMenu();
+
+                                string npcDisplayName = string.IsNullOrWhiteSpace(npc.displayName)
+                                    ? npc.Name
+                                    : npc.displayName;
+
+                                Game1.activeClickableMenu = new ConfirmationDialog(
+                                    $"Schedule {registeredEvent.EventType} event with {npcDisplayName}?",
+                                    onConfirm: (Farmer who) =>
+                                    {
+                                        iUnlimitedEventExpansionApi.OpenScheduleEventTimeMenu(
+                                            eventNpcName.Trim(),
+                                            registeredEvent.EventType,
+                                            textResponse);
+
+                                    },
+                                    onCancel: (Farmer who) =>
+                                    {
+                                        Game1.activeClickableMenu = null;
+                                    }
+                                );
                             }
                         }
-
-                        if (responseMessage.StartsWith($"{npc.Name}:"))
-                            responseMessage = responseMessage.Substring(npc.Name.Length + 1).TrimStart();
-                        return responseMessage;
                     }
-                    else
+
+                    if (responseMessage.StartsWith($"{npc.Name}:"))
+                        responseMessage = responseMessage.Substring(npc.Name.Length + 1).TrimStart();
+                    return responseMessage;
+                }
+                else
+                {
+                    // Get the status code
+                    var statusCode = (int)httpResponse.StatusCode; // Convert to int for switch
+                    string errorMessage = "Check for mod update";
+                    switch (statusCode)
                     {
-                        // Get the status code
-                        var statusCode = (int)httpResponse.StatusCode; // Convert to int for switch
-                        string errorMessage = "Check for mod update";
-                        switch (statusCode)
-                        {
-                            case 403:
-                                errorMessage = "Country, region, or territory not supported.";
-                                break;
-                            case 429:
-                                errorMessage = "Please try again in a few minutes. If not work, then total AI usage for all players has passed the limit set by OpenAI. This will be reset the next day in timezone UTC+0";
-                                break;
-                            case 500:
-                                errorMessage = "Server Error: The server had an issue while processing your request. Please try again.";
-                                break;
-                            case 503:
-                                errorMessage = "Server Overload: The server is experiencing high traffic. Please try again later.";
-                                break;
-                        }
-
-                        SMonitor.Log($"Unable to receive AI content. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
-                        // SMonitor.Log(httpResponse.ToString(), LogLevel.Error);
-                        return "SYSTEM: ---Got an error---";
+                        case 400:
+                            errorMessage = "Bad request sent to AI provider.";
+                            break;
+                        case 403:
+                            errorMessage = "Country, region, or territory not supported.";
+                            break;
+                        case 429:
+                            errorMessage = "Please try again in a few minutes. If not work, then total AI usage for all players has passed the limit set by OpenAI. This will be reset the next day in timezone UTC+0";
+                            break;
+                        case 500:
+                            errorMessage = "Server Error: The server had an issue while processing your request. Please try again.";
+                            break;
+                        case 503:
+                            errorMessage = "Server Overload: The server is experiencing high traffic. Please try again later.";
+                            break;
                     }
+
+                    SMonitor.Log($"Unable to receive AI content from {provider}. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
+                    // SMonitor.Log(httpResponse.ToString(), LogLevel.Error);
+                    return "SYSTEM: ---Got an error---";
                 }
             }
         }
@@ -640,13 +771,19 @@ namespace Smartphone
                 return parsedSummaries;
             }
 
-            var key = k1 + k2 + k3;
+            var key = ResolveAiRuntimeKey();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                SMonitor.Log("SummaryConversationsBatch skipped because no AI key is available.", LogLevel.Trace);
+                return parsedSummaries;
+            }
+
             var maxAiSummaryLength = 200;
-            var maxConversationsToSummarize = Config.OpenAIKey != "" ? 6 : 3;
-            if (Config.OpenAIKey != "" && Config.MaxSummaryWordCount != 0)
+            bool hasUserKey = HasUserProvidedAiKey();
+            var maxConversationsToSummarize = hasUserKey ? 6 : 3;
+            if (hasUserKey && Config.MaxSummaryWordCount != 0)
             {
                 maxAiSummaryLength = Config.MaxSummaryWordCount;
-                key = Config.OpenAIKey;
             }
 
             var currentMemories = new List<object>();
@@ -707,45 +844,95 @@ namespace Smartphone
                 todayConversation = todayConversations
             };
 
+            string provider = GetProviderForModel(summaryModel);
+
             using (var httpClient = new HttpClient())
             {
-                httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
-                var requestBody = new
-                {
-                    model = summaryModel,
-                    input = new object[]
-                    {
-                        new
-                        {
-                            role = "developer",
-                            content = new object[]
-                            {
-                                new { type = "input_text", text = system }
-                            }
-                        },
-                        new
-                        {
-                            role = "user",
-                            content = new object[]
-                            {
-                                new { type = "input_text", text = JsonConvert.SerializeObject(userPayload) }
-                            }
-                        },
-                    },
-                    text = new { format = new { type = "json_object" }, verbosity = "low" },
-                    reasoning = summaryReasoningEffort
-                };
+                HttpResponseMessage httpResponse;
 
-                var jsonRequest = JsonConvert.SerializeObject(requestBody);
-                var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
-                var httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/responses", httpContent);
+                if (provider == AiProviderGemini)
+                {
+                    string endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(summaryModel)}:generateContent";
+                    httpClient.DefaultRequestHeaders.Add("X-goog-api-key", key);
+
+                    var requestBody = new
+                    {
+                        systemInstruction = new
+                        {
+                            parts = new object[]
+                            {
+                                new { text = system }
+                            }
+                        },
+                        contents = new object[]
+                        {
+                            new
+                            {
+                                role = "user",
+                                parts = new object[]
+                                {
+                                    new { text = JsonConvert.SerializeObject(userPayload) }
+                                }
+                            }
+                        },
+                        generationConfig = new
+                        {
+                            responseMimeType = "application/json",
+                            thinkingConfig = new
+                            {
+                                thinkingLevel = summaryGeminiThinkingLevel
+                            }
+                        }
+                    };
+
+                    var jsonRequest = JsonConvert.SerializeObject(requestBody);
+                    var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
+                    httpResponse = await httpClient.PostAsync(endpoint, httpContent);
+                }
+                else
+                {
+                    httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+
+                    var requestBody = new
+                    {
+                        model = summaryModel,
+                        input = new object[]
+                        {
+                            new
+                            {
+                                role = "developer",
+                                content = new object[]
+                                {
+                                    new { type = "input_text", text = system }
+                                }
+                            },
+                            new
+                            {
+                                role = "user",
+                                content = new object[]
+                                {
+                                    new { type = "input_text", text = JsonConvert.SerializeObject(userPayload) }
+                                }
+                            },
+                        },
+                        text = new { format = new { type = "json_object" }, verbosity = "low" },
+                        reasoning = summaryReasoningEffort
+                    };
+
+                    var jsonRequest = JsonConvert.SerializeObject(requestBody);
+                    var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
+                    httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/responses", httpContent);
+                }
+
                 if (httpResponse.IsSuccessStatusCode)
                 {
                     var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
                     RegisterSuccessfulAiCall();
                     JObject json = JObject.Parse(jsonResponse);
                     // SMonitor.Log(json.ToString(), LogLevel.Error);
-                    string responseText = GetResponseOutputText(json);
+                    string responseText = provider == AiProviderGemini
+                        ? GetGeminiResponseOutputText(json)
+                        : GetResponseOutputText(json);
 
                     if (TryParseBatchConversationSummaries(responseText, expectedNpcNames, out Dictionary<string, string> summaries))
                         return summaries;
@@ -760,6 +947,9 @@ namespace Smartphone
                     string errorMessage = "Check for mod update";
                     switch (statusCode)
                     {
+                        case 400:
+                            errorMessage = "Bad request sent to AI provider.";
+                            break;
                         case 403:
                             errorMessage = "Country, region, or territory not supported.";
                             break;
@@ -774,7 +964,7 @@ namespace Smartphone
                             break;
                     }
 
-                    SMonitor.Log($"Unable to receive AI content. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
+                    SMonitor.Log($"Unable to receive AI content from {provider}. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
                     return parsedSummaries;
                 }
             }
@@ -798,9 +988,12 @@ namespace Smartphone
 
             try
             {
-                var key = k1 + k2 + k3;
-                if (Config.OpenAIKey != "")
-                    key = Config.OpenAIKey;
+                var key = ResolveAiRuntimeKey();
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    SMonitor.Log("GenerateNpcSocialPostTextsBatch skipped because no AI key is available.", LogLevel.Trace);
+                    return generatedPosts;
+                }
 
                 var payloadPosts = validPlans.Select(plan => new
                 {
@@ -836,45 +1029,94 @@ namespace Smartphone
 
                 using (var httpClient = new HttpClient())
                 {
-                    httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+                    string provider = GetProviderForModel(chatModel);
+                    HttpResponseMessage httpResponse;
 
-                    var requestBody = new
+                    if (provider == AiProviderGemini)
                     {
-                        model = chatModel,
-                        max_output_tokens = 2048,
-                        input = new object[]
+                        string endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(chatModel)}:generateContent";
+                        httpClient.DefaultRequestHeaders.Add("X-goog-api-key", key);
+
+                        var requestBody = new
                         {
-                            new
+                            systemInstruction = new
                             {
-                                role = "developer",
-                                content = new object[]
+                                parts = new object[]
                                 {
-                                    new { type = "input_text", text = developerMessage }
+                                    new { text = developerMessage }
                                 }
                             },
-                            new
+                            contents = new object[]
                             {
-                                role = "user",
-                                content = new object[]
+                                new
                                 {
-                                    new { type = "input_text", text = JsonConvert.SerializeObject(userPayload, Formatting.Indented) }
+                                    role = "user",
+                                    parts = new object[]
+                                    {
+                                        new { text = JsonConvert.SerializeObject(userPayload, Formatting.Indented) }
+                                    }
+                                }
+                            },
+                            generationConfig = new
+                            {
+                                responseMimeType = "application/json",
+                                maxOutputTokens = 2048,
+                                thinkingConfig = new
+                                {
+                                    thinkingLevel = chatGeminiThinkingLevel
                                 }
                             }
-                        },
-                        text = new { format = new { type = "json_object" }, verbosity = "low" },
-                        reasoning = chatReasoningEffort
-                    };
+                        };
 
-                    var jsonRequest = JsonConvert.SerializeObject(requestBody);
-                    var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
-                    var httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/responses", httpContent);
+                        var jsonRequest = JsonConvert.SerializeObject(requestBody);
+                        var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
+                        httpResponse = await httpClient.PostAsync(endpoint, httpContent);
+                    }
+                    else
+                    {
+                        httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+
+                        var requestBody = new
+                        {
+                            model = chatModel,
+                            max_output_tokens = 2048,
+                            input = new object[]
+                            {
+                                new
+                                {
+                                    role = "developer",
+                                    content = new object[]
+                                    {
+                                        new { type = "input_text", text = developerMessage }
+                                    }
+                                },
+                                new
+                                {
+                                    role = "user",
+                                    content = new object[]
+                                    {
+                                        new { type = "input_text", text = JsonConvert.SerializeObject(userPayload, Formatting.Indented) }
+                                    }
+                                }
+                            },
+                            text = new { format = new { type = "json_object" }, verbosity = "low" },
+                            reasoning = chatReasoningEffort
+                        };
+
+                        var jsonRequest = JsonConvert.SerializeObject(requestBody);
+                        var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
+                        httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/responses", httpContent);
+                    }
+
                     if (httpResponse.IsSuccessStatusCode)
                     {
                         string jsonResponse = await httpResponse.Content.ReadAsStringAsync();
                         RegisterSuccessfulAiCall();
                         JObject json = JObject.Parse(jsonResponse);
 
-                        string responseText = GetResponseOutputText(json).Trim();
+                        string responseText = provider == AiProviderGemini
+                            ? GetGeminiResponseOutputText(json).Trim()
+                            : GetResponseOutputText(json).Trim();
 
                         string[] expectedPostIds = validPlans
                             .Select(plan => plan.PlanId)
@@ -892,6 +1134,9 @@ namespace Smartphone
                     string errorMessage = "Check for mod update";
                     switch (statusCode)
                     {
+                        case 400:
+                            errorMessage = "Bad request sent to AI provider.";
+                            break;
                         case 403:
                             errorMessage = "Country, region, or territory not supported.";
                             break;
@@ -906,7 +1151,7 @@ namespace Smartphone
                             break;
                     }
 
-                    SMonitor.Log($"Unable to generate batch social post content. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
+                    SMonitor.Log($"Unable to generate batch social post content from {provider}. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
                     return generatedPosts;
                 }
             }
@@ -1047,10 +1292,12 @@ namespace Smartphone
 
             try
             {
-                var key = k1 + k2 + k3;
-
-                if (Config.OpenAIKey != "")
-                    key = Config.OpenAIKey;
+                var key = ResolveAiRuntimeKey();
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    SMonitor.Log("GenerateNpcSocialPostCommentsBatch skipped because no AI key is available.", LogLevel.Trace);
+                    return generatedCommentsByPost;
+                }
 
                 string weatherText = Game1.currentLocation?.GetWeather().Weather.ToString() ?? "Unknown";
                 string seasonText = Game1.currentLocation?.GetSeason().ToString() ?? "Unknown";
@@ -1085,46 +1332,95 @@ namespace Smartphone
                     posts = payloadPosts
                 };
 
-                var requestBody = new
-                {
-                    model = chatModel,
-                    max_output_tokens = 2048,
-                    input = new object[]
-                    {
-                        new
-                        {
-                            role = "developer",
-                            content = new object[]
-                            {
-                                new { type = "input_text", text = developerMessage }
-                            }
-                        },
-                        new
-                        {
-                            role = "user",
-                            content = new object[]
-                            {
-                                new { type = "input_text", text = JsonConvert.SerializeObject(userPayload, Formatting.Indented) }
-                            }
-                        }
-                    },
-                    text = new { format = new { type = "json_object" }, verbosity = "low" },
-                    reasoning = chatReasoningEffort
-                };
-
                 using (var httpClient = new HttpClient())
                 {
-                    httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+                    string provider = GetProviderForModel(chatModel);
+                    HttpResponseMessage httpResponse;
 
-                    var jsonRequest = JsonConvert.SerializeObject(requestBody);
-                    var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
-                    var httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/responses", httpContent);
+                    if (provider == AiProviderGemini)
+                    {
+                        string endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(chatModel)}:generateContent";
+                        httpClient.DefaultRequestHeaders.Add("X-goog-api-key", key);
+
+                        var requestBody = new
+                        {
+                            systemInstruction = new
+                            {
+                                parts = new object[]
+                                {
+                                    new { text = developerMessage }
+                                }
+                            },
+                            contents = new object[]
+                            {
+                                new
+                                {
+                                    role = "user",
+                                    parts = new object[]
+                                    {
+                                        new { text = JsonConvert.SerializeObject(userPayload, Formatting.Indented) }
+                                    }
+                                }
+                            },
+                            generationConfig = new
+                            {
+                                responseMimeType = "application/json",
+                                maxOutputTokens = 2048,
+                                thinkingConfig = new
+                                {
+                                    thinkingLevel = chatGeminiThinkingLevel
+                                }
+                            }
+                        };
+
+                        var jsonRequest = JsonConvert.SerializeObject(requestBody);
+                        var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
+                        httpResponse = await httpClient.PostAsync(endpoint, httpContent);
+                    }
+                    else
+                    {
+                        httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+
+                        var requestBody = new
+                        {
+                            model = chatModel,
+                            max_output_tokens = 2048,
+                            input = new object[]
+                            {
+                                new
+                                {
+                                    role = "developer",
+                                    content = new object[]
+                                    {
+                                        new { type = "input_text", text = developerMessage }
+                                    }
+                                },
+                                new
+                                {
+                                    role = "user",
+                                    content = new object[]
+                                    {
+                                        new { type = "input_text", text = JsonConvert.SerializeObject(userPayload, Formatting.Indented) }
+                                    }
+                                }
+                            },
+                            text = new { format = new { type = "json_object" }, verbosity = "low" },
+                            reasoning = chatReasoningEffort
+                        };
+
+                        var jsonRequest = JsonConvert.SerializeObject(requestBody);
+                        var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
+                        httpResponse = await httpClient.PostAsync("https://api.openai.com/v1/responses", httpContent);
+                    }
+
                     if (httpResponse.IsSuccessStatusCode)
                     {
                         string jsonResponse = await httpResponse.Content.ReadAsStringAsync();
                         RegisterSuccessfulAiCall();
                         JObject json = JObject.Parse(jsonResponse);
-                        string responseText = GetResponseOutputText(json).Trim();
+                        string responseText = provider == AiProviderGemini
+                            ? GetGeminiResponseOutputText(json).Trim()
+                            : GetResponseOutputText(json).Trim();
 
                         if (TryParseGeneratedNpcSocialCommentsBatch(responseText, expectedCommentersByPost, out Dictionary<string, Dictionary<string, string>> parsedCommentsByPost))
                             return parsedCommentsByPost;
@@ -1137,6 +1433,9 @@ namespace Smartphone
                     string errorMessage = "Check for mod update";
                     switch (statusCode)
                     {
+                        case 400:
+                            errorMessage = "Bad request sent to AI provider.";
+                            break;
                         case 403:
                             errorMessage = "Country, region, or territory not supported.";
                             break;
@@ -1151,7 +1450,7 @@ namespace Smartphone
                             break;
                     }
 
-                    SMonitor.Log($"Unable to generate batched social comments. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
+                    SMonitor.Log($"Unable to generate batched social comments from {provider}. {statusCode}, {errorMessage}\n\n", LogLevel.Error);
                     return generatedCommentsByPost;
                 }
             }
@@ -1276,6 +1575,161 @@ namespace Smartphone
 
             var fallbackText = responseJson?["output_text"]?.ToString()?.Trim();
             return fallbackText ?? string.Empty;
+        }
+
+        private static object[] BuildGeminiFunctionDeclarations(object[] openAiTools)
+        {
+            if (openAiTools == null || openAiTools.Length == 0)
+                return Array.Empty<object>();
+
+            var declarations = new List<object>();
+            foreach (object tool in openAiTools)
+            {
+                if (tool == null)
+                    continue;
+
+                JObject toolObject;
+                try
+                {
+                    toolObject = JObject.FromObject(tool);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                string name = toolObject["name"]?.ToString()?.Trim() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(name))
+                    continue;
+
+                string description = toolObject["description"]?.ToString()?.Trim() ?? string.Empty;
+
+                JToken schema = toolObject["parameters"]?.DeepClone() ?? new JObject { ["type"] = "OBJECT" };
+                schema = ConvertJsonSchemaTypeValuesToGemini(schema);
+
+                var declaration = new JObject
+                {
+                    ["name"] = name,
+                    ["parameters"] = schema
+                };
+
+                if (!string.IsNullOrWhiteSpace(description))
+                    declaration["description"] = description;
+
+                declarations.Add(declaration);
+            }
+
+            return declarations.ToArray();
+        }
+
+        private static JToken ConvertJsonSchemaTypeValuesToGemini(JToken token)
+        {
+            if (token == null)
+                return new JObject { ["type"] = "OBJECT" };
+
+            if (token.Type == JTokenType.Object)
+            {
+                var sourceObject = (JObject)token;
+                var resultObject = new JObject();
+
+                foreach (JProperty property in sourceObject.Properties())
+                {
+                    if (property.Name.Equals("strict", StringComparison.OrdinalIgnoreCase)
+                        || property.Name.Equals("additionalProperties", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    if (property.Name.Equals("type", StringComparison.OrdinalIgnoreCase)
+                        && property.Value.Type == JTokenType.String)
+                    {
+                        resultObject[property.Name] = property.Value.ToString().ToUpperInvariant();
+                        continue;
+                    }
+
+                    resultObject[property.Name] = ConvertJsonSchemaTypeValuesToGemini(property.Value);
+                }
+
+                return resultObject;
+            }
+
+            if (token.Type == JTokenType.Array)
+            {
+                var resultArray = new JArray();
+                foreach (JToken item in (JArray)token)
+                {
+                    resultArray.Add(ConvertJsonSchemaTypeValuesToGemini(item));
+                }
+
+                return resultArray;
+            }
+
+            return token.DeepClone();
+        }
+
+        private static JArray GetGeminiResponseFunctionCalls(JObject responseJson)
+        {
+            var calls = new JArray();
+            var candidates = responseJson?["candidates"] as JArray;
+            if (candidates == null)
+                return calls;
+
+            foreach (var candidate in candidates)
+            {
+                var parts = candidate?["content"]?["parts"] as JArray;
+                if (parts == null)
+                    continue;
+
+                foreach (var part in parts)
+                {
+                    var functionCall = part?["functionCall"];
+                    if (functionCall == null)
+                        continue;
+
+                    string functionName = functionCall["name"]?.ToString()?.Trim() ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(functionName))
+                        continue;
+
+                    JToken? argsToken = functionCall["args"];
+                    string argumentsJson = argsToken == null
+                        ? "{}"
+                        : argsToken.Type == JTokenType.String
+                            ? argsToken.ToString()
+                            : argsToken.ToString(Formatting.None);
+
+                    calls.Add(new JObject
+                    {
+                        ["name"] = functionName,
+                        ["arguments"] = string.IsNullOrWhiteSpace(argumentsJson) ? "{}" : argumentsJson
+                    });
+                }
+            }
+
+            return calls;
+        }
+
+        private static string GetGeminiResponseOutputText(JObject responseJson)
+        {
+            var candidates = responseJson?["candidates"] as JArray;
+            if (candidates != null)
+            {
+                foreach (var candidate in candidates)
+                {
+                    var parts = candidate?["content"]?["parts"] as JArray;
+                    if (parts == null)
+                        continue;
+
+                    var textParts = parts
+                        .Select(part => part?["text"]?.ToString()?.Trim() ?? string.Empty)
+                        .Where(text => !string.IsNullOrWhiteSpace(text))
+                        .ToArray();
+
+                    if (textParts.Length > 0)
+                        return string.Join("\n", textParts).Trim();
+                }
+            }
+
+            return string.Empty;
         }
 
         private static bool TryParseBatchConversationSummaries(string responseText, IEnumerable<string> expectedNpcNames, out Dictionary<string, string> summaries)
@@ -1803,7 +2257,10 @@ namespace Smartphone
             List<string> premiumModels = new List<string> { "gpt-5.4", "gpt-5.2", "gpt-5.1", "gpt-5.1-codex", "gpt-5", "gpt-5-codex", "gpt-5-chat-latest", "gpt-4.1", "gpt-4o", "o1", "o3" };
             List<string> regularModels = new List<string> { "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.1-codex-mini", "gpt-5-mini", "gpt-5-nano", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini",
                                                             "o1-mini", "o3-mini", "o4-mini", "codex-mini-latest" };
-            string admin_key = xk1 + xk2 + xk3;
+            string admin_key = ResolveOpenAiAdminKey();
+            if (string.IsNullOrWhiteSpace(admin_key))
+                return (-1, -1);
+
             string usageUrl = "https://api.openai.com/v1/organization/usage/completions";
             using HttpClient client = new HttpClient();
 

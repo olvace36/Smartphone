@@ -27,13 +27,16 @@ namespace Smartphone
                 ModConfig.PostPerDayLow
             };
 
-            string[] openAiModelValues =
+            string[] aiModelValues =
             {
                 ModConfig.OpenAIModel_51,
                 ModConfig.OpenAIModel_5mini,
                 ModConfig.OpenAIModel_5nano,
                 ModConfig.OpenAIModel_54mini,
-                ModConfig.OpenAIModel_54nano
+                ModConfig.OpenAIModel_54nano,
+                ModConfig.GeminiModel_35Flash,
+                ModConfig.GeminiModel_31FlashLite,
+                ModConfig.GeminiModel_3FlashPreview
             };
 
             string[] characteristicValues =
@@ -103,7 +106,7 @@ namespace Smartphone
             configMenu.AddBoolOption(
                 mod: ModManifest,
                 name: () => "Show AI credit button",
-                tooltip: () => "You have a limited number of usage of the AI features each day when no OpenAI key is provided.\nThis option shows how many usages you have left. Check it at Messages -> NPC -> AI Credit.",
+                tooltip: () => "You have a limited number of usage of the AI features each day when no key is provided.\nThis option shows how many usages you have left. Check it at Messages -> NPC -> AI Credit.",
                 getValue: () => Config.ShowAiCredit,
                 setValue: value => Config.ShowAiCredit = value
             );
@@ -140,24 +143,24 @@ namespace Smartphone
             configMenu.AddPage(mod: ModManifest, pageId: "ai-settings", pageTitle: () => "AI Settings");
             configMenu.AddParagraph(
                 mod: ModManifest,
-                text: () => "These settings are only effective when an OpenAI API key is provided."
+                text: () => "These settings are only effective when an API key is provided. You can use your own OpenAI or Gemini key."
             );
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "OpenAI API key",
-                tooltip: () => "Use your own key to remove shared usage limits.\nGet one from https://platform.openai.com/account/api-keys.\nRestart the game after changing this value.",
-                getValue: () => Config.OpenAIKey,
-                setValue: value => Config.OpenAIKey = (value ?? string.Empty).Trim()
+                name: () => "Key",
+                tooltip: () => "Use your own OpenAI or Gemini key to remove shared usage limits.\nOpenAI key: https://platform.openai.com/account/api-keys\nGemini key: https://aistudio.google.com/app/apikey\nRestart the game after changing this value.",
+                getValue: () => Config.Key,
+                setValue: value => Config.Key = value
             );
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "OpenAI model",
-                tooltip: () => "Chooses the model used for AI replies and summaries.",
-                getValue: () => EnsureAllowedValue(Config.OpenAIModel, ModConfig.OpenAIModel_54mini, openAiModelValues),
-                setValue: value => Config.OpenAIModel = value,
-                allowedValues: openAiModelValues,
+                name: () => "Model",
+                tooltip: () => "Chooses the model.\nOf course if you using OpenAI key, you should choose OpenAI model and vice versa for Gemini key.",
+                getValue: () => EnsureAllowedValue(Config.Model, ModConfig.OpenAIModel_54mini, aiModelValues),
+                setValue: value => Config.Model = value,
+                allowedValues: aiModelValues,
                 formatAllowedValue: value => value switch
                 {
                     ModConfig.OpenAIModel_54mini => "gpt-5.4-mini (recommended)",
@@ -165,6 +168,9 @@ namespace Smartphone
                     ModConfig.OpenAIModel_51 => "gpt-5.1",
                     ModConfig.OpenAIModel_5mini => "gpt-5-mini (2nd recommended)",
                     ModConfig.OpenAIModel_5nano => "gpt-5-nano (cheapest)",
+                    ModConfig.GeminiModel_35Flash => "gemini-3.5-flash",
+                    ModConfig.GeminiModel_31FlashLite => "gemini-3.1-flash-lite",
+                    ModConfig.GeminiModel_3FlashPreview => "gemini-3-flash-preview",
                     _ => value
                 }
             );
