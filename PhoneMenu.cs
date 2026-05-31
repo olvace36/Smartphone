@@ -641,7 +641,7 @@ namespace Smartphone
             else if (currentApp == ExternalGroupAppState)
             {
                 b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
-                DrawPhoneScreenBackground(b, xOffset: 0);
+                DrawPhoneScreenBackground(b, xOffset: 0, applyBackgroundImage: true);
                 DrawPhoneFrame(b);
                 backButton.draw(b);
 
@@ -2888,7 +2888,7 @@ namespace Smartphone
 
         private void DrawHomeLandingScreen(SpriteBatch b, int xOffset, bool drawApps)
         {
-            DrawPhoneScreenBackground(b, xOffset);
+            DrawPhoneScreenBackground(b, xOffset, applyBackgroundImage: false);
 
             if (!drawApps)
                 return;
@@ -2920,7 +2920,7 @@ namespace Smartphone
 
             DrawWithinPhoneContentClip(b, () =>
             {
-                DrawPhoneScreenBackground(b, xOffset);
+                DrawPhoneScreenBackground(b, xOffset, applyBackgroundImage: false);
 
                 string timeText = FormatTimeOfDay(Game1.timeOfDay);
                 string dateText = BuildLockScreenDateText();
@@ -3046,12 +3046,12 @@ namespace Smartphone
             b.Draw(texturePhoneCapture, GetPhoneFrameBounds(), Color.White);
         }
 
-        private void DrawPhoneScreenBackground(SpriteBatch b, int xOffset)
+        private void DrawPhoneScreenBackground(SpriteBatch b, int xOffset, bool applyBackgroundImage = false)
         {
             Rectangle contentBounds = GetPhoneContentBounds(xOffset);
             b.Draw(texturePhoneBackground, contentBounds, Color.White);
 
-            if (phoneBackgroundImage != null)
+            if (applyBackgroundImage && phoneBackgroundImage != null)
             {
                 b.Draw(phoneBackgroundImage, contentBounds, Color.White * 0.8f);
             }
