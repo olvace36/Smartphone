@@ -38,8 +38,16 @@ namespace Smartphone
     /// <summary>The mod entry point.</summary>
     public partial class ModEntry
     {
-        private const int CameraViewportOffsetX = 40;
-        private const int CameraViewportOffsetY = 116;
+        internal const int PhoneFrameBaseWidth = 600;
+        internal const int PhoneFrameBaseHeight = 1000;
+        internal const int PhoneDefaultMenuOffsetX = 400;
+        internal const int PhoneDefaultMenuOffsetY = 500;
+        internal const int PhoneFrameContentOffsetX = 40;
+        internal const int PhoneFrameContentOffsetY = 116;
+        internal const float PhoneSmallUiScale = 0.75f;
+
+        private const int CameraViewportOffsetX = PhoneFrameContentOffsetX;
+        private const int CameraViewportOffsetY = PhoneFrameContentOffsetY;
         private const int CameraViewportWidth = 520;
         private const int CameraViewportHeight = 810;
         private const int HudPhoneMaxHeight = 150;
@@ -552,10 +560,81 @@ namespace Smartphone
                 && Game1.currentMinigame == null;
         }
 
+        internal static float GetConfiguredPhoneUiScale()
+        {
+            return Config?.UseSmallPhoneSize == true
+                ? PhoneSmallUiScale
+                : 1f;
+        }
+
+        internal static float GetActivePhoneUiScale()
+        {
+            if (phoneMenu != null)
+                return phoneMenu.PhoneUiScale;
+
+            return GetConfiguredPhoneUiScale();
+        }
+
+        internal static int ScalePhoneUiValue(int baseValue, float scale)
+        {
+            return (int)Math.Round(baseValue * scale);
+        }
+
+        private static float ResolvePhoneUiScale(float? scale)
+        {
+            return scale ?? GetConfiguredPhoneUiScale();
+        }
+
+        internal static int GetScaledPhoneFrameWidth(float? scale = null)
+        {
+            return Math.Max(1, ScalePhoneUiValue(PhoneFrameBaseWidth, ResolvePhoneUiScale(scale)));
+        }
+
+        internal static int GetScaledPhoneFrameHeight(float? scale = null)
+        {
+            return Math.Max(1, ScalePhoneUiValue(PhoneFrameBaseHeight, ResolvePhoneUiScale(scale)));
+        }
+
+        internal static int GetScaledPhoneDefaultMenuOffsetX(float? scale = null)
+        {
+            return ScalePhoneUiValue(PhoneDefaultMenuOffsetX, ResolvePhoneUiScale(scale));
+        }
+
+        internal static int GetScaledPhoneDefaultMenuOffsetY(float? scale = null)
+        {
+            return ScalePhoneUiValue(PhoneDefaultMenuOffsetY, ResolvePhoneUiScale(scale));
+        }
+
+        internal static int GetScaledPhoneContentOffsetX(float? scale = null)
+        {
+            return ScalePhoneUiValue(PhoneFrameContentOffsetX, ResolvePhoneUiScale(scale));
+        }
+
+        internal static int GetScaledPhoneContentOffsetY(float? scale = null)
+        {
+            return ScalePhoneUiValue(PhoneFrameContentOffsetY, ResolvePhoneUiScale(scale));
+        }
+
+        internal static int GetScaledCameraViewportWidth(float? scale = null)
+        {
+            return Math.Max(1, ScalePhoneUiValue(CameraViewportWidth, ResolvePhoneUiScale(scale)));
+        }
+
+        internal static int GetScaledCameraViewportHeight(float? scale = null)
+        {
+            return Math.Max(1, ScalePhoneUiValue(CameraViewportHeight, ResolvePhoneUiScale(scale)));
+        }
+
+        internal static void EnsurePhoneMenuUsesCurrentScale()
+        {
+            float configuredScale = GetConfiguredPhoneUiScale();
+            if (phoneMenu == null || !phoneMenu.UsesPhoneUiScale(configuredScale))
+                phoneMenu = new PhoneMenu();
+        }
+
         private void OpenPhoneFromHudTrigger()
         {
-            if (phoneMenu == null)
-                phoneMenu = new PhoneMenu();
+            EnsurePhoneMenuUsesCurrentScale();
 
             phoneMenu.OpenLockScreen();
             Game1.activeClickableMenu = phoneMenu;

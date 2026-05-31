@@ -114,6 +114,7 @@ namespace Smartphone
         public bool ShowSocialImageTags { get; set; } = false;
         public bool ShowUnreadComment { get; set; } = true;
         public bool ShowMessageImageTags { get; set; } = false;
+        public bool UseSmallPhoneSize { get; set; } = false;
         public int HudPhoneIconOffsetX { get; set; } = 0;
         public int HudPhoneIconOffsetY { get; set; } = 0;
         public bool ShowAiCredit { get; set; } = true;

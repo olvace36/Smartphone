@@ -11,52 +11,176 @@ namespace Smartphone
     {
         private const string SocialAppState = "appSocial";
 
-        private const int SocialViewportYOffset = 126;
-        private const int SocialViewportHeight = 780;
-        private const int SocialPostCardX = 50;
-        private const int SocialPostCardWidth = 500;
-        private const int SocialPostSpacing = 14;
-        private const int SocialPostTopPadding = 10;
-        private const int SocialPostBottomPadding = 10;
-        private const int SocialActorIconSize = 56;
-        private const int SocialCommentIconSize = 30;
-        private const int SocialPostTextMaxWidth = 450;
+        private const int SocialViewportYOffsetBase = 126;
+        private const int SocialViewportHeightBase = 780;
+        private const int SocialPostCardXBase = 50;
+        private const int SocialPostCardWidthBase = 500;
+        private const int SocialPostSpacingBase = 14;
+        private const int SocialPostTopPaddingBase = 10;
+        private const int SocialPostBottomPaddingBase = 10;
+        private const int SocialActorIconSizeBase = 56;
+        private const int SocialCommentIconSizeBase = 30;
+        private const int SocialPostTextMaxWidthBase = 450;
         private const int SocialCommentPreviewCount = 2;
         private const int SocialCreateSelectionMaxCount = 3;
-        private const int SocialImageNavButtonSize = 40;
-        private const int SocialImageMaxWidth = SocialPostCardWidth - 30;
-        private const int SocialImageMaxHeight = 410;
+        private const int SocialFeedCreateButtonXBase = 100;
+        private const int SocialFeedCreateButtonYBase = 65;
+        private const int SocialFeedCreateButtonWidthBase = 150;
+        private const int SocialFeedCreateButtonHeightBase = 50;
+        private const int SocialFeedProfileXGapBase = 16;
+        private const int SocialFeedProfileYOffsetBase = 4;
+        private const int SocialFeedNotificationXGapBase = 10;
+        private const int SocialFeedCreateTextXPaddingBase = 14;
+        private const int SocialFeedCreateTextYPaddingBase = 12;
+        private const float SocialFeedProfileIconScale = 0.75f;
+        private const int SocialCreatePanelXBase = 50;
+        private const int SocialCreatePanelYBase = 200;
+        private const int SocialCreatePanelWidthBase = 500;
+        private const int SocialCreatePanelHeightBase = 670;
+        private const int SocialCreatePreviewXOffsetBase = 30;
+        private const int SocialCreatePreviewYOffsetBase = 46;
+        private const int SocialCreatePreviewWidthBase = 440;
+        private const int SocialCreatePreviewHeightBase = 380;
+        private const int SocialCreateSelectionToggleXOffsetBase = 190;
+        private const int SocialCreateSelectionToggleYOffsetBase = 60;
+        private const int SocialCreateSelectionToggleWidthBase = 120;
+        private const int SocialCreateSelectionToggleHeightBase = 50;
+        private const int SocialCreateSelectionHeartXOffsetBase = 17;
+        private const int SocialCreateSelectionHeartYOffsetBase = 15;
+        private const int SocialCreateSelectionHeartSizeBase = 24;
+        private const int SocialCreateSelectionCountRightOffsetBase = 60;
+        private const int SocialCreateSelectionCountYOffsetBase = 12;
+        private const int SocialCreateNoPhotoXOffsetBase = 20;
+        private const int SocialCreateNoPhotoYOffsetBase = 20;
+        private const int SocialCreateInputXOffsetBase = 20;
+        private const int SocialCreateInputBottomOffsetBase = 90;
+        private const int SocialCreateInputWidthBase = 390;
+        private const int SocialCreateInputHeightPaddingBase = 30;
+        private const int SocialCreateSubmitXBase = 465;
+        private const int SocialCreateSubmitYBase = 780;
+        private const int SocialCreateSubmitSizeBase = 64;
+        private const int SocialImageNavButtonSizeBase = 40;
+        private const int SocialImageMaxWidthBase = SocialPostCardWidthBase - 30;
+        private const int SocialImageMaxHeightBase = 410;
         private const float SocialPortraitImageMaxWidthRatio = 2f / 3f;
         private static float SocialPostTextScale = 0.9f;
         private static float SocialCommentTextScale = 0.9f;
         private const float SocialImageTagScale = 0.68f;
-        private const int SocialImageTagBottomPadding = 6;
+        private const int SocialImageTagBottomPaddingBase = 6;
         private const float SocialScrollPixelsPerWheelNotch = 52f;
         private const float SocialScrollLerpSpeed = 16f;
         private const float SocialHeaderMetaScale = 0.72f;
         private const float SocialHeaderMetaYOffset = 5f;
-        private const int SocialDetailInputX = 50;
-        private const int SocialDetailInputY = 850;
-        private const int SocialDetailInputWidth = 430;
-        private const int SocialDetailInputBottomGap = 12;
-        private const int SocialProfileAvatarHeight = 210;
-        private const int SocialProfileStatsHeight = 135;
-        private const int SocialProfileInteractionHeight = 178;
-        private const int SocialProfileSectionSpacing = 12;
-        private const int SocialProfilePostsHeaderHeight = 46;
-        private const int SocialProfileStatIconSize = 18;
-        private const int SocialProfileAvatarCameraButtonSize = 44;
-        private const int SocialProfileAvatarCameraButtonMargin = 3;
+        private const int SocialDetailInputXBase = 50;
+        private const int SocialDetailInputYBase = 850;
+        private const int SocialDetailInputWidthBase = 430;
+        private const int SocialDetailInputBottomGapBase = 12;
+        private const int SocialProfileAvatarHeightBase = 210;
+        private const int SocialProfileStatsHeightBase = 135;
+        private const int SocialProfileInteractionHeightBase = 178;
+        private const int SocialProfileSectionSpacingBase = 12;
+        private const int SocialProfilePostsHeaderHeightBase = 46;
+        private const int SocialProfileInfoLinePaddingBase = 24;
+        private const int SocialProfileStatsLinePaddingBase = 22;
+        private const int SocialProfileStatsXOffsetBase = 18;
+        private const int SocialProfileStatsTopYOffsetBase = 16;
+        private const int SocialProfileMetricIconXGapBase = 82;
+        private const int SocialProfileMetricHeartXOffsetBase = 30;
+        private const int SocialProfileMetricCommentXGapBase = 125;
+        private const int SocialProfileMetricHeartYOffsetBase = 8;
+        private const int SocialProfileMetricCommentYOffsetBase = 6;
+        private const int SocialProfileMetricValueXGapBase = 6;
+        private const int SocialProfileStatIconSizeBase = 18;
+        private const int SocialProfileAvatarCameraButtonSizeBase = 44;
+        private const int SocialProfileAvatarCameraButtonMarginBase = 3;
         private const int SocialLikeTooltipMaxNames = 5;
-        private const int SocialNotificationButtonSize = 40;
-        private const int SocialNotificationCardPadding = 14;
-        private const int SocialNotificationCardVerticalPadding = 12;
-        private const int SocialNotificationCardWidth = 500;
-        private const int SocialNotificationCardSpacing = 12;
+        private const int SocialNotificationButtonSizeBase = 40;
+        private const int SocialNotificationCardPaddingBase = 14;
+        private const int SocialNotificationCardVerticalPaddingBase = 12;
+        private const int SocialNotificationCardWidthBase = 500;
+        private const int SocialNotificationCardSpacingBase = 12;
         private const int SocialNotificationPreviewWordCount = 4;
-        private const int SocialRenderOverscan = 120;
+        private const int SocialRenderOverscanBase = 120;
         private const int SocialCardHeightCacheLimit = 4096;
         private const int SocialNotificationHeightCacheLimit = 1024;
+
+        private int SocialViewportYOffset => ScaleUiValue(SocialViewportYOffsetBase);
+        private int SocialViewportHeight => Math.Max(1, ScaleUiValue(SocialViewportHeightBase));
+        private int SocialPostCardX => ScaleUiValue(SocialPostCardXBase);
+        private int SocialPostCardWidth => Math.Max(1, ScaleUiValue(SocialPostCardWidthBase));
+        private int SocialPostSpacing => Math.Max(1, ScaleUiValue(SocialPostSpacingBase));
+        private int SocialPostTopPadding => ScaleUiValue(SocialPostTopPaddingBase);
+        private int SocialPostBottomPadding => Math.Max(1, ScaleUiValue(SocialPostBottomPaddingBase));
+        private int SocialActorIconSize => Math.Max(1, ScaleUiValue(SocialActorIconSizeBase));
+        private int SocialCommentIconSize => Math.Max(1, ScaleUiValue(SocialCommentIconSizeBase));
+        private int SocialPostTextMaxWidth => Math.Max(1, ScaleUiValue(SocialPostTextMaxWidthBase));
+        private int SocialFeedCreateButtonX => ScaleUiValue(SocialFeedCreateButtonXBase);
+        private int SocialFeedCreateButtonY => ScaleUiValue(SocialFeedCreateButtonYBase);
+        private int SocialFeedCreateButtonWidth => Math.Max(1, ScaleUiValue(SocialFeedCreateButtonWidthBase));
+        private int SocialFeedCreateButtonHeight => Math.Max(1, ScaleUiValue(SocialFeedCreateButtonHeightBase));
+        private int SocialFeedProfileXGap => ScaleUiValue(SocialFeedProfileXGapBase);
+        private int SocialFeedProfileYOffset => ScaleUiValue(SocialFeedProfileYOffsetBase);
+        private int SocialFeedNotificationXGap => ScaleUiValue(SocialFeedNotificationXGapBase);
+        private int SocialFeedCreateTextXPadding => ScaleUiValue(SocialFeedCreateTextXPaddingBase);
+        private int SocialFeedCreateTextYPadding => ScaleUiValue(SocialFeedCreateTextYPaddingBase);
+        private int SocialCreatePanelX => ScaleUiValue(SocialCreatePanelXBase);
+        private int SocialCreatePanelY => ScaleUiValue(SocialCreatePanelYBase);
+        private int SocialCreatePanelWidth => Math.Max(1, ScaleUiValue(SocialCreatePanelWidthBase));
+        private int SocialCreatePanelHeight => Math.Max(1, ScaleUiValue(SocialCreatePanelHeightBase));
+        private int SocialCreatePreviewXOffset => ScaleUiValue(SocialCreatePreviewXOffsetBase);
+        private int SocialCreatePreviewYOffset => ScaleUiValue(SocialCreatePreviewYOffsetBase);
+        private int SocialCreatePreviewWidth => Math.Max(1, ScaleUiValue(SocialCreatePreviewWidthBase));
+        private int SocialCreatePreviewHeight => Math.Max(1, ScaleUiValue(SocialCreatePreviewHeightBase));
+        private int SocialCreateSelectionToggleXOffset => ScaleUiValue(SocialCreateSelectionToggleXOffsetBase);
+        private int SocialCreateSelectionToggleYOffset => ScaleUiValue(SocialCreateSelectionToggleYOffsetBase);
+        private int SocialCreateSelectionToggleWidth => Math.Max(1, ScaleUiValue(SocialCreateSelectionToggleWidthBase));
+        private int SocialCreateSelectionToggleHeight => Math.Max(1, ScaleUiValue(SocialCreateSelectionToggleHeightBase));
+        private int SocialCreateSelectionHeartXOffset => ScaleUiValue(SocialCreateSelectionHeartXOffsetBase);
+        private int SocialCreateSelectionHeartYOffset => ScaleUiValue(SocialCreateSelectionHeartYOffsetBase);
+        private int SocialCreateSelectionHeartSize => Math.Max(1, ScaleUiValue(SocialCreateSelectionHeartSizeBase));
+        private int SocialCreateSelectionCountRightOffset => ScaleUiValue(SocialCreateSelectionCountRightOffsetBase);
+        private int SocialCreateSelectionCountYOffset => ScaleUiValue(SocialCreateSelectionCountYOffsetBase);
+        private int SocialCreateNoPhotoXOffset => ScaleUiValue(SocialCreateNoPhotoXOffsetBase);
+        private int SocialCreateNoPhotoYOffset => ScaleUiValue(SocialCreateNoPhotoYOffsetBase);
+        private int SocialCreateInputXOffset => ScaleUiValue(SocialCreateInputXOffsetBase);
+        private int SocialCreateInputBottomOffset => ScaleUiValue(SocialCreateInputBottomOffsetBase);
+        private int SocialCreateInputWidth => Math.Max(1, ScaleUiValue(SocialCreateInputWidthBase));
+        private int SocialCreateInputHeightPadding => Math.Max(1, ScaleUiValue(SocialCreateInputHeightPaddingBase));
+        private int SocialCreateSubmitX => ScaleUiValue(SocialCreateSubmitXBase);
+        private int SocialCreateSubmitY => ScaleUiValue(SocialCreateSubmitYBase);
+        private int SocialCreateSubmitSize => Math.Max(1, ScaleUiValue(SocialCreateSubmitSizeBase));
+        private int SocialImageNavButtonSize => Math.Max(1, ScaleUiValue(SocialImageNavButtonSizeBase));
+        private int SocialImageMaxWidth => Math.Max(1, ScaleUiValue(SocialImageMaxWidthBase));
+        private int SocialImageMaxHeight => Math.Max(1, ScaleUiValue(SocialImageMaxHeightBase));
+        private int SocialImageTagBottomPadding => Math.Max(1, ScaleUiValue(SocialImageTagBottomPaddingBase));
+        private int SocialDetailInputX => ScaleUiValue(SocialDetailInputXBase);
+        private int SocialDetailInputY => ScaleUiValue(SocialDetailInputYBase);
+        private int SocialDetailInputWidth => Math.Max(1, ScaleUiValue(SocialDetailInputWidthBase));
+        private int SocialDetailInputBottomGap => Math.Max(1, ScaleUiValue(SocialDetailInputBottomGapBase));
+        private int SocialProfileAvatarHeight => Math.Max(1, ScaleUiValue(SocialProfileAvatarHeightBase));
+        private int SocialProfileStatsHeight => Math.Max(1, ScaleUiValue(SocialProfileStatsHeightBase));
+        private int SocialProfileInteractionHeight => Math.Max(1, ScaleUiValue(SocialProfileInteractionHeightBase));
+        private int SocialProfileSectionSpacing => Math.Max(1, ScaleUiValue(SocialProfileSectionSpacingBase));
+        private int SocialProfilePostsHeaderHeight => Math.Max(1, ScaleUiValue(SocialProfilePostsHeaderHeightBase));
+        private int SocialProfileInfoLinePadding => Math.Max(1, ScaleUiValue(SocialProfileInfoLinePaddingBase));
+        private int SocialProfileStatsLinePadding => Math.Max(1, ScaleUiValue(SocialProfileStatsLinePaddingBase));
+        private int SocialProfileStatsXOffset => ScaleUiValue(SocialProfileStatsXOffsetBase);
+        private int SocialProfileStatsTopYOffset => ScaleUiValue(SocialProfileStatsTopYOffsetBase);
+        private int SocialProfileMetricIconXGap => ScaleUiValue(SocialProfileMetricIconXGapBase);
+        private int SocialProfileMetricHeartXOffset => ScaleUiValue(SocialProfileMetricHeartXOffsetBase);
+        private int SocialProfileMetricCommentXGap => ScaleUiValue(SocialProfileMetricCommentXGapBase);
+        private int SocialProfileMetricHeartYOffset => ScaleUiValue(SocialProfileMetricHeartYOffsetBase);
+        private int SocialProfileMetricCommentYOffset => ScaleUiValue(SocialProfileMetricCommentYOffsetBase);
+        private int SocialProfileMetricValueXGap => ScaleUiValue(SocialProfileMetricValueXGapBase);
+        private int SocialProfileStatIconSize => Math.Max(1, ScaleUiValue(SocialProfileStatIconSizeBase));
+        private int SocialProfileAvatarCameraButtonSize => Math.Max(1, ScaleUiValue(SocialProfileAvatarCameraButtonSizeBase));
+        private int SocialProfileAvatarCameraButtonMargin => Math.Max(1, ScaleUiValue(SocialProfileAvatarCameraButtonMarginBase));
+        private int SocialNotificationButtonSize => Math.Max(1, ScaleUiValue(SocialNotificationButtonSizeBase));
+        private int SocialNotificationCardPadding => Math.Max(1, ScaleUiValue(SocialNotificationCardPaddingBase));
+        private int SocialNotificationCardVerticalPadding => Math.Max(1, ScaleUiValue(SocialNotificationCardVerticalPaddingBase));
+        private int SocialNotificationCardWidth => Math.Max(1, ScaleUiValue(SocialNotificationCardWidthBase));
+        private int SocialNotificationCardSpacing => Math.Max(1, ScaleUiValue(SocialNotificationCardSpacingBase));
+        private int SocialRenderOverscan => Math.Max(1, ScaleUiValue(SocialRenderOverscanBase));
 
         private enum SocialCardRenderContext
         {
@@ -915,8 +1039,8 @@ namespace Smartphone
         private void DrawSocialApp(SpriteBatch b)
         {
             b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
-            b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
-            b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
+            DrawPhoneScreenBackground(b, xOffset: 0);
+            DrawPhoneFrame(b);
             backButton.draw(b);
 
             //string title = socialCreateMenuOpen
@@ -1012,7 +1136,12 @@ namespace Smartphone
             int drawMaxY = clipRect.Bottom + SocialRenderOverscan;
             if (posts.Count == 0)
             {
-                b.DrawString(Game1.smallFont, "No post yet.", new Vector2(xPositionOnScreen + 60, yPositionOnScreen + 245), Color.Black);
+                DrawPhoneText(
+                    b,
+                    Game1.smallFont,
+                    "No post yet.",
+                    new Vector2(xPositionOnScreen + ScaleUiValue(60), yPositionOnScreen + ScaleUiValue(245)),
+                    Color.Black);
             }
             else
             {
@@ -1049,10 +1178,10 @@ namespace Smartphone
             b.End();
             b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
 
-            int buttonX = xPositionOnScreen + 100;
-            int buttonY = yPositionOnScreen + 65;
-            int buttonWidth = 150;
-            int buttonHeight = 50;
+            int buttonX = xPositionOnScreen + SocialFeedCreateButtonX;
+            int buttonY = yPositionOnScreen + SocialFeedCreateButtonY;
+            int buttonWidth = SocialFeedCreateButtonWidth;
+            int buttonHeight = SocialFeedCreateButtonHeight;
 
             socialFeedOpenCreatePostBounds = new Rectangle(buttonX, buttonY, buttonWidth, buttonHeight);
             IClickableMenu.drawTextureBox(
@@ -1066,13 +1195,18 @@ namespace Smartphone
                 new Color(255, 255, 255, 220),
                 1f,
                 false);
-            b.DrawString(Game1.smallFont, "Create ...", new Vector2(buttonX + 14, buttonY + 12), Color.Black);
+            DrawPhoneText(
+                b,
+                Game1.smallFont,
+                "Create ...",
+                new Vector2(buttonX + SocialFeedCreateTextXPadding, buttonY + SocialFeedCreateTextYPadding),
+                Color.Black);
 
             socialFeedOpenProfileBounds = new Rectangle(
-                socialFeedOpenCreatePostBounds.Right + 16,
-                socialFeedOpenCreatePostBounds.Y + 4,
-                (int)(SocialActorIconSize * 0.75f),
-                (int)(SocialActorIconSize * 0.75f));
+                socialFeedOpenCreatePostBounds.Right + SocialFeedProfileXGap,
+                socialFeedOpenCreatePostBounds.Y + SocialFeedProfileYOffset,
+                Math.Max(1, (int)Math.Round(SocialActorIconSize * SocialFeedProfileIconScale)),
+                Math.Max(1, (int)Math.Round(SocialActorIconSize * SocialFeedProfileIconScale)));
 
             DrawSocialActorIcon(
                 b,
@@ -1081,7 +1215,7 @@ namespace Smartphone
                 socialFeedOpenProfileBounds);
 
             socialFeedOpenNotificationBounds = new Rectangle(
-                socialFeedOpenProfileBounds.Right + 10,
+                socialFeedOpenProfileBounds.Right + SocialFeedNotificationXGap,
                 socialFeedOpenProfileBounds.Y,
                 SocialNotificationButtonSize,
                 SocialNotificationButtonSize);
@@ -1101,10 +1235,10 @@ namespace Smartphone
             if (textureAppNotification != null)
             {
                 Rectangle iconBounds = new Rectangle(
-                    socialFeedOpenNotificationBounds.X + 6,
-                    socialFeedOpenNotificationBounds.Y + 6,
-                    socialFeedOpenNotificationBounds.Width - 12,
-                    socialFeedOpenNotificationBounds.Height - 12);
+                    socialFeedOpenNotificationBounds.X + ScaleUiValue(6),
+                    socialFeedOpenNotificationBounds.Y + ScaleUiValue(6),
+                    socialFeedOpenNotificationBounds.Width - ScaleUiValue(12),
+                    socialFeedOpenNotificationBounds.Height - ScaleUiValue(12));
                 b.Draw(textureAppNotification, iconBounds, Color.White);
             }
 
@@ -1167,13 +1301,18 @@ namespace Smartphone
 
             int cardX = xPositionOnScreen + SocialPostCardX;
             int cursorY = yPositionOnScreen + SocialViewportYOffset + SocialPostTopPadding - (int)MathF.Floor(socialNotificationScrollOffset);
-            int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
+            int lineHeight = GetPhoneScaledLineHeight(Game1.smallFont);
             int drawMinY = clipRect.Top - SocialRenderOverscan;
             int drawMaxY = clipRect.Bottom + SocialRenderOverscan;
 
             if (notifications.Count == 0)
             {
-                b.DrawString(Game1.smallFont, "No notification.", new Vector2(cardX + 14, cursorY + 10), Color.Black);
+                DrawPhoneText(
+                    b,
+                    Game1.smallFont,
+                    "No notification.",
+                    new Vector2(cardX + ScaleUiValue(14), cursorY + ScaleUiValue(10)),
+                    Color.Black);
             }
             else
             {
@@ -1193,7 +1332,7 @@ namespace Smartphone
                     List<string> lines = SplitTextIntoLines(
                         entry.Message,
                         Game1.smallFont,
-                        SocialNotificationCardWidth - (SocialNotificationCardPadding * 2));
+                        GetPhoneScaledWrapWidth(SocialNotificationCardWidth - (SocialNotificationCardPadding * 2)));
                     if (lines.Count == 0)
                         lines = new List<string> { "" };
 
@@ -1214,7 +1353,12 @@ namespace Smartphone
                     int textY = cardBounds.Y + SocialNotificationCardVerticalPadding;
                     foreach (string line in lines)
                     {
-                        b.DrawString(Game1.smallFont, line, new Vector2(cardBounds.X + SocialNotificationCardPadding, textY), Color.Black);
+                        DrawPhoneText(
+                            b,
+                            Game1.smallFont,
+                            line,
+                            new Vector2(cardBounds.X + SocialNotificationCardPadding, textY),
+                            Color.Black);
                         textY += lineHeight;
                     }
 
@@ -1367,7 +1511,11 @@ namespace Smartphone
             socialDetailImagePrevBounds = Rectangle.Empty;
             socialDetailImageNextBounds = Rectangle.Empty;
 
-            Rectangle panelBounds = new Rectangle(xPositionOnScreen + 50, yPositionOnScreen + 200, 500, 670);
+            Rectangle panelBounds = new Rectangle(
+                xPositionOnScreen + SocialCreatePanelX,
+                yPositionOnScreen + SocialCreatePanelY,
+                SocialCreatePanelWidth,
+                SocialCreatePanelHeight);
             IClickableMenu.drawTextureBox(
                 b,
                 Game1.menuTexture,
@@ -1380,10 +1528,10 @@ namespace Smartphone
                 1f,
                 false);
 
-            int previewX = panelBounds.X + 30;
-            int previewY = panelBounds.Y + 46;
-            int previewW = 440;
-            int previewH = 380;
+            int previewX = panelBounds.X + SocialCreatePreviewXOffset;
+            int previewY = panelBounds.Y + SocialCreatePreviewYOffset;
+            int previewW = SocialCreatePreviewWidth;
+            int previewH = SocialCreatePreviewHeight;
             Rectangle previewBounds = new Rectangle(previewX, previewY, previewW, previewH);
             b.Draw(Game1.staminaRect, previewBounds, new Color(0, 0, 0, 70));
 
@@ -1442,7 +1590,11 @@ namespace Smartphone
 
                 // select image option
                 bool selected = IsCreateImageSelected(fileName);
-                socialCreateSelectionToggleBounds = new Rectangle(panelBounds.X + 190, previewBounds.Bottom + 60, 120, 50);
+                socialCreateSelectionToggleBounds = new Rectangle(
+                    panelBounds.X + SocialCreateSelectionToggleXOffset,
+                    previewBounds.Bottom + SocialCreateSelectionToggleYOffset,
+                    SocialCreateSelectionToggleWidth,
+                    SocialCreateSelectionToggleHeight);
                 IClickableMenu.drawTextureBox(
                     b,
                     Game1.menuTexture,
@@ -1455,19 +1607,35 @@ namespace Smartphone
                     1f,
                     false);
 
-                Rectangle heartBounds = new Rectangle(socialCreateSelectionToggleBounds.X + 17, socialCreateSelectionToggleBounds.Y + 15, 24, 24);
+                Rectangle heartBounds = new Rectangle(
+                    socialCreateSelectionToggleBounds.X + SocialCreateSelectionHeartXOffset,
+                    socialCreateSelectionToggleBounds.Y + SocialCreateSelectionHeartYOffset,
+                    SocialCreateSelectionHeartSize,
+                    SocialCreateSelectionHeartSize);
                 Rectangle heartRect = selected
                     ? new Rectangle(211, 428, 7, 7)
                     : new Rectangle(218, 428, 7, 7);
                 b.Draw(Game1.mouseCursors, heartBounds, heartRect, Color.White);
 
                 string toggleCount = $"{socialCreateSelectedImages.Count}/{SocialCreateSelectionMaxCount}";
-                b.DrawString(Game1.smallFont, toggleCount, new Vector2(socialCreateSelectionToggleBounds.Right - 60, socialCreateSelectionToggleBounds.Y + 12), Color.Black);
+                DrawPhoneText(
+                    b,
+                    Game1.smallFont,
+                    toggleCount,
+                    new Vector2(
+                        socialCreateSelectionToggleBounds.Right - SocialCreateSelectionCountRightOffset,
+                        socialCreateSelectionToggleBounds.Y + SocialCreateSelectionCountYOffset),
+                    Color.Black);
 
             }
             else
             {
-                b.DrawString(Game1.smallFont, "No photo found", new Vector2(previewBounds.X + 20, previewBounds.Y + 20), Color.Black);
+                DrawPhoneText(
+                    b,
+                    Game1.smallFont,
+                    "No photo found",
+                    new Vector2(previewBounds.X + SocialCreateNoPhotoXOffset, previewBounds.Y + SocialCreateNoPhotoYOffset),
+                    Color.Black);
             }
 
             //string selectedImagesLabel = socialCreateSelectedImages.Count == 0
@@ -1475,11 +1643,11 @@ namespace Smartphone
             //    : "Selected images: " + string.Join(", ", socialCreateSelectedImages.Select(name => Path.GetFileNameWithoutExtension(name)));
             //b.DrawString(Game1.smallFont, selectedImagesLabel, new Vector2(panelBounds.X + 20, panelBounds.Y + 470), Color.Black);
 
-            int inputX = panelBounds.X + 20;
-            int inputY = panelBounds.Bottom - 90;
-            int inputWidth = 390;
+            int inputX = panelBounds.X + SocialCreateInputXOffset;
+            int inputY = panelBounds.Bottom - SocialCreateInputBottomOffset;
+            int inputWidth = SocialCreateInputWidth;
             int fontHeight = (int)Game1.smallFont.MeasureString("A").Y;
-            int inputHeight = fontHeight + 30;
+            int inputHeight = fontHeight + SocialCreateInputHeightPadding;
 
             IClickableMenu.drawTextureBox(
                 b,
@@ -1497,7 +1665,11 @@ namespace Smartphone
 
 
             var socialOkButton = new ClickableTextureComponent(
-                new Rectangle(this.xPositionOnScreen + 465, this.yPositionOnScreen + 780, 64, 64),
+                new Rectangle(
+                    this.xPositionOnScreen + SocialCreateSubmitX,
+                    this.yPositionOnScreen + SocialCreateSubmitY,
+                    SocialCreateSubmitSize,
+                    SocialCreateSubmitSize),
                 Game1.mouseCursors,
                 new Rectangle(128, 256, 64, 64),
                 1f);
@@ -1623,14 +1795,14 @@ namespace Smartphone
                 $"Birthday: {birthdayLabel}"
             };
 
-            int infoLineHeight = Math.Max(24, infoBounds.Height / 3);
+            int infoLineHeight = Math.Max(SocialProfileInfoLinePadding, infoBounds.Height / 3);
             for (int i = 0; i < infoLines.Length; i++)
             {
                 string line = infoLines[i];
-                Vector2 size = Game1.smallFont.MeasureString(line);
+                Vector2 size = MeasurePhoneText(Game1.smallFont, line);
                 float lineX = infoBounds.X + 8;
                 float lineY = infoBounds.Y + (i * infoLineHeight) + (infoLineHeight - size.Y) / 2f;
-                b.DrawString(Game1.smallFont, line, new Vector2(lineX, lineY), Color.Black);
+                DrawPhoneText(b, Game1.smallFont, line, new Vector2(lineX, lineY), Color.Black, localScale: 0.9f);
             }
 
             cursorY += headerBounds.Height + SocialProfileSectionSpacing;
@@ -1648,35 +1820,71 @@ namespace Smartphone
                 1f,
                 false);
 
-            int statsTextX = statsBounds.X + 18;
-            int statsTopY = statsBounds.Y + 16;
-            int statsLineHeight = Math.Max(22, (int)Game1.smallFont.MeasureString("A").Y + 6);
+            int statsTextX = statsBounds.X + SocialProfileStatsXOffset;
+            int statsTopY = statsBounds.Y + SocialProfileStatsTopYOffset;
+            int statsLineHeight = Math.Max(SocialProfileStatsLinePadding, GetSocialScaledLineHeight(0.85f));
 
-            b.DrawString(Game1.smallFont, $"Total posts: {stats.TotalPosts}", new Vector2(statsTextX, statsTopY), Color.Black);
+            DrawPhoneText(b, Game1.smallFont, $"Total posts: {stats.TotalPosts}", new Vector2(statsTextX, statsTopY), Color.Black, localScale: 0.9f);
 
-            int metricIconX = statsTextX + 82;
+            int metricIconX = statsTextX + SocialProfileMetricIconXGap;
 
             int receivedLineY = statsTopY + statsLineHeight;
-            b.DrawString(Game1.smallFont, "Received", new Vector2(statsTextX, receivedLineY), Color.Black);
+            DrawPhoneText(b, Game1.smallFont, "Received", new Vector2(statsTextX, receivedLineY), Color.Black, localScale: 0.9f);
 
-            Rectangle receivedHeartBounds = new Rectangle(metricIconX + 30, receivedLineY + 8, SocialProfileStatIconSize, SocialProfileStatIconSize);
+            Rectangle receivedHeartBounds = new Rectangle(
+                metricIconX + SocialProfileMetricHeartXOffset,
+                receivedLineY + SocialProfileMetricHeartYOffset,
+                SocialProfileStatIconSize,
+                SocialProfileStatIconSize);
             b.Draw(Game1.mouseCursors, receivedHeartBounds, new Rectangle(211, 428, 7, 7), Color.White);
-            b.DrawString(Game1.smallFont, stats.TotalLikesReceived.ToString(), new Vector2(receivedHeartBounds.Right + 6, receivedLineY), Color.Black);
+            DrawPhoneText(
+                b,
+                Game1.smallFont,
+                stats.TotalLikesReceived.ToString(),
+                new Vector2(receivedHeartBounds.Right + SocialProfileMetricValueXGap, receivedLineY),
+                Color.Black, localScale: 0.9f);
 
-            Rectangle receivedCommentBounds = new Rectangle(receivedHeartBounds.Right + 125, receivedLineY + 6, SocialProfileStatIconSize, SocialProfileStatIconSize);
+            Rectangle receivedCommentBounds = new Rectangle(
+                receivedHeartBounds.Right + SocialProfileMetricCommentXGap,
+                receivedLineY + SocialProfileMetricCommentYOffset,
+                SocialProfileStatIconSize,
+                SocialProfileStatIconSize);
             b.Draw(Game1.mouseCursors, receivedCommentBounds, new Rectangle(139, 465, 24, 24), Color.White);
-            b.DrawString(Game1.smallFont, stats.TotalCommentsReceived.ToString(), new Vector2(receivedCommentBounds.Right + 6, receivedLineY), Color.Black);
+            DrawPhoneText(
+                b,
+                Game1.smallFont,
+                stats.TotalCommentsReceived.ToString(),
+                new Vector2(receivedCommentBounds.Right + SocialProfileMetricValueXGap, receivedLineY),
+                Color.Black, localScale: 0.9f);
 
             int sentLineY = receivedLineY + statsLineHeight;
-            b.DrawString(Game1.smallFont, "Sent", new Vector2(statsTextX, sentLineY), Color.Black);
+            DrawPhoneText(b, Game1.smallFont, "Sent", new Vector2(statsTextX, sentLineY), Color.Black, localScale: 0.9f);
 
-            Rectangle sentHeartBounds = new Rectangle(metricIconX + 30, sentLineY + 8, SocialProfileStatIconSize, SocialProfileStatIconSize);
+            Rectangle sentHeartBounds = new Rectangle(
+                metricIconX + SocialProfileMetricHeartXOffset,
+                sentLineY + SocialProfileMetricHeartYOffset,
+                SocialProfileStatIconSize,
+                SocialProfileStatIconSize);
             b.Draw(Game1.mouseCursors, sentHeartBounds, new Rectangle(211, 428, 7, 7), Color.White);
-            b.DrawString(Game1.smallFont, stats.TotalLikesGiven.ToString(), new Vector2(sentHeartBounds.Right + 6, sentLineY), Color.Black);
+            DrawPhoneText(
+                b,
+                Game1.smallFont,
+                stats.TotalLikesGiven.ToString(),
+                new Vector2(sentHeartBounds.Right + SocialProfileMetricValueXGap, sentLineY),
+                Color.Black, localScale: 0.9f);
 
-            Rectangle sentCommentBounds = new Rectangle(sentHeartBounds.Right + 125, sentLineY + 6, SocialProfileStatIconSize, SocialProfileStatIconSize);
+            Rectangle sentCommentBounds = new Rectangle(
+                sentHeartBounds.Right + SocialProfileMetricCommentXGap,
+                sentLineY + SocialProfileMetricCommentYOffset,
+                SocialProfileStatIconSize,
+                SocialProfileStatIconSize);
             b.Draw(Game1.mouseCursors, sentCommentBounds, new Rectangle(139, 465, 24, 24), Color.White);
-            b.DrawString(Game1.smallFont, stats.TotalCommentsGiven.ToString(), new Vector2(sentCommentBounds.Right + 6, sentLineY), Color.Black);
+            DrawPhoneText(
+                b,
+                Game1.smallFont,
+                stats.TotalCommentsGiven.ToString(),
+                new Vector2(sentCommentBounds.Right + SocialProfileMetricValueXGap, sentLineY),
+                Color.Black, localScale: 0.9f);
 
             cursorY += statsBounds.Height + SocialProfileSectionSpacing;
 
@@ -1705,24 +1913,24 @@ namespace Smartphone
             cursorY += interactionBounds.Height + SocialProfileSectionSpacing;
 
             Rectangle postsHeaderBounds = new Rectangle(cardX, cursorY, cardWidth, SocialProfilePostsHeaderHeight);
-            IClickableMenu.drawTextureBox(
+            
+            DrawPhoneText(
                 b,
-                Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
-                postsHeaderBounds.X,
-                postsHeaderBounds.Y,
-                postsHeaderBounds.Width,
-                postsHeaderBounds.Height,
-                new Color(255, 255, 255, 230),
-                1f,
-                false);
-            b.DrawString(Game1.smallFont, "Posts (Newest to Oldest)", new Vector2(postsHeaderBounds.X + 14, postsHeaderBounds.Y + 9), Color.Black);
+                Game1.smallFont,
+                "Posts (Newest to Oldest)",
+                new Vector2(postsHeaderBounds.X + ScaleUiValue(14), postsHeaderBounds.Y + ScaleUiValue(9)),
+                Color.Black);
 
             cursorY += postsHeaderBounds.Height + SocialPostSpacing;
 
             if (profilePosts.Count == 0)
             {
-                b.DrawString(Game1.smallFont, "No post yet.", new Vector2(cardX + 14, cursorY + 10), Color.Black);
+                DrawPhoneText(
+                    b,
+                    Game1.smallFont,
+                    "No post yet.",
+                    new Vector2(cardX + ScaleUiValue(14), cursorY + ScaleUiValue(10)),
+                    Color.Black);
             }
             else
             {
@@ -1769,14 +1977,14 @@ namespace Smartphone
             string title,
             List<StardewConnectProfileInteraction> interactions)
         {
-            b.DrawString(Game1.smallFont, title, new Vector2(bounds.X, bounds.Y), Color.Black);
+            DrawPhoneText(b, Game1.smallFont, title, new Vector2(bounds.X, bounds.Y), Color.Black, localScale: 0.9f);
 
-            int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
+            int lineHeight = GetSocialScaledLineHeight(0.85f);
             int y = bounds.Y + lineHeight + 4;
 
             if (interactions == null || interactions.Count == 0)
             {
-                b.DrawString(Game1.smallFont, "No data", new Vector2(bounds.X, y), Color.DimGray);
+                DrawPhoneText(b, Game1.smallFont, "No data", new Vector2(bounds.X, y), Color.DimGray, localScale: 0.9f);
                 return;
             }
 
@@ -1788,7 +1996,7 @@ namespace Smartphone
                     actorDisplayName = "Someone";
 
                 string line = $"{i + 1}. {actorDisplayName} ({row.Count})";
-                b.DrawString(Game1.smallFont, line, new Vector2(bounds.X, y), Color.Black);
+                DrawPhoneText(b, Game1.smallFont, line, new Vector2(bounds.X, y), Color.Black, localScale: 0.9f);
                 y += lineHeight;
             }
         }
@@ -1855,15 +2063,13 @@ namespace Smartphone
                 List<string> lines = SplitTextIntoLines(post.Text, Game1.smallFont, postTextWrapWidth);
                 foreach (string line in lines)
                 {
-                    b.DrawString(
+                    DrawPhoneText(
+                        b,
                         Game1.smallFont,
                         line,
                         new Vector2(cardX + 15, cursorY),
                         Color.Black,
-                        0f,
-                        Vector2.Zero,
                         SocialPostTextScale,
-                        SpriteEffects.None,
                         0f);
                     cursorY += postLineHeight;
                 }
@@ -1878,15 +2084,13 @@ namespace Smartphone
                 int tagTopY = cursorY;
                 string tagPreviewText = BuildSocialTagPreviewText(imageTagText, SocialPostTextMaxWidth);
 
-                b.DrawString(
+                DrawPhoneText(
+                    b,
                     Game1.smallFont,
                     tagPreviewText,
                     new Vector2(cardX + 15, cursorY),
                     Color.DimGray,
-                    0f,
-                    Vector2.Zero,
                     SocialImageTagScale,
-                    SpriteEffects.None,
                     0f);
 
                 int previewWidth = MeasureScaledSocialTagWidth(tagPreviewText);
@@ -1948,11 +2152,12 @@ namespace Smartphone
                     }
 
                     string indexLabel = $"{attachmentIndex + 1}/{attachmentCount}";
-                    Vector2 indexSize = Game1.smallFont.MeasureString(indexLabel);
-                    b.DrawString(
+                    Vector2 indexSize = MeasurePhoneText(Game1.smallFont, indexLabel);
+                    DrawPhoneText(
+                        b,
                         Game1.smallFont,
                         indexLabel,
-                        new Vector2(imageBounds.X + (imageBounds.Width - indexSize.X) / 2f, imageBounds.Bottom - indexSize.Y - 4),
+                        new Vector2(imageBounds.X + (imageBounds.Width - indexSize.X) / 2f, imageBounds.Bottom - indexSize.Y - ScaleUiValue(4)),
                         Color.White);
                 }
 
@@ -1976,11 +2181,11 @@ namespace Smartphone
                 socialProfileLikeBounds[post.Id] = likeClickBounds;
 
             string likeCountText = post.LikedBy.Count.ToString();
-            Vector2 likeCountSize = Game1.smallFont.MeasureString(likeCountText);
+            Vector2 likeCountSize = MeasurePhoneText(Game1.smallFont, likeCountText);
             Rectangle likeCountBounds = new Rectangle(
                 likeIconBounds.Right + 6,
                 cursorY - 1,
-                Math.Max(1, (int)Math.Ceiling(likeCountSize.X) + 6),
+                Math.Max(1, (int)Math.Ceiling(likeCountSize.X) + ScaleUiValue(6)),
                 Math.Max(1, baseLineHeight + 4));
 
             if (context == SocialCardRenderContext.Feed)
@@ -1990,7 +2195,7 @@ namespace Smartphone
             else if (context == SocialCardRenderContext.Profile)
                 socialProfileLikeHoverBounds[post.Id] = likeCountBounds;
 
-            b.DrawString(Game1.smallFont, likeCountText, new Vector2(likeIconBounds.Right + 8, cursorY), Color.Black);
+            DrawPhoneText(b, Game1.smallFont, likeCountText, new Vector2(likeIconBounds.Right + ScaleUiValue(8), cursorY), Color.Black);
 
             // Post comment section
             Rectangle commentIconBounds = new Rectangle(cardX + 132, cursorY + 4, 24, 24);
@@ -2006,7 +2211,12 @@ namespace Smartphone
                 1f,
                 false);
             List<StardewConnectComment> comments = post.Comments ?? new List<StardewConnectComment>();
-            b.DrawString(Game1.smallFont, comments.Count.ToString(), new Vector2(commentIconBounds.Right + 8, cursorY), Color.Black);
+            DrawPhoneText(
+                b,
+                Game1.smallFont,
+                comments.Count.ToString(),
+                new Vector2(commentIconBounds.Right + ScaleUiValue(8), cursorY),
+                Color.Black);
 
             if (comments.Count > 0)
             {
@@ -2066,15 +2276,13 @@ namespace Smartphone
 
             foreach (string line in commentLines)
             {
-                b.DrawString(
+                DrawPhoneText(
+                    b,
                     Game1.smallFont,
                     line,
                     new Vector2(textX, textY),
                     Color.Black,
-                    0f,
-                    Vector2.Zero,
                     SocialCommentTextScale,
-                    SpriteEffects.None,
                     0f);
                 textY += commentLineHeight;
             }
@@ -2115,25 +2323,23 @@ namespace Smartphone
             Color metaColor)
         {
             string safeName = ResolveSocialActorDisplayName(actorName, actorIsPlayer);
-            b.DrawString(Game1.smallFont, safeName, position, nameColor);
+            DrawPhoneText(b, Game1.smallFont, safeName, position, nameColor);
 
             if (string.IsNullOrWhiteSpace(metaText))
                 return;
 
-            Vector2 nameSize = Game1.smallFont.MeasureString(safeName);
+            Vector2 nameSize = MeasurePhoneText(Game1.smallFont, safeName);
             Vector2 metaPosition = new Vector2(
                 position.X + nameSize.X + 4f,
                 position.Y + SocialHeaderMetaYOffset);
 
-            b.DrawString(
+            DrawPhoneText(
+                b,
                 Game1.smallFont,
                 metaText,
                 metaPosition,
                 metaColor,
-                0f,
-                Vector2.Zero,
                 SocialHeaderMetaScale,
-                SpriteEffects.None,
                 0f);
         }
 
@@ -2213,16 +2419,16 @@ namespace Smartphone
             return GetSocialScaledLineHeight(SocialImageTagScale);
         }
 
-        private static int GetSocialScaledLineHeight(float scale)
+        private int GetSocialScaledLineHeight(float scale)
         {
             int baseLineHeight = (int)Game1.smallFont.MeasureString("A").Y + 4;
-            float safeScale = Math.Max(0.01f, scale);
+            float safeScale = GetPhoneTextScale(scale);
             return Math.Max(1, (int)Math.Ceiling(baseLineHeight * safeScale));
         }
 
-        private static int GetSocialScaledWrapWidth(int maxWidth, float scale)
+        private int GetSocialScaledWrapWidth(int maxWidth, float scale)
         {
-            float safeScale = Math.Max(0.01f, scale);
+            float safeScale = GetPhoneTextScale(scale);
             return Math.Max(1, (int)Math.Floor(maxWidth / safeScale));
         }
 
@@ -2272,7 +2478,7 @@ namespace Smartphone
                 return "";
 
             int safeMaxScaledWidth = Math.Max(1, maxScaledWidth);
-            float maxUnscaledWidth = safeMaxScaledWidth / Math.Max(0.01f, SocialImageTagScale);
+            float maxUnscaledWidth = safeMaxScaledWidth / GetPhoneTextScale(SocialImageTagScale);
             if (Game1.smallFont.MeasureString(fullTagText).X <= maxUnscaledWidth)
                 return fullTagText;
 
@@ -2298,7 +2504,7 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(text))
                 return 0;
 
-            return Math.Max(1, (int)Math.Ceiling(Game1.smallFont.MeasureString(text).X * SocialImageTagScale));
+            return Math.Max(1, (int)Math.Ceiling(Game1.smallFont.MeasureString(text).X * GetPhoneTextScale(SocialImageTagScale)));
         }
 
         private void RegisterSocialTagHoverBounds(
@@ -2434,11 +2640,11 @@ namespace Smartphone
             if (!string.IsNullOrWhiteSpace(fallbackName))
                 fallbackLetter = fallbackName.Trim()[0].ToString().ToUpperInvariant();
 
-            Vector2 letterSize = Game1.smallFont.MeasureString(fallbackLetter);
+            Vector2 letterSize = MeasurePhoneText(Game1.smallFont, fallbackLetter);
             Vector2 letterPos = new Vector2(
                 bounds.X + (bounds.Width - letterSize.X) / 2f,
                 bounds.Y + (bounds.Height - letterSize.Y) / 2f);
-            b.DrawString(Game1.smallFont, fallbackLetter, letterPos, Color.White);
+            DrawPhoneText(b, Game1.smallFont, fallbackLetter, letterPos, Color.White);
         }
 
         private bool TryGetSelectedPlayerAvatarTexture(string actorName, out Texture2D texture)
@@ -2502,8 +2708,9 @@ namespace Smartphone
                 string unreadText = unreadCommentCount.ToString();
                 Rectangle bannerBounds1 = new Rectangle(cardBounds.Right - bannerSize - 42, cardBounds.Y + 25, bannerSize, bannerSize);
                 b.Draw(Game1.staminaRect, bannerBounds1, new Color(0, 0, 0, 100));
-                Vector2 unreadTextSize = Game1.smallFont.MeasureString(unreadText);
-                b.DrawString(
+                Vector2 unreadTextSize = MeasurePhoneText(Game1.smallFont, unreadText);
+                DrawPhoneText(
+                    b,
                     Game1.smallFont,
                     unreadText,
                     new Vector2(
@@ -2517,21 +2724,22 @@ namespace Smartphone
                 Rectangle bannerBounds = new Rectangle(cardBounds.Right - bannerSize - 12, cardBounds.Y + 25, bannerSize, bannerSize);
                 b.Draw(Game1.staminaRect, bannerBounds, new Color(214, 33, 33, 230));
                 string text = "!";
-                Vector2 textSize = Game1.smallFont.MeasureString(text);
-                b.DrawString(
+                Vector2 textSize = MeasurePhoneText(Game1.smallFont, text);
+                DrawPhoneText(
+                    b,
                     Game1.smallFont,
                     text,
-                new Vector2(
-                    bannerBounds.X + (bannerBounds.Width - textSize.X) / 2f,
-                    bannerBounds.Y + (bannerBounds.Height - textSize.Y) / 2f),
-                Color.White);
+                    new Vector2(
+                        bannerBounds.X + (bannerBounds.Width - textSize.X) / 2f,
+                        bannerBounds.Y + (bannerBounds.Height - textSize.Y) / 2f),
+                    Color.White);
             }
         }
 
         private void DrawSocialUnreadBadge(SpriteBatch b, int rightX, int y, int unreadCount)
         {
             string text = Math.Min(99, unreadCount).ToString();
-            Vector2 textSize = Game1.smallFont.MeasureString(text);
+            Vector2 textSize = MeasurePhoneText(Game1.smallFont, text);
 
             int badgeWidth = Math.Max(26, (int)textSize.X + 12);
             int badgeHeight = Math.Max(20, (int)textSize.Y + 4);
@@ -2549,7 +2757,8 @@ namespace Smartphone
                 1f,
                 false);
 
-            b.DrawString(
+            DrawPhoneText(
+                b,
                 Game1.smallFont,
                 text,
                 new Vector2(badgeX + (badgeWidth - textSize.X) / 2f, y + (badgeHeight - textSize.Y) / 2f),
@@ -2627,13 +2836,13 @@ namespace Smartphone
             if (likerNames == null || likerNames.Count == 0)
                 return;
 
-            int lineHeight = Math.Max(22, (int)Game1.smallFont.MeasureString("A").Y + 4);
+            int lineHeight = GetPhoneScaledLineHeight(Game1.smallFont);
             int paddingX = 12;
             int paddingY = 10;
 
             int maxTextWidth = 0;
             foreach (string line in likerNames)
-                maxTextWidth = Math.Max(maxTextWidth, (int)Math.Ceiling(Game1.smallFont.MeasureString(line).X));
+                maxTextWidth = Math.Max(maxTextWidth, (int)Math.Ceiling(MeasurePhoneText(Game1.smallFont, line).X));
 
             int boxWidth = Math.Max(120, maxTextWidth + paddingX * 2);
             int boxHeight = paddingY * 2 + (likerNames.Count * lineHeight);
@@ -2661,7 +2870,7 @@ namespace Smartphone
             {
                 string line = likerNames[i];
                 Color textColor = line == "..." ? Color.DimGray : Color.Black;
-                b.DrawString(Game1.smallFont, line, new Vector2(x + paddingX, y + paddingY + (i * lineHeight)), textColor);
+                DrawPhoneText(b, Game1.smallFont, line, new Vector2(x + paddingX, y + paddingY + (i * lineHeight)), textColor);
             }
         }
 
@@ -2720,17 +2929,17 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(tagText))
                 return;
 
-            List<string> lines = SplitTextIntoLines(tagText, Game1.smallFont, 360);
+            List<string> lines = SplitTextIntoLines(tagText, Game1.smallFont, GetPhoneScaledWrapWidth(360));
             if (lines.Count == 0)
                 lines.Add(tagText);
 
-            int lineHeight = Math.Max(22, (int)Game1.smallFont.MeasureString("A").Y + 4);
+            int lineHeight = GetPhoneScaledLineHeight(Game1.smallFont);
             int paddingX = 12;
             int paddingY = 10;
 
             int maxTextWidth = 0;
             foreach (string line in lines)
-                maxTextWidth = Math.Max(maxTextWidth, (int)Math.Ceiling(Game1.smallFont.MeasureString(line).X));
+                maxTextWidth = Math.Max(maxTextWidth, (int)Math.Ceiling(MeasurePhoneText(Game1.smallFont, line).X));
 
             int boxWidth = Math.Max(150, maxTextWidth + paddingX * 2);
             int boxHeight = paddingY * 2 + (lines.Count * lineHeight);
@@ -2755,7 +2964,7 @@ namespace Smartphone
                 false);
 
             for (int i = 0; i < lines.Count; i++)
-                b.DrawString(Game1.smallFont, lines[i], new Vector2(x + paddingX, y + paddingY + (i * lineHeight)), Color.Black);
+                DrawPhoneText(b, Game1.smallFont, lines[i], new Vector2(x + paddingX, y + paddingY + (i * lineHeight)), Color.Black);
         }
 
         private void DrawSocialImageNavButton(SpriteBatch b, Rectangle bounds, bool isNext)
@@ -3874,7 +4083,8 @@ namespace Smartphone
         private void DrawEditableTextInput(SpriteBatch b, Rectangle inputBounds, string text, int cursorIndex, int selectionAnchorIndex)
         {
             SpriteFont font = Game1.smallFont;
-            int maxWidth = inputBounds.Width - 30;
+            float textScale = GetPhoneTextScale();
+            int maxWidth = GetPhoneScaledWrapWidth(inputBounds.Width - 30);
             string safeText = text ?? "";
             int safeCursorIndex = Math.Clamp(cursorIndex, 0, safeText.Length);
             int safeSelectionAnchorIndex = Math.Clamp(selectionAnchorIndex, 0, safeText.Length);
@@ -3889,23 +4099,23 @@ namespace Smartphone
                 int visibleSelectionEnd = Math.Clamp(selectionEnd, visibleStartIndex, visibleStartIndex + visibleText.Length);
                 if (visibleSelectionEnd > visibleSelectionStart)
                 {
-                    int highlightX = inputBounds.X + 15 + MeasureTextSubstringWidth(font, safeText, visibleStartIndex, visibleSelectionStart - visibleStartIndex);
-                    int highlightWidth = MeasureTextSubstringWidth(font, safeText, visibleSelectionStart, visibleSelectionEnd - visibleSelectionStart);
-                    int highlightHeight = (int)font.MeasureString("A").Y + 2;
-                    b.Draw(Game1.staminaRect, new Rectangle(highlightX, inputBounds.Y + 18, Math.Max(2, highlightWidth), highlightHeight), new Color(80, 140, 255, 140));
+                    int highlightX = inputBounds.X + 15 + (int)Math.Round(MeasureTextSubstringWidth(font, safeText, visibleStartIndex, visibleSelectionStart - visibleStartIndex) * textScale);
+                    int highlightWidth = (int)Math.Round(MeasureTextSubstringWidth(font, safeText, visibleSelectionStart, visibleSelectionEnd - visibleSelectionStart) * textScale);
+                    int highlightHeight = Math.Max(1, (int)Math.Ceiling(((int)font.MeasureString("A").Y + 2) * textScale));
+                    b.Draw(Game1.staminaRect, new Rectangle(highlightX, inputBounds.Y + 15, Math.Max(2, highlightWidth), highlightHeight), new Color(80, 140, 255, 140));
                 }
             }
 
-            Vector2 textPosition = new Vector2(inputBounds.X + 15, inputBounds.Y + 20);
-            b.DrawString(font, visibleText, textPosition, Color.Black);
+            Vector2 textPosition = new Vector2(inputBounds.X + 15, inputBounds.Y + 17);
+            DrawPhoneText(b, font, visibleText, textPosition, Color.Black);
 
             bool showCursor = ((int)(textCursorBlinkElapsedSeconds / 0.5d) % 2) == 0;
             if (!showCursor)
                 return;
 
-            int cursorHeight = (int)font.MeasureString("A").Y + 2;
-            int cursorX = inputBounds.X + 15 + cursorOffset;
-            int cursorY = inputBounds.Y + 18;
+            int cursorHeight = Math.Max(1, (int)Math.Ceiling(((int)font.MeasureString("A").Y + 2) * textScale));
+            int cursorX = inputBounds.X + 15 + (int)Math.Round(cursorOffset * textScale);
+            int cursorY = inputBounds.Y + 15;
             b.Draw(Game1.staminaRect, new Rectangle(cursorX, cursorY, 2, cursorHeight), Color.Black);
         }
 

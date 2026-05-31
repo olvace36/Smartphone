@@ -111,11 +111,12 @@ namespace Smartphone
 
         public static Microsoft.Xna.Framework.Rectangle GetPhoneCameraViewportBounds(int menuX, int menuY)
         {
+            float uiScale = GetActivePhoneUiScale();
             return new Microsoft.Xna.Framework.Rectangle(
-                menuX + CameraViewportOffsetX,
-                menuY + CameraViewportOffsetY,
-                CameraViewportWidth,
-                CameraViewportHeight);
+                menuX + ScalePhoneUiValue(CameraViewportOffsetX, uiScale),
+                menuY + ScalePhoneUiValue(CameraViewportOffsetY, uiScale),
+                Math.Max(1, ScalePhoneUiValue(CameraViewportWidth, uiScale)),
+                Math.Max(1, ScalePhoneUiValue(CameraViewportHeight, uiScale)));
         }
 
         public static Microsoft.Xna.Framework.Rectangle GetPhoneCameraPreviewBounds(int menuX, int menuY)
@@ -164,13 +165,17 @@ namespace Smartphone
 
         private static (int Width, int Height) GetCaptureDimensions(bool landscape, bool square)
         {
+            float uiScale = GetActivePhoneUiScale();
+            int viewportWidth = Math.Max(1, ScalePhoneUiValue(CameraViewportWidth, uiScale));
+            int viewportHeight = Math.Max(1, ScalePhoneUiValue(CameraViewportHeight, uiScale));
+
             if (square)
-                return (CameraViewportWidth, CameraViewportWidth);
+                return (viewportWidth, viewportWidth);
 
             if (landscape)
-                return (CameraViewportHeight, CameraViewportWidth);
+                return (viewportHeight, viewportWidth);
 
-            return (CameraViewportWidth, CameraViewportHeight);
+            return (viewportWidth, viewportHeight);
         }
 
         private static Microsoft.Xna.Framework.Rectangle ClampCaptureBoundsToBackBuffer(Microsoft.Xna.Framework.Rectangle requestedBounds, int backBufferWidth, int backBufferHeight)

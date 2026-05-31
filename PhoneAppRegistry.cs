@@ -586,8 +586,7 @@ namespace Smartphone
             if (!Context.IsWorldReady)
                 return false;
 
-            if (phoneMenu == null)
-                phoneMenu = new PhoneMenu();
+            EnsurePhoneMenuUsesCurrentScale();
 
             phoneMenu.OpenHomeScreen();
             Game1.activeClickableMenu = phoneMenu;
@@ -603,8 +602,7 @@ namespace Smartphone
                 return false;
             }
 
-            if (phoneMenu == null)
-                phoneMenu = new PhoneMenu();
+            EnsurePhoneMenuUsesCurrentScale();
 
             phoneMenu.OpenHomeScreen();
 

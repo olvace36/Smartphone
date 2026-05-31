@@ -295,6 +295,14 @@ namespace Smartphone
                 setValue: value => Config.ShowMessageImageTags = value
             );
 
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Use small phone size",
+                tooltip: () => "Render the opened phone UI at 75% size. Applied the next time you open the phone.",
+                getValue: () => Config.UseSmallPhoneSize,
+                setValue: value => Config.UseSmallPhoneSize = value
+            );
+
             configMenu.AddNumberOption(
                 mod: ModManifest,
                 name: () => "HUD phone icon X",

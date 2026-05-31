@@ -65,8 +65,8 @@ namespace Smartphone
         private void DrawTextApp(SpriteBatch b)
         {
             b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
-            b.Draw(texturePhoneBackground, new Vector2(xPositionOnScreen + 40, yPositionOnScreen + 116), Color.White);
-            b.Draw(texturePhoneCapture, new Vector2(xPositionOnScreen, yPositionOnScreen), Color.White);
+            DrawPhoneScreenBackground(b, xOffset: 0);
+            DrawPhoneFrame(b);
             backButton.draw(b);
 
 
@@ -77,7 +77,7 @@ namespace Smartphone
                 ResetChatQuickActionsState();
                 favourityNpcButton.Clear();
                 socialProfileNpcButtonBounds.Clear();
-                int yStart = yPositionOnScreen + 150;
+                int yStart = PhoneY(150);
                 for (int i = 0; i < visibleSlots; i++)
                 {
                     int index = i + scrollOffset;
@@ -91,10 +91,10 @@ namespace Smartphone
 
 
                     // === Draw scaled background box behind portrait ===
-                    int portraitSize = 56; // Target display size
+                    int portraitSize = Math.Max(1, ScaleUiValue(56)); // Target display size
                     float scale = portraitSize / 64f * 1.5f; // Your texture is 64x64
 
-                    Vector2 boxPosition = new Vector2(xPositionOnScreen + 100, y);
+                    Vector2 boxPosition = new Vector2(PhoneX(100), y);
 
                     int unread = MessageManager.GetUnreadCount(conversationKey);
                     if (unread > 0)
@@ -104,8 +104,8 @@ namespace Smartphone
                         int spacingBetweenDigits = 0;
                         int totalWidth = number.Length * (digitSize + spacingBetweenDigits);
 
-                        int numberX = (int)boxPosition.X - totalWidth - 41;
-                        int numberY = (int)boxPosition.Y + 15;
+                        int numberX = (int)boxPosition.X - totalWidth - ScaleUiValue(41);
+                        int numberY = (int)boxPosition.Y + ScaleUiValue(15);
 
                         int digitWidth = 8;
                         int digitHeight = 8;
@@ -136,7 +136,7 @@ namespace Smartphone
                                     Color.White,
                                     0f,
                                     Vector2.Zero,
-                                    5f, // Scale it up to be visible
+                                    ScaleUiValue(5f), // Scale it up to be visible
                                     SpriteEffects.None,
                                     1f
                                 );
@@ -157,8 +157,8 @@ namespace Smartphone
                         effects: SpriteEffects.None,
                         layerDepth: 0f
                     );
-                    int nameX = (int)boxPosition.X + portraitSize + 40;
-                    conversation.bounds = new Rectangle(nameX, y, 200, portraitSize);
+                    int nameX = (int)boxPosition.X + portraitSize + ScaleUiValue(40);
+                    conversation.bounds = new Rectangle(nameX, y, ScaleUiValue(200), portraitSize);
 
                     if (isPlayerConversation)
                     {
@@ -167,7 +167,11 @@ namespace Smartphone
                             : conversationPlayerName;
 
                         bool hasAvatar = TryGetSelectedPlayerAvatarTexture(playerDisplayName, out Texture2D avatarTexture);
-                        Rectangle portraitRect = new Rectangle((int)boxPosition.X + 9, (int)boxPosition.Y + 10, 67, 67);
+                        Rectangle portraitRect = new Rectangle(
+                            (int)boxPosition.X + ScaleUiValue(9),
+                            (int)boxPosition.Y + ScaleUiValue(10),
+                            ScaleUiValue(67),
+                            ScaleUiValue(67));
                         if (hasAvatar && avatarTexture != null)
                         {
                             b.Draw(avatarTexture, portraitRect, Color.White);
@@ -189,10 +193,20 @@ namespace Smartphone
                             string initial = string.IsNullOrWhiteSpace(playerDisplayName)
                                 ? "P"
                                 : playerDisplayName.Trim()[0].ToString().ToUpperInvariant();
-                            b.DrawString(Game1.smallFont, initial, new Vector2(portraitRect.X + 24, portraitRect.Y + 20), Color.Gray);
+                            DrawPhoneText(
+                                b,
+                                Game1.smallFont,
+                                initial,
+                                new Vector2(portraitRect.X + ScaleUiValue(24), portraitRect.Y + ScaleUiValue(20)),
+                                Color.Gray);
                         }
 
-                        b.DrawString(Game1.dialogueFont, playerDisplayName, new Vector2(nameX, y + 15), Color.Black);
+                        DrawPhoneText(
+                            b,
+                            Game1.dialogueFont,
+                            playerDisplayName,
+                            new Vector2(nameX, y + ScaleUiValue(15)),
+                            Color.Black);
                     }
                     else
                     {
@@ -203,12 +217,21 @@ namespace Smartphone
 
                         if (realNpc?.Portrait != null)
                         {
-                            Rectangle portraitRect = new Rectangle((int)boxPosition.X + 9, (int)boxPosition.Y + 10, 67, 67);
+                            Rectangle portraitRect = new Rectangle(
+                                (int)boxPosition.X + ScaleUiValue(9),
+                                (int)boxPosition.Y + ScaleUiValue(10),
+                                ScaleUiValue(67),
+                                ScaleUiValue(67));
                             Rectangle sourceRect = new Rectangle(0, 0, 64, 64);
                             b.Draw(realNpc.Portrait, portraitRect, sourceRect, Color.White);
                         }
 
-                        b.DrawString(Game1.dialogueFont, npcDisplayName, new Vector2(nameX, y + 15), Color.Black);
+                        DrawPhoneText(
+                            b,
+                            Game1.dialogueFont,
+                            npcDisplayName,
+                            new Vector2(nameX, y + ScaleUiValue(15)),
+                            Color.Black);
                     }
 
                     var rect = new Rectangle(218, 428, 7, 7);
@@ -217,30 +240,38 @@ namespace Smartphone
 
                     heartButton = new ClickableTextureComponent(
                     name: conversationKey,
-                    bounds: new Rectangle(nameX + 280, y + 20, 35, 35),
+                    bounds: new Rectangle(
+                        nameX + ScaleUiValue(280),
+                        y + ScaleUiValue(20),
+                        ScaleUiValue(35),
+                        ScaleUiValue(35)),
                         label: null,
                         hoverText: "",
                     texture: Game1.mouseCursors,
                         sourceRect: rect,
-                        scale: 5f
+                        scale: ScaleUiValue(5f)
                     );
 
                     favourityNpcButton[conversationKey] = heartButton;
                     heartButton.draw(b);
 
-                    Rectangle profileButtonBounds = new Rectangle(nameX + 330, y + 20, 35, 35);
+                    Rectangle profileButtonBounds = new Rectangle(
+                        nameX + ScaleUiValue(330),
+                        y + ScaleUiValue(20),
+                        ScaleUiValue(35),
+                        ScaleUiValue(35));
                     socialProfileNpcButtonBounds[conversationKey] = profileButtonBounds;
                     DrawOpenSocialProfileButton(b, profileButtonBounds);
 
                 }
 
                 // Draw input box
-                int inputX = xPositionOnScreen + 100;
-                int inputY = yPositionOnScreen + 835;
-                int inputWidth = 400;
+                int inputX = PhoneX(100);
+                int inputY = PhoneY(835);
+                int inputWidth = ScaleUiValue(400);
 
                 int fontHeight = (int)Game1.smallFont.MeasureString("A").Y;
-                int inputHeight = fontHeight + 30;
+                int inputHeight = fontHeight + ScaleUiValue(30);
 
                 IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
                     inputX, inputY, inputWidth, inputHeight,
@@ -255,7 +286,12 @@ namespace Smartphone
             else
             {
                 string selectedNpcDisplayName = GetConversationDisplayName(selectedNpc ?? "");
-                b.DrawString(Game1.dialogueFont, selectedNpcDisplayName, new Vector2(xPositionOnScreen + 105, yPositionOnScreen + 65), Color.Black);
+                DrawPhoneText(
+                    b,
+                    Game1.dialogueFont,
+                    selectedNpcDisplayName,
+                    new Vector2(PhoneX(105), PhoneY(65)),
+                    Color.Black);
 
                 backButton.draw(b);
                 b.Draw(
@@ -287,7 +323,8 @@ namespace Smartphone
 
                 int messageY = yPositionOnScreen + ChatViewportYOffset - (int)MathF.Floor(chatScrollOffset);
                 SpriteFont font = Game1.smallFont;
-                int lineHeight = (int)font.MeasureString("A").Y + 4;
+                int lineHeight = GetPhoneScaledLineHeight(font);
+                int bubbleSpacing = Math.Max(1, ScaleUiValue(10));
                 int visibleTop = chatClipRect.Top - ScrollDrawOverscan;
                 int visibleBottom = chatClipRect.Bottom + ScrollDrawOverscan;
 
@@ -297,14 +334,14 @@ namespace Smartphone
                     int bubbleWidth = CalculateChatEntryWidth(entry, font);
 
                     Rectangle bubbleRect = entry.IsPlayer
-                        ? new Rectangle(xPositionOnScreen + width - bubbleWidth - 50, messageY, bubbleWidth, bubbleHeight)
-                        : new Rectangle(xPositionOnScreen + 50, messageY, bubbleWidth, bubbleHeight);
+                        ? new Rectangle(xPositionOnScreen + width - bubbleWidth - ScaleUiValue(50), messageY, bubbleWidth, bubbleHeight)
+                        : new Rectangle(xPositionOnScreen + ScaleUiValue(50), messageY, bubbleWidth, bubbleHeight);
 
                     int bubbleTop = bubbleRect.Y;
-                    int bubbleBottom = bubbleRect.Bottom + 10;
+                    int bubbleBottom = bubbleRect.Bottom + bubbleSpacing;
                     if (bubbleBottom < visibleTop)
                     {
-                        messageY += bubbleHeight + 10;
+                        messageY += bubbleHeight + bubbleSpacing;
                         continue;
                     }
 
@@ -317,10 +354,10 @@ namespace Smartphone
                             b,
                             Game1.menuTexture,
                             new Rectangle(0, 256, 60, 60),
-                            bubbleRect.X - 5,
+                            bubbleRect.X - ScaleUiValue(5),
                             bubbleRect.Y,
-                            bubbleRect.Width + 12,
-                            bubbleRect.Height + 10,
+                            bubbleRect.Width + ScaleUiValue(12),
+                            bubbleRect.Height + bubbleSpacing,
                             new Color(255, 255, 255, 200),
                             1f,
                             false
@@ -328,8 +365,8 @@ namespace Smartphone
 
                         Point groupSize = GetChatPhotoGroupDrawSize(entry);
                         Rectangle imageBounds = new Rectangle(
-                            bubbleRect.X + 10,
-                            bubbleRect.Y + 10,
+                            bubbleRect.X + ScaleUiValue(10),
+                            bubbleRect.Y + ScaleUiValue(10),
                             groupSize.X,
                             groupSize.Y);
 
@@ -354,25 +391,25 @@ namespace Smartphone
                                 false);
 
                             string missingText = "Image unavailable";
-                            Vector2 size = font.MeasureString(missingText);
+                            Vector2 size = MeasurePhoneText(font, missingText);
                             Vector2 pos = new Vector2(
                                 imageBounds.X + (imageBounds.Width - size.X) / 2f,
                                 imageBounds.Y + (imageBounds.Height - size.Y) / 2f);
-                            b.DrawString(font, missingText, pos, Color.DarkSlateGray);
+                            DrawPhoneText(b, font, missingText, pos, Color.DarkSlateGray);
                         }
 
                         if (entry.PhotoPaths.Count > 1)
                         {
                             Rectangle previousBounds = new Rectangle(
-                                imageBounds.X + 6,
-                                imageBounds.Y + (imageBounds.Height / 2) - 20,
-                                40,
-                                40);
+                                imageBounds.X + ScaleUiValue(6),
+                                imageBounds.Y + (imageBounds.Height / 2) - ScaleUiValue(20),
+                                ScaleUiValue(40),
+                                ScaleUiValue(40));
                             Rectangle nextBounds = new Rectangle(
-                                imageBounds.Right - 46,
-                                imageBounds.Y + (imageBounds.Height / 2) - 20,
-                                40,
-                                40);
+                                imageBounds.Right - ScaleUiValue(46),
+                                imageBounds.Y + (imageBounds.Height / 2) - ScaleUiValue(20),
+                                ScaleUiValue(40),
+                                ScaleUiValue(40));
 
                             DrawSocialImageNavButton(b, previousBounds, isNext: false);
                             DrawSocialImageNavButton(b, nextBounds, isNext: true);
@@ -387,11 +424,11 @@ namespace Smartphone
 
                             int currentPhotoIndex = GetChatPhotoGroupIndex(entry.PhotoGroupId, entry.PhotoPaths.Count);
                             string indexLabel = $"{currentPhotoIndex + 1}/{entry.PhotoPaths.Count}";
-                            Vector2 indexSize = font.MeasureString(indexLabel);
+                            Vector2 indexSize = MeasurePhoneText(font, indexLabel);
                             Vector2 indexPos = new Vector2(
                                 imageBounds.X + (imageBounds.Width - indexSize.X) / 2f,
-                                imageBounds.Bottom - indexSize.Y - 4);
-                            b.DrawString(font, indexLabel, indexPos, Color.White);
+                                imageBounds.Bottom - indexSize.Y - ScaleUiValue(4));
+                            DrawPhoneText(b, font, indexLabel, indexPos, Color.White);
                         }
 
                         if (!string.IsNullOrWhiteSpace(entry.PhotoTag))
@@ -406,38 +443,38 @@ namespace Smartphone
                     // Draw message
                     else if (!entry.IsSystem)
                     {
-                        List<string> wrappedLines = SplitTextIntoLines(entry.Text, font, maxBubbleWidth);
+                        List<string> wrappedLines = SplitTextIntoLines(entry.Text, font, GetPhoneScaledWrapWidth(maxBubbleWidth));
 
                         IClickableMenu.drawTextureBox(
                             b,
                             Game1.menuTexture,
                             new Rectangle(0, 256, 60, 60),
-                            bubbleRect.X - 5,
+                            bubbleRect.X - ScaleUiValue(5),
                             bubbleRect.Y,
-                            bubbleRect.Width + 12,
-                            bubbleRect.Height + 10,
+                            bubbleRect.Width + ScaleUiValue(12),
+                            bubbleRect.Height + bubbleSpacing,
                             new Color(255, 255, 255, 200),
                             1f,
                             false
                         );
 
-                        int textY = bubbleRect.Y + 15;
+                        int textY = bubbleRect.Y + ScaleUiValue(15);
                         foreach (string line in wrappedLines)
                         {
-                            Vector2 linePos = new Vector2(bubbleRect.X + 10, textY);
-                            b.DrawString(font, line, linePos, Color.Black);
+                            Vector2 linePos = new Vector2(bubbleRect.X + ScaleUiValue(10), textY);
+                            DrawPhoneText(b, font, line, linePos, Color.Black);
                             textY += lineHeight;
                         }
                     }
                     // Draw system message
                     else
                     {
-                        int textY = bubbleRect.Y + 15;
-                        Vector2 linePos = new Vector2(bubbleRect.X + 10, textY);
-                        b.DrawString(font, entry.Text, linePos, Color.Black);
+                        int textY = bubbleRect.Y + ScaleUiValue(15);
+                        Vector2 linePos = new Vector2(bubbleRect.X + ScaleUiValue(10), textY);
+                        DrawPhoneText(b, font, entry.Text, linePos, Color.Black);
                     }
 
-                    messageY += bubbleHeight + 10;
+                    messageY += bubbleHeight + bubbleSpacing;
                 }
 
                 DrawPendingDialogueChoices(
@@ -461,13 +498,13 @@ namespace Smartphone
                         okButton.draw(b);
 
                     // Draw input box
-                    int inputY = yPositionOnScreen + 850;
+                    int inputY = PhoneY(850);
 
                     int fontHeight = (int)Game1.smallFont.MeasureString("A").Y;
-                    int inputHeight = fontHeight + 30;
+                    int inputHeight = fontHeight + ScaleUiValue(30);
 
                     chatPhotoButtonBounds = new Rectangle(
-                        xPositionOnScreen + 50,
+                        PhoneX(50),
                         inputY,
                         ChatAttachmentButtonWidth,
                         inputHeight);
@@ -476,8 +513,8 @@ namespace Smartphone
                     if (chatQuickActionsOpen)
                         DrawChatQuickActionMenu(b);
 
-                    int inputX = chatPhotoButtonBounds.Right + 8;
-                    int inputWidth = 370;
+                    int inputX = chatPhotoButtonBounds.Right + ScaleUiValue(8);
+                    int inputWidth = ScaleUiValue(370);
 
                     IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
                         inputX, inputY, inputWidth, inputHeight,
@@ -525,15 +562,17 @@ namespace Smartphone
                         : Game1.timeOfDay < 1800
                             ? $"Good afternoon {firstMessageNpcDisplayName}"
                             : $"Good evening {firstMessageNpcDisplayName}";
-                    float maxWidth = Game1.smallFont.MeasureString(firstMessage).X + 20f;
-                    int firstMessageLineHeight = (int)(Game1.smallFont.MeasureString("A").Y + 20);
+                    float maxWidth = MeasurePhoneText(Game1.smallFont, firstMessage).X + ScaleUiValue(20);
+                    int firstMessageLineHeight = GetPhoneScaledLineHeight(Game1.smallFont, extraPadding: 20);
 
-                    Vector2 position = new Vector2(xPositionOnScreen + 300 - (maxWidth + 20) / 2, yPositionOnScreen + 850);
+                    Vector2 position = new Vector2(
+                        PhoneX(300) - (maxWidth + ScaleUiValue(20)) / 2f,
+                        PhoneY(850));
                     firstMessageBounds = new Rectangle(
                         (int)position.X,
                         (int)position.Y,
-                        (int)maxWidth + 20,
-                        firstMessageLineHeight + 10
+                        (int)maxWidth + ScaleUiValue(20),
+                        firstMessageLineHeight + ScaleUiValue(10)
                     );
 
                     IClickableMenu.drawTextureBox(
@@ -549,13 +588,12 @@ namespace Smartphone
                         false
                     );
 
-                    Utility.drawTextWithShadow(
+                    DrawPhoneText(
                         Game1.spriteBatch,
-                        firstMessage,
                         Game1.smallFont,
-                        new Vector2(firstMessageBounds.X + 20, firstMessageBounds.Y + 20),
-                        Game1.textColor
-                    );
+                        firstMessage,
+                        new Vector2(firstMessageBounds.X + ScaleUiValue(20), firstMessageBounds.Y + ScaleUiValue(20)),
+                        Game1.textColor);
 
                 }
 
@@ -566,17 +604,17 @@ namespace Smartphone
                     string[] lines = suggestionText.Split('\n');
 
                     // Measure the width of the longest line
-                    float maxWidth = lines.Max(line => Game1.smallFont.MeasureString(line).X) + 15f;
+                    float maxWidth = lines.Max(line => MeasurePhoneText(Game1.smallFont, line).X) + ScaleUiValue(15);
 
                     // Get font line height (all lines same height in pixel font)
-                    int suggestionLineHeight = (int)(Game1.smallFont.MeasureString("A").Y + 5);
+                    int suggestionLineHeight = GetPhoneScaledLineHeight(Game1.smallFont, extraPadding: 5);
 
-                    Vector2 position = new Vector2(xPositionOnScreen + 600, yPositionOnScreen + 800);
+                    Vector2 position = new Vector2(PhoneX(600), PhoneY(800));
                     messageSuggestionBounds = new Rectangle(
                         (int)position.X,
                         (int)position.Y,
-                        (int)maxWidth + 20,
-                        suggestionLineHeight * lines.Length + 10
+                        (int)maxWidth + ScaleUiValue(20),
+                        suggestionLineHeight * lines.Length + ScaleUiValue(10)
                     );
 
                     IClickableMenu.drawTextureBox(
@@ -594,13 +632,16 @@ namespace Smartphone
 
                     for (int i = 0; i < lines.Length; i++)
                     {
-                        Utility.drawTextWithShadow(
+                        DrawShadowedText(
                             Game1.spriteBatch,
-                            lines[i],
                             Game1.smallFont,
-                            new Vector2(messageSuggestionBounds.X + 15, messageSuggestionBounds.Y + 10 + i * suggestionLineHeight),
-                            Game1.textColor
-                        );
+                            lines[i],
+                            new Vector2(
+                                messageSuggestionBounds.X + ScaleUiValue(15),
+                                messageSuggestionBounds.Y + ScaleUiValue(10) + i * suggestionLineHeight),
+                            Game1.textColor,
+                            new Color(0, 0, 0, 150),
+                            GetPhoneTextScale());
                     }
                 }
 
@@ -612,7 +653,7 @@ namespace Smartphone
         private void DrawReadOnlyChatInputText(SpriteBatch b, Rectangle inputBounds, string text)
         {
             SpriteFont font = Game1.smallFont;
-            int maxWidth = inputBounds.Width - 30;
+            int maxWidth = GetPhoneScaledWrapWidth(inputBounds.Width - ScaleUiValue(30));
 
             string safeText = text ?? string.Empty;
             (string visibleText, _, _) = GetVisibleTextForInput(
@@ -621,8 +662,8 @@ namespace Smartphone
                 maxWidth,
                 safeText.Length);
 
-            Vector2 textPosition = new Vector2(inputBounds.X + 15, inputBounds.Y + 20);
-            b.DrawString(font, visibleText, textPosition, Color.DimGray);
+            Vector2 textPosition = new Vector2(inputBounds.X + ScaleUiValue(15), inputBounds.Y + ScaleUiValue(17));
+            DrawPhoneText(b, font, visibleText, textPosition, Color.DimGray);
         }
         private void DrawOpenSocialProfileButton(SpriteBatch b, Rectangle bounds)
         {
@@ -630,12 +671,12 @@ namespace Smartphone
                 b,
                 Game1.mouseCursors,
                 new Rectangle(80, 0, 13, 13),
-                bounds.X - 3,
+                bounds.X - ScaleUiValue(3),
                 bounds.Y,
                 bounds.Width,
                 bounds.Height,
                 new Color(255, 255, 255, 220),
-                3f,
+                ScaleUiValue(3f),
                 false);
         }
 
@@ -663,15 +704,15 @@ namespace Smartphone
             {
                 PhoneDialogueOption option = pendingChoice.Options[optionIndex];
                 string optionText = $"{optionIndex + 1}. {option.DisplayText}";
-                List<string> wrappedLines = SplitTextIntoLines(optionText, font, maxBubbleWidth);
+                List<string> wrappedLines = SplitTextIntoLines(optionText, font, GetPhoneScaledWrapWidth(maxBubbleWidth));
 
-                int bubbleHeight = Math.Max(1, wrappedLines.Count) * lineHeight + 10;
+                int bubbleHeight = Math.Max(1, wrappedLines.Count) * lineHeight + ScaleUiValue(10);
                 int bubbleWidth = 120;
                 foreach (string line in wrappedLines)
-                    bubbleWidth = Math.Max(bubbleWidth, (int)Math.Ceiling(font.MeasureString(line).X) + 20);
+                    bubbleWidth = Math.Max(bubbleWidth, (int)Math.Ceiling(MeasurePhoneText(font, line).X) + ScaleUiValue(20));
 
                 Rectangle bubbleRect = new Rectangle(
-                    xPositionOnScreen + width - bubbleWidth - 50,
+                    xPositionOnScreen + width - bubbleWidth - ScaleUiValue(50),
                     messageY,
                     bubbleWidth,
                     bubbleHeight);
@@ -679,30 +720,30 @@ namespace Smartphone
                 chatDialogueChoiceBounds[optionIndex] = bubbleRect;
 
                 int bubbleTop = bubbleRect.Y;
-                int bubbleBottom = bubbleRect.Bottom + 10;
+                int bubbleBottom = bubbleRect.Bottom + ScaleUiValue(10);
                 if (bubbleBottom >= visibleTop && bubbleTop <= visibleBottom)
                 {
                     IClickableMenu.drawTextureBox(
                         b,
                         Game1.menuTexture,
                         new Rectangle(0, 256, 60, 60),
-                        bubbleRect.X - 5,
+                        bubbleRect.X - ScaleUiValue(5),
                         bubbleRect.Y,
-                        bubbleRect.Width + 12,
-                        bubbleRect.Height + 10,
+                        bubbleRect.Width + ScaleUiValue(12),
+                        bubbleRect.Height + ScaleUiValue(10),
                         new Color(220, 240, 255, 240),
                         1f,
                         false);
 
-                    int textY = bubbleRect.Y + 15;
+                    int textY = bubbleRect.Y + ScaleUiValue(15);
                     foreach (string line in wrappedLines)
                     {
-                        b.DrawString(font, line, new Vector2(bubbleRect.X + 10, textY), Color.Black);
+                        DrawPhoneText(b, font, line, new Vector2(bubbleRect.X + ScaleUiValue(10), textY), Color.Black);
                         textY += lineHeight;
                     }
                 }
 
-                messageY += bubbleHeight + 10;
+                messageY += bubbleHeight + ScaleUiValue(10);
             }
         }
 
@@ -863,7 +904,7 @@ namespace Smartphone
                     return true;
                 }
 
-                int yStart = yPositionOnScreen + 150;
+                int yStart = PhoneY(150);
 
                 for (int i = 0; i < visibleSlots; i++)
                 {
@@ -871,7 +912,7 @@ namespace Smartphone
                     if (index >= messageableNpcList.Count)
                         break;
 
-                    Rectangle slot = new Rectangle(xPositionOnScreen + 40, yStart + i * spacing, 400, 60);
+                    Rectangle slot = new Rectangle(PhoneX(40), yStart + i * spacing, ScaleUiValue(400), ScaleUiValue(60));
                     if (!slot.Contains(x, y))
                         continue;
 
@@ -1942,14 +1983,14 @@ namespace Smartphone
             if (entry.IsPhoto)
             {
                 Point drawSize = GetChatPhotoGroupDrawSize(entry);
-                return drawSize.Y + 20;
+                return drawSize.Y + ScaleUiValue(20);
             }
 
             List<string> wrappedLines = entry.IsSystem
                 ? new List<string> { entry.Text }
-                : SplitTextIntoLines(entry.Text, font, maxBubbleWidth);
+                : SplitTextIntoLines(entry.Text, font, GetPhoneScaledWrapWidth(maxBubbleWidth));
 
-            return Math.Max(1, wrappedLines.Count) * lineHeight + 10;
+            return Math.Max(1, wrappedLines.Count) * lineHeight + ScaleUiValue(10);
         }
 
         private int CalculateChatEntryWidth(ChatMessageEntry entry, SpriteFont font)
@@ -1962,11 +2003,11 @@ namespace Smartphone
 
             List<string> wrappedLines = entry.IsSystem
                 ? new List<string> { entry.Text }
-                : SplitTextIntoLines(entry.Text, font, maxBubbleWidth);
+                : SplitTextIntoLines(entry.Text, font, GetPhoneScaledWrapWidth(maxBubbleWidth));
 
             int bubbleWidth = 120;
             foreach (string line in wrappedLines)
-                bubbleWidth = Math.Max(bubbleWidth, (int)Math.Ceiling(font.MeasureString(line).X) + 20);
+                bubbleWidth = Math.Max(bubbleWidth, (int)Math.Ceiling(MeasurePhoneText(font, line).X) + ScaleUiValue(20));
 
             return bubbleWidth;
         }
@@ -2346,11 +2387,11 @@ namespace Smartphone
                 Rectangle badgeBounds = new Rectangle(bounds.Right - 2, bounds.Y - 10, 24, 18);
                 b.Draw(Game1.staminaRect, badgeBounds, new Color(215, 48, 48, 235));
 
-                Vector2 badgeSize = Game1.smallFont.MeasureString(badgeText);
+                Vector2 badgeSize = MeasurePhoneText(Game1.smallFont, badgeText);
                 Vector2 badgePos = new Vector2(
                     badgeBounds.X + (badgeBounds.Width - badgeSize.X) / 2f,
                     badgeBounds.Y + (badgeBounds.Height - badgeSize.Y) / 2f - 1f);
-                b.DrawString(Game1.smallFont, badgeText, badgePos, Color.White);
+                DrawPhoneText(b, Game1.smallFont, badgeText, badgePos, Color.White);
             }
         }
 
@@ -2462,13 +2503,15 @@ namespace Smartphone
 
             if(ModEntry.iUnlimitedEventExpansionApi == null)
             {
-                b.DrawString(
+                DrawPhoneText(
+                    b,
                     Game1.smallFont,
                     "Get UnlimitedEventExpansion",
                     new Vector2(panelX + panelPadding, panelY + panelPadding + 3),
                     Color.Black);
                     
-                b.DrawString(
+                DrawPhoneText(
+                    b,
                     Game1.smallFont,
                     "to schedule events!!!",
                     new Vector2(panelX + panelPadding, panelY + panelPadding + 30),
@@ -2477,12 +2520,14 @@ namespace Smartphone
             }
             else if (events.Count == 0)
             {
-                b.DrawString(
+                DrawPhoneText(
+                    b,
                     Game1.smallFont,
                     "No event available",
                     new Vector2(panelX + panelPadding, panelY + panelPadding + 3),
                     Color.Black);
-                b.DrawString(
+                DrawPhoneText(
+                    b,
                     Game1.smallFont,
                     "at current friendship!!!",
                     new Vector2(panelX + panelPadding, panelY + panelPadding + 30),
@@ -2521,22 +2566,25 @@ namespace Smartphone
                 false);
 
             string safeLabel = label ?? string.Empty;
-            List<string> lines = SplitTextIntoLines(safeLabel, Game1.smallFont, Math.Max(24, bounds.Width - 18));
+            List<string> lines = SplitTextIntoLines(
+                safeLabel,
+                Game1.smallFont,
+                GetPhoneScaledWrapWidth(Math.Max(24, bounds.Width - 18)));
             if (lines.Count == 0)
                 lines.Add(safeLabel);
 
-            int lineHeight = (int)Game1.smallFont.MeasureString("A").Y + 2;
+            int lineHeight = GetPhoneScaledLineHeight(Game1.smallFont, extraPadding: 2);
             int totalHeight = lines.Count * lineHeight;
             float startY = bounds.Y + Math.Max(2f, (bounds.Height - totalHeight) / 2f);
 
             for (int i = 0; i < lines.Count; i++)
             {
                 string line = lines[i];
-                Vector2 lineSize = Game1.smallFont.MeasureString(line);
+                Vector2 lineSize = MeasurePhoneText(Game1.smallFont, line);
                 Vector2 textPosition = new Vector2(
                     bounds.X + Math.Max(8f, (bounds.Width - lineSize.X) / 2f),
                     startY + i * lineHeight);
-                b.DrawString(Game1.smallFont, line, textPosition, Color.Black);
+                DrawPhoneText(b, Game1.smallFont, line, textPosition, Color.Black);
             }
         }
 
@@ -2586,11 +2634,11 @@ namespace Smartphone
                 Rectangle badgeBounds = new Rectangle(bounds.Right - 2, bounds.Y - 10, 24, 18);
                 b.Draw(Game1.staminaRect, badgeBounds, new Color(215, 48, 48, 235));
 
-                Vector2 badgeSize = Game1.smallFont.MeasureString(badgeText);
+                Vector2 badgeSize = MeasurePhoneText(Game1.smallFont, badgeText);
                 Vector2 badgePos = new Vector2(
                     badgeBounds.X + (badgeBounds.Width - badgeSize.X) / 2f,
                     badgeBounds.Y + (badgeBounds.Height - badgeSize.Y) / 2f - 1f);
-                b.DrawString(Game1.smallFont, badgeText, badgePos, Color.White);
+                DrawPhoneText(b, Game1.smallFont, badgeText, badgePos, Color.White);
             }
         }
 
@@ -2769,7 +2817,7 @@ namespace Smartphone
         {
             b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.35f);
 
-            Rectangle panelBounds = new Rectangle(xPositionOnScreen + 65, yPositionOnScreen + 180, 470, 600);
+            Rectangle panelBounds = PhoneRect(65, 180, 470, 600);
             IClickableMenu.drawTextureBox(
                 b,
                 Game1.menuTexture,
@@ -2783,15 +2831,32 @@ namespace Smartphone
                 false);
 
             string title = $"Send photos ({chatSelectedPhotos.Count}/{ChatPhotoPickerMaxCount})";
-            b.DrawString(Game1.dialogueFont, title, new Vector2(panelBounds.X + 20, panelBounds.Y + 14), Color.Black);
+            DrawPhoneText(
+                b,
+                Game1.dialogueFont,
+                title,
+                new Vector2(panelBounds.X + ScaleUiValue(20), panelBounds.Y + ScaleUiValue(14)),
+                Color.Black);
 
             chatPhotoPickerPrevBounds = Rectangle.Empty;
             chatPhotoPickerNextBounds = Rectangle.Empty;
             chatPhotoPickerToggleBounds = Rectangle.Empty;
-            chatPhotoPickerCancelBounds = new Rectangle(panelBounds.Right - 190, panelBounds.Bottom - 80, 96, 48);
-            chatPhotoPickerSendBounds = new Rectangle(panelBounds.Right - 84, panelBounds.Bottom - 86, 64, 64);
+            chatPhotoPickerCancelBounds = new Rectangle(
+                panelBounds.Right - ScaleUiValue(190),
+                panelBounds.Bottom - ScaleUiValue(80),
+                ScaleUiValue(96),
+                ScaleUiValue(48));
+            chatPhotoPickerSendBounds = new Rectangle(
+                panelBounds.Right - ScaleUiValue(84),
+                panelBounds.Bottom - ScaleUiValue(86),
+                ScaleUiValue(64),
+                ScaleUiValue(64));
 
-            Rectangle previewBounds = new Rectangle(panelBounds.X + 30, panelBounds.Y + 80, panelBounds.Width - 60, 330);
+            Rectangle previewBounds = new Rectangle(
+                panelBounds.X + ScaleUiValue(30),
+                panelBounds.Y + ScaleUiValue(80),
+                panelBounds.Width - ScaleUiValue(60),
+                ScaleUiValue(330));
             IClickableMenu.drawTextureBox(
                 b,
                 Game1.menuTexture,
@@ -2806,7 +2871,12 @@ namespace Smartphone
 
             if (chatPhotoCandidates.Count == 0)
             {
-                b.DrawString(Game1.smallFont, "No photos found.", new Vector2(previewBounds.X + 20, previewBounds.Y + 20), Color.Black);
+                DrawPhoneText(
+                    b,
+                    Game1.smallFont,
+                    "No photos found.",
+                    new Vector2(previewBounds.X + ScaleUiValue(20), previewBounds.Y + ScaleUiValue(20)),
+                    Color.Black);
             }
             else
             {
@@ -2832,19 +2902,36 @@ namespace Smartphone
                 }
                 else
                 {
-                    b.DrawString(Game1.smallFont, "Unable to load this image.", new Vector2(previewBounds.X + 20, previewBounds.Y + 20), Color.Black);
+                    DrawPhoneText(
+                        b,
+                        Game1.smallFont,
+                        "Unable to load this image.",
+                        new Vector2(previewBounds.X + ScaleUiValue(20), previewBounds.Y + ScaleUiValue(20)),
+                        Color.Black);
                 }
 
                 if (chatPhotoCandidates.Count > 1)
                 {
-                    chatPhotoPickerPrevBounds = new Rectangle(previewBounds.X + 8, previewBounds.Y + previewBounds.Height / 2 - 20, 40, 40);
-                    chatPhotoPickerNextBounds = new Rectangle(previewBounds.Right - 48, previewBounds.Y + previewBounds.Height / 2 - 20, 40, 40);
+                    chatPhotoPickerPrevBounds = new Rectangle(
+                        previewBounds.X + ScaleUiValue(8),
+                        previewBounds.Y + previewBounds.Height / 2 - ScaleUiValue(20),
+                        ScaleUiValue(40),
+                        ScaleUiValue(40));
+                    chatPhotoPickerNextBounds = new Rectangle(
+                        previewBounds.Right - ScaleUiValue(48),
+                        previewBounds.Y + previewBounds.Height / 2 - ScaleUiValue(20),
+                        ScaleUiValue(40),
+                        ScaleUiValue(40));
                     DrawSocialImageNavButton(b, chatPhotoPickerPrevBounds, isNext: false);
                     DrawSocialImageNavButton(b, chatPhotoPickerNextBounds, isNext: true);
                 }
 
                 bool selected = IsChatPhotoSelected(currentPath);
-                chatPhotoPickerToggleBounds = new Rectangle(panelBounds.X + 168, previewBounds.Bottom + 18, 132, 46);
+                chatPhotoPickerToggleBounds = new Rectangle(
+                    panelBounds.X + ScaleUiValue(168),
+                    previewBounds.Bottom + ScaleUiValue(18),
+                    ScaleUiValue(132),
+                    ScaleUiValue(46));
                 IClickableMenu.drawTextureBox(
                     b,
                     Game1.menuTexture,
@@ -2858,11 +2945,14 @@ namespace Smartphone
                     false);
 
                 string toggleLabel = selected ? "Selected" : "Select";
-                Vector2 toggleSize = Game1.smallFont.MeasureString(toggleLabel);
-                b.DrawString(
+                Vector2 toggleSize = MeasurePhoneText(Game1.smallFont, toggleLabel);
+                DrawPhoneText(
+                    b,
                     Game1.smallFont,
                     toggleLabel,
-                    new Vector2(chatPhotoPickerToggleBounds.X + (chatPhotoPickerToggleBounds.Width - toggleSize.X) / 2f, chatPhotoPickerToggleBounds.Y + 10),
+                    new Vector2(
+                        chatPhotoPickerToggleBounds.X + (chatPhotoPickerToggleBounds.Width - toggleSize.X) / 2f,
+                        chatPhotoPickerToggleBounds.Y + ScaleUiValue(10)),
                     Color.Black);
 
                 // string fileName = Path.GetFileName(currentPath);
@@ -2883,20 +2973,21 @@ namespace Smartphone
                 false);
 
             string cancelText = "Cancel";
-            Vector2 cancelSize = Game1.smallFont.MeasureString(cancelText);
-            b.DrawString(
+            Vector2 cancelSize = MeasurePhoneText(Game1.smallFont, cancelText);
+            DrawPhoneText(
+                b,
                 Game1.smallFont,
                 cancelText,
                 new Vector2(
                     chatPhotoPickerCancelBounds.X + (chatPhotoPickerCancelBounds.Width - cancelSize.X) / 2f,
-                    chatPhotoPickerCancelBounds.Y + (chatPhotoPickerCancelBounds.Height - cancelSize.Y) / 2f + 2f),
+                    chatPhotoPickerCancelBounds.Y + (chatPhotoPickerCancelBounds.Height - cancelSize.Y) / 2f + ScaleUiValue(2f)),
                 Color.Black);
 
             var sendButton = new ClickableTextureComponent(
                 chatPhotoPickerSendBounds,
                 Game1.mouseCursors,
                 new Rectangle(128, 256, 64, 64),
-                1f);
+                ScaleUiValue(1f));
             sendButton.draw(b);
         }
 
