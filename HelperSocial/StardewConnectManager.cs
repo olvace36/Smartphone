@@ -520,6 +520,132 @@ namespace Smartphone
             return changed;
         }
 
+        public static int GetActiveSocialNotificationCount()
+        {
+            if (!Context.IsWorldReady || Posts.Count == 0)
+                return 0;
+
+            var activeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (StardewConnectPost post in Posts)
+            {
+                if (post == null || string.IsNullOrWhiteSpace(post.Id))
+                    continue;
+
+                if (TryBuildPlayerCommentNotificationKey(post, out string playerCommentKey))
+                    activeKeys.Add(playerCommentKey);
+
+                if (TryBuildFavouriteNpcPostNotificationKey(post, out string favouritePostKey))
+                    activeKeys.Add(favouritePostKey);
+
+                if (TryBuildTaggedInPostNotificationKey(post, out string taggedPostKey))
+                    activeKeys.Add(taggedPostKey);
+
+                if (TryBuildTaggedInCommentNotificationKey(post, out string taggedCommentKey))
+                    activeKeys.Add(taggedCommentKey);
+            }
+
+            int activeCount = 0;
+            foreach (string key in activeKeys)
+            {
+                if (!IsSocialNotificationDismissed(key))
+                    activeCount++;
+            }
+
+            return activeCount;
+        }
+
+        private static bool TryBuildPlayerCommentNotificationKey(StardewConnectPost post, out string notificationKey)
+        {
+            notificationKey = string.Empty;
+            if (post == null || !post.AuthorIsPlayer || !IsCurrentPlayerName(post.AuthorName))
+                return false;
+
+            post.Comments ??= new List<StardewConnectComment>();
+            int readCount = Math.Clamp(
+                GetPlayerReadCommentCount(post, Game1.player?.Name ?? string.Empty),
+                0,
+                post.Comments.Count);
+
+            int unreadCount = 0;
+            StardewConnectComment? latestUnreadComment = null;
+
+            for (int i = readCount; i < post.Comments.Count; i++)
+            {
+                StardewConnectComment comment = post.Comments[i];
+                if (comment == null || IsCurrentPlayerName(comment.AuthorName))
+                    continue;
+
+                unreadCount++;
+                latestUnreadComment = comment;
+            }
+
+            if (latestUnreadComment == null || unreadCount <= 0)
+                return false;
+
+            notificationKey = BuildSocialNotificationKey(
+                "PlayerPostComment",
+                post.Id,
+                $"{latestUnreadComment.Id}|{unreadCount}");
+            return true;
+        }
+
+        private static bool TryBuildFavouriteNpcPostNotificationKey(StardewConnectPost post, out string notificationKey)
+        {
+            notificationKey = string.Empty;
+            if (post == null || post.AuthorIsPlayer || !IsFavouriteNpc(post.AuthorName))
+                return false;
+
+            notificationKey = BuildSocialNotificationKey("FavouriteNpcPost", post.Id);
+            return true;
+        }
+
+        private static bool TryBuildTaggedInPostNotificationKey(StardewConnectPost post, out string notificationKey)
+        {
+            notificationKey = string.Empty;
+            if (post == null || post.AuthorIsPlayer || !PostTargetsPlayer(post))
+                return false;
+
+            notificationKey = BuildSocialNotificationKey("TaggedInPost", post.Id);
+            return true;
+        }
+
+        private static bool TryBuildTaggedInCommentNotificationKey(StardewConnectPost post, out string notificationKey)
+        {
+            notificationKey = string.Empty;
+            if (post?.Comments == null || post.Comments.Count == 0)
+                return false;
+
+            for (int i = post.Comments.Count - 1; i >= 0; i--)
+            {
+                StardewConnectComment comment = post.Comments[i];
+                if (comment == null)
+                    continue;
+
+                if (IsCurrentPlayerName(comment.AuthorName))
+                    continue;
+
+                if (!ContainsPlayerMention(comment.Text))
+                    continue;
+
+                notificationKey = BuildSocialNotificationKey("TaggedInComment", post.Id, comment.Id ?? string.Empty);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static string BuildSocialNotificationKey(string typeName, string postId, string discriminator = "")
+        {
+            string safeTypeName = string.IsNullOrWhiteSpace(typeName) ? "Unknown" : typeName.Trim();
+            string safePostId = postId ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(discriminator))
+                return $"{safeTypeName}|{safePostId}";
+
+            return $"{safeTypeName}|{safePostId}|{discriminator}";
+        }
+
         public static bool IsPostOnOrAfterLastSocialVisit(StardewConnectPost post)
         {
             if (post == null)

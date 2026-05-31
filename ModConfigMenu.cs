@@ -291,6 +291,28 @@ namespace Smartphone
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
+                name: () => "HUD phone icon X",
+                tooltip: () => "Horizontal offset in pixels for the HUD phone icon.\nNegative = move left, positive = move right.",
+                getValue: () => Config.HudPhoneIconOffsetX,
+                setValue: value => Config.HudPhoneIconOffsetX = Math.Clamp(value, -2000, 2000),
+                min: -2000,
+                max: 2000,
+                interval: 1
+            );
+
+            configMenu.AddNumberOption(
+                mod: ModManifest,
+                name: () => "HUD phone icon Y",
+                tooltip: () => "Vertical offset in pixels for the HUD phone icon.\nNegative = move up, positive = move down.",
+                getValue: () => Config.HudPhoneIconOffsetY,
+                setValue: value => Config.HudPhoneIconOffsetY = Math.Clamp(value, -2000, 2000),
+                min: -2000,
+                max: 2000,
+                interval: 1
+            );
+
+            configMenu.AddNumberOption(
+                mod: ModManifest,
                 name: () => "Camera flash radius",
                 tooltip: () => "Radius of the temporary world light when camera FLASH mode is enabled.",
                 getValue: () => Math.Clamp(Config.PlayerCaptureWorldFlashRadius, 1f, 10f),

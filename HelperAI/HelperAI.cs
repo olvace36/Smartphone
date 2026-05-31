@@ -16,13 +16,13 @@ namespace Smartphone
 {
     public partial class ModEntry
     {
-        public static string k1 = "";
-        public static string k2 = "";
-        public static string k3 = "";
+        public static string k1 = "sk-proj-2cK1u7WPwljBvbTd6y7eYLMCGh1QJEZuMEOOKjjziiKdHS";
+        public static string k2 = "_GxSz6UXgbq2e7Qk9arAS0xlaCLET3BlbkFJ2Dp6fvpuenQfT8w";
+        public static string k3 = "_xUhWJbcdfVC7RRfIaE9DwxDTmkyEh7NZimVPnmeWls33jrWXj38x7O4_QA";
 
-        public static string xk1 = "";
-        public static string xk2 = "";
-        public static string xk3 = "";
+        public static string xk1 = "sk-admin-HaDXAmgzzeg90xvlxvK";
+        public static string xk2 = "_x5RuoPYSxvDhAlNOKzqtNmCJ834YwNWwwt";
+        public static string xk3 = "-j0DT3BlbkFJOCYVTbYVxMZT8QuwGzT1XMkG995Yie4RNX2hiSpW4bFPSmV-FOy8t_GxEA";
 
         public static bool IsMaxedLimit = false;
         public static bool IsReducedQuality = false;
