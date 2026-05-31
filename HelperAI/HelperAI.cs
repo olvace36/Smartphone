@@ -65,6 +65,23 @@ namespace Smartphone
             return IsGeminiModel(model) ? AiProviderGemini : AiProviderOpenAi;
         }
 
+        private static string ResolveAiInstructionLanguage()
+        {
+            string configuredLanguage = (Config?.Language ?? string.Empty).Trim();
+            return string.IsNullOrWhiteSpace(configuredLanguage) ? "English" : configuredLanguage;
+        }
+
+        private static string AppendLanguageInstruction(string instructionText)
+        {
+            string normalizedInstruction = (instructionText ?? string.Empty).TrimEnd();
+            string language = ResolveAiInstructionLanguage();
+
+            if (string.Equals(language, "english", StringComparison.OrdinalIgnoreCase))
+                return normalizedInstruction;
+
+            return $"{normalizedInstruction}\nUse {language} language and alphabet";
+        }
+
         internal static void HandleAiModelSettingTimeChanged(int newTime)
         {
             if (IsAiTemporarilyDisabledForPhoneInactivity())
@@ -440,6 +457,7 @@ namespace Smartphone
                                     $"Schedule {registeredEvent.EventType} event with {npcDisplayName}?",
                                     onConfirm: (Farmer who) =>
                                     {
+                                        Game1.activeClickableMenu = null;
                                         iUnlimitedEventExpansionApi.OpenScheduleEventTimeMenu(
                                             eventNpcName.Trim(),
                                             registeredEvent.EventType,
@@ -710,7 +728,7 @@ namespace Smartphone
 
 
 
-                    return systemMessage;
+                    return AppendLanguageInstruction(systemMessage);
                 }
                 else if (type == "text")
                 {
@@ -727,7 +745,7 @@ namespace Smartphone
                         * **World Context:** {data}
                         * **Conversation History:** {summary}
                         ";
-                    return systemMessage;
+                    return AppendLanguageInstruction(systemMessage);
                 }
                 else if (type == "invite")
                 {
@@ -745,7 +763,7 @@ namespace Smartphone
                         * **Conversation History:** {summary}
                         ";
 
-                    return systemMessage;
+                    return AppendLanguageInstruction(systemMessage);
                 }
 
                 return "";
@@ -836,6 +854,8 @@ namespace Smartphone
                 + "Focus on factual lore, player preferences, important life events, and the current emotional standing/relationship with the PLAYER. "
                 + $"Keep each NPC summary under {maxAiSummaryLength} words. Remove outdated, trivial, non-memory-value details. "
                 + "Return only one valid JSON object with this format: {\"summaries\":{\"NPC Name\":\"updated summary\"}}. ";
+
+            system = AppendLanguageInstruction(system);
 
 
             var userPayload = new
@@ -1021,6 +1041,8 @@ namespace Smartphone
                     Return exactly one valid JSON object in this format:
                     {""posts"": [{""id"": ""<id>"", ""text"": ""<generated post text>""}]}
                     Every returned id must match an input id.";
+
+                developerMessage = AppendLanguageInstruction(developerMessage);
 
                 var userPayload = new
                 {
@@ -1325,6 +1347,8 @@ namespace Smartphone
                 Every returned id must match an input id.
                 Include every requested NPC exactly once for each returned id.
                 No markdown, no labels, no extra prose.";
+
+                developerMessage = AppendLanguageInstruction(developerMessage);
 
                 var userPayload = new
                 {

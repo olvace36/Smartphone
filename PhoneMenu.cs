@@ -58,6 +58,43 @@ namespace Smartphone
             public int SelectionAnchorIndex { get; init; }
         }
 
+        private sealed class PhoneTextInputSubscriber : IKeyboardSubscriber
+        {
+            private readonly PhoneMenu owner;
+
+            public bool Selected { get; set; }
+
+            public PhoneTextInputSubscriber(PhoneMenu owner)
+            {
+                this.owner = owner;
+            }
+
+            public void RecieveTextInput(char inputChar)
+            {
+                if (!Selected)
+                    return;
+
+                owner.TryApplyComposedTextInput(inputChar.ToString());
+            }
+
+            public void RecieveTextInput(string text)
+            {
+                if (!Selected)
+                    return;
+
+                owner.TryApplyComposedTextInput(text);
+            }
+
+            public void RecieveCommandInput(char command)
+            {
+                // Command keys are handled through receiveKeyPress to avoid duplicate edits.
+            }
+
+            public void RecieveSpecialInput(Keys key)
+            {
+            }
+        }
+
         private enum EditableTextFieldKind
         {
             None,
@@ -336,8 +373,9 @@ namespace Smartphone
         private Texture2D phoneBackgroundImage = null;
 
 
-        // this textBox is hidden. it is created only to disable the game function key
+        // this textBox remains hidden for compatibility with existing menu behavior.
         private TextBox textBox;
+        private readonly PhoneTextInputSubscriber textInputSubscriber;
 
         private (string, string) currentSuggestion = ("", "");
         private Rectangle messageSuggestionBounds = Rectangle.Empty;
@@ -506,6 +544,8 @@ namespace Smartphone
                 Text = ""
             };
 
+            textInputSubscriber = new PhoneTextInputSubscriber(this);
+
             phoneSoundList = new List<string>
             {
                 "getNewSpecialItem",
@@ -558,6 +598,7 @@ namespace Smartphone
 
         protected override void cleanupBeforeExit()
         {
+            SetPhoneTextInputFocus(false);
             DisposeLockScreenWeatherIconSoftCache();
             RestoreControllerCursorSetting();
             base.cleanupBeforeExit();
@@ -631,6 +672,7 @@ namespace Smartphone
             cameraFlashButtonBounds = Rectangle.Empty;
             cameraRotateButtonBounds = Rectangle.Empty;
             cameraSquareButtonBounds = Rectangle.Empty;
+            SetPhoneTextInputFocus(false);
 
 
             if (currentApp == null)
@@ -1569,6 +1611,109 @@ namespace Smartphone
             return EditableTextFieldKind.None;
         }
 
+        private void SetPhoneTextInputFocus(bool focused)
+        {
+            if (Game1.keyboardDispatcher == null)
+                return;
+
+            if (focused)
+            {
+                if (!ReferenceEquals(Game1.keyboardDispatcher.Subscriber, textInputSubscriber))
+                    Game1.keyboardDispatcher.Subscriber = textInputSubscriber;
+
+                return;
+            }
+
+            if (ReferenceEquals(Game1.keyboardDispatcher.Subscriber, textInputSubscriber))
+                Game1.keyboardDispatcher.Subscriber = null;
+        }
+
+        private bool IsEditableTextFieldAcceptingComposedInput(EditableTextFieldKind field)
+        {
+            return field switch
+            {
+                EditableTextFieldKind.Search => IsTextAppOpen() && selectedNpc == null && !chatPhotoPickerOpen,
+                EditableTextFieldKind.Chat => IsTextAppOpen()
+                    && !string.IsNullOrWhiteSpace(selectedNpc)
+                    && !chatPhotoPickerOpen
+                    && IsTextChatInputEnabledForSelectedNpc()
+                    && !PhoneDialogueRuntime.HasPendingChoice(selectedNpc),
+                EditableTextFieldKind.SocialPost => currentApp == SocialAppState && socialCreateMenuOpen,
+                EditableTextFieldKind.SocialComment => currentApp == SocialAppState
+                    && !string.IsNullOrWhiteSpace(selectedSocialPostId)
+                    && !socialCreateMenuOpen,
+                _ => false
+            };
+        }
+
+        private bool TryApplyComposedTextInput(string? inputText)
+        {
+            EditableTextFieldKind field = GetActiveEditableTextField();
+            if (!IsEditableTextFieldAcceptingComposedInput(field))
+                return false;
+
+            string normalizedText = NormalizePastedText(inputText ?? "");
+            if (normalizedText.Length == 0)
+                return false;
+
+            if (!TryApplyEditableTextInsertionToField(field, normalizedText))
+                return false;
+
+            if (field == EditableTextFieldKind.Search)
+            {
+                scrollOffset = 0;
+                UpdateNpcList();
+            }
+            else if (field == EditableTextFieldKind.Chat)
+            {
+                RegisterTextInputActivity(selectedNpc);
+                ResetChatQuickActionsState();
+            }
+
+            Game1.playSound("coin");
+            return true;
+        }
+
+        private bool TryApplyEditableTextInsertionToField(EditableTextFieldKind field, string insertionText)
+        {
+            if (string.IsNullOrEmpty(insertionText))
+                return false;
+
+            switch (field)
+            {
+                case EditableTextFieldKind.Search:
+                case EditableTextFieldKind.Chat:
+                    ApplyEditableTextInsertion(
+                        field,
+                        ref currentMessage,
+                        ref currentMessageCursorIndex,
+                        ref currentMessageSelectionAnchorIndex,
+                        insertionText);
+                    return true;
+
+                case EditableTextFieldKind.SocialPost:
+                    ApplyEditableTextInsertion(
+                        field,
+                        ref socialPostDraft,
+                        ref socialPostDraftCursorIndex,
+                        ref socialPostDraftSelectionAnchorIndex,
+                        insertionText);
+                    return true;
+
+                case EditableTextFieldKind.SocialComment:
+                    ApplyEditableTextInsertion(
+                        field,
+                        ref socialCommentDraft,
+                        ref socialCommentDraftCursorIndex,
+                        ref socialCommentDraftSelectionAnchorIndex,
+                        insertionText);
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+
         private void BeginTextInputRepeat(EditableTextFieldKind field, Keys key)
         {
             activeTextInputRepeatField = field;
@@ -1882,56 +2027,6 @@ namespace Smartphone
 
             return visibleEnd;
         }
-
-        private char GetCharFromKey(Keys key, bool shift)
-        {
-            switch (key)
-            {
-                // Letters
-                case >= Keys.A and <= Keys.Z:
-                    return shift ? key.ToString()[0] : char.ToLower(key.ToString()[0]);
-
-                // Top row numbers
-                case Keys.D0: return shift ? ')' : '0';
-                case Keys.D1: return shift ? '!' : '1';
-                case Keys.D2: return shift ? '@' : '2';
-                case Keys.D3: return shift ? '#' : '3';
-                case Keys.D4: return shift ? '$' : '4';
-                case Keys.D5: return shift ? '%' : '5';
-                case Keys.D6: return shift ? '^' : '6';
-                case Keys.D7: return shift ? '&' : '7';
-                case Keys.D8: return shift ? '*' : '8';
-                case Keys.D9: return shift ? '(' : '9';
-
-                // Numpad numbers
-                case Keys.NumPad0: return '0';
-                case Keys.NumPad1: return '1';
-                case Keys.NumPad2: return '2';
-                case Keys.NumPad3: return '3';
-                case Keys.NumPad4: return '4';
-                case Keys.NumPad5: return '5';
-                case Keys.NumPad6: return '6';
-                case Keys.NumPad7: return '7';
-                case Keys.NumPad8: return '8';
-                case Keys.NumPad9: return '9';
-
-                // Symbols
-                case Keys.OemPeriod: return shift ? '>' : '.';
-                case Keys.OemComma: return shift ? '<' : ',';
-                case Keys.OemQuestion: return shift ? '?' : '/';
-                case Keys.OemSemicolon: return shift ? ':' : ';';
-                case Keys.OemQuotes: return shift ? '"' : '\'';
-                case Keys.OemOpenBrackets: return shift ? '{' : '[';
-                case Keys.OemCloseBrackets: return shift ? '}' : ']';
-                case Keys.OemPipe: return shift ? '|' : '\\';
-                case Keys.OemMinus: return shift ? '_' : '-';
-                case Keys.OemPlus: return shift ? '+' : '=';
-                case Keys.Space: return ' ';
-
-                default: return '\0';
-            }
-        }
-
 
         private List<string> SplitTextIntoLines(string text, SpriteFont font, int maxWidth)
         {
@@ -2888,7 +2983,7 @@ namespace Smartphone
 
         private void DrawHomeLandingScreen(SpriteBatch b, int xOffset, bool drawApps)
         {
-            DrawPhoneScreenBackground(b, xOffset, applyBackgroundImage: false);
+            DrawPhoneScreenBackground(b, xOffset, applyBackgroundImage: true);
 
             if (!drawApps)
                 return;
@@ -2920,7 +3015,7 @@ namespace Smartphone
 
             DrawWithinPhoneContentClip(b, () =>
             {
-                DrawPhoneScreenBackground(b, xOffset, applyBackgroundImage: false);
+                DrawPhoneScreenBackground(b, xOffset, applyBackgroundImage: true);
 
                 string timeText = FormatTimeOfDay(Game1.timeOfDay);
                 string dateText = BuildLockScreenDateText();
@@ -4476,6 +4571,7 @@ namespace Smartphone
 
         public void ClosePhoneMenu()
         {
+            SetPhoneTextInputFocus(false);
             ResetChatQuickActionsState();
             CloseChatPhotoPicker(clearSelection: true);
             currentMessage = null;

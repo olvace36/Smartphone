@@ -74,6 +74,14 @@ namespace Smartphone
 
             configMenu.AddTextOption(
                 mod: ModManifest,
+                name: () => "Language",
+                tooltip: () => "Enter your prefered language. However English is the best supported.",
+                getValue: () => string.IsNullOrWhiteSpace(Config.Language) ? "English" : Config.Language,
+                setValue: value => Config.Language = string.IsNullOrWhiteSpace(value) ? "English" : value.Trim()
+            );
+
+            configMenu.AddTextOption(
+                mod: ModManifest,
                 name: () => "Who can message you",
                 tooltip: () => "Meet: NPC must be talked to at least once.\nFriend: NPC must have at least 1 heart.",
                 getValue: () => EnsureAllowedValue(Config.NpcMessageRequirement, ModConfig.NpcRequirementFriend, npcRequirementValues),
@@ -298,7 +306,7 @@ namespace Smartphone
             configMenu.AddBoolOption(
                 mod: ModManifest,
                 name: () => "Use small phone size",
-                tooltip: () => "Render the opened phone UI at 75% size. Applied the next time you open the phone.",
+                tooltip: () => "Not the ideal size, however in case you have a small screen.\nYou can also adjust the game UI scale which will also affect the phone size.",
                 getValue: () => Config.UseSmallPhoneSize,
                 setValue: value => Config.UseSmallPhoneSize = value
             );

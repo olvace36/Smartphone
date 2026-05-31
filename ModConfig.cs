@@ -46,6 +46,7 @@ namespace Smartphone
         public SButton ModKey { get; set; } = SButton.H;
         public string NpcMessageRequirement { get; set; } = NpcRequirementMeet;
         public string PostPerDay { get; set; } = PostPerDayLow;
+        public string Language { get; set; } = "English";
 
         private string _key = string.Empty;
         private string _model = OpenAIModel_54mini;

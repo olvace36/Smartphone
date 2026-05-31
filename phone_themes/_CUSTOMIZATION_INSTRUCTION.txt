@@ -1,6 +1,7 @@
 Instruction to create your own theme:
     - Copy folder 'default' to a new one and rename it to whatever you want 'my_theme'
     - Copy your images into the new folder and rename it to the respective texture (app_camera, phone_empty,...)
+    - OPTIONAL: add your credit into readme.txt
     - Restart the game. You will see 'my_theme' option appear in the Setting -> Themes
 
 Requirement:

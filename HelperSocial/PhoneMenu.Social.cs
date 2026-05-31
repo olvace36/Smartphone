@@ -1473,8 +1473,7 @@ namespace Smartphone
             DrawSocialLikeTooltipIfHovered(b, selectedPost, socialDetailLikeHoverBounds);
             DrawSocialTagTooltipIfHovered(b, selectedPost, socialDetailTagHoverBounds, socialDetailTagHoverText, GetSocialDetailViewportRect());
 
-            textBox.Selected = true;
-            Game1.keyboardDispatcher.Subscriber = textBox;
+            SetPhoneTextInputFocus(true);
         }
 
         private void DrawSocialCreatePostMenu(SpriteBatch b)
@@ -1677,8 +1676,7 @@ namespace Smartphone
             socialCreateSubmitBounds = socialOkButton.bounds;
             socialOkButton.draw(b);
 
-            textBox.Selected = true;
-            Game1.keyboardDispatcher.Subscriber = textBox;
+            SetPhoneTextInputFocus(true);
         }
 
         private void DrawSocialProfile(SpriteBatch b)

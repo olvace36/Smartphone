@@ -279,9 +279,7 @@ namespace Smartphone
 
                 DrawEditableTextInput(b, new Rectangle(inputX, inputY, inputWidth, inputHeight), currentMessage, currentMessageCursorIndex, currentMessageSelectionAnchorIndex);
 
-                // enable ghost textBox. do not remove
-                textBox.Selected = true;
-                Game1.keyboardDispatcher.Subscriber = textBox;
+                SetPhoneTextInputFocus(true);
             }
             else
             {
@@ -527,9 +525,7 @@ namespace Smartphone
                             new Rectangle(inputX, inputY, inputWidth, inputHeight),
                             "Waiting for your response...");
 
-                        textBox.Selected = false;
-                        if (Game1.keyboardDispatcher.Subscriber == textBox)
-                            Game1.keyboardDispatcher.Subscriber = null;
+                        SetPhoneTextInputFocus(false);
                     }
                     else
                     {
@@ -540,9 +536,7 @@ namespace Smartphone
                             currentMessageCursorIndex,
                             currentMessageSelectionAnchorIndex);
 
-                        // enable ghost textBox. do not remove
-                        textBox.Selected = true;
-                        Game1.keyboardDispatcher.Subscriber = textBox;
+                        SetPhoneTextInputFocus(true);
                     }
 
                     DrawAiCreditTooltipIfHovered(b);
@@ -552,9 +546,7 @@ namespace Smartphone
                     chatPhotoButtonBounds = Rectangle.Empty;
                     chatAiCreditInfoBounds = Rectangle.Empty;
                     ResetChatQuickActionsState();
-                    textBox.Selected = false;
-                    if (Game1.keyboardDispatcher.Subscriber == textBox)
-                        Game1.keyboardDispatcher.Subscriber = null;
+                    SetPhoneTextInputFocus(false);
 
                     string firstMessageNpcDisplayName = GetConversationDisplayName(selectedNpc ?? "");
                     string firstMessage = Game1.timeOfDay < 1200
@@ -1106,13 +1098,6 @@ namespace Smartphone
                 return true;
             }
 
-            if (!isRepeat)
-            {
-                Game1.playSound("coin");
-                UpdateNpcList();
-                return true;
-            }
-
             return false;
         }
 
@@ -1250,12 +1235,7 @@ namespace Smartphone
 
             if (allowPaste && ctrlDown && key == Keys.V)
             {
-                string pastedText = NormalizePastedText(GetClipboardTextSafely());
-                if (pastedText.Length == 0)
-                    return true;
-
-                ApplyEditableTextInsertion(field, ref text, ref cursorIndex, ref selectionAnchorIndex, pastedText);
-                textChanged = true;
+                // Paste text arrives through keyboard dispatcher composed input.
                 return true;
             }
 
@@ -1381,13 +1361,7 @@ namespace Smartphone
                     return true;
             }
 
-            char input = GetCharFromKey(key, shiftDown);
-            if (input == '\0')
-                return false;
-
-            ApplyEditableTextInsertion(field, ref text, ref cursorIndex, ref selectionAnchorIndex, input.ToString());
-            textChanged = true;
-            return true;
+            return false;
         }
 
         private bool ShouldIgnoreNonKeyboardTextEditInput(Keys key, KeyboardState keyboardState, bool allowEnter)
@@ -1401,7 +1375,7 @@ namespace Smartphone
             if (key is Keys.Back or Keys.Delete or Keys.Left or Keys.Right or Keys.Home or Keys.End)
                 return true;
 
-            return GetCharFromKey(key, shift: false) != '\0';
+            return false;
         }
 
         private static bool ShouldPlayTypingSound(Keys key, bool allowPaste)

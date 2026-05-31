@@ -373,10 +373,12 @@ namespace Smartphone
                 return;
 
             int currentDayNumber = MessageManager.GetCurrentPhoneUsageDayNumber();
-            if (currentDayNumber <= 0)
-                return;
 
             int lastOpenedDay = Math.Max(0, MessageManager.lastPhoneOpenedDay);
+
+            if (currentDayNumber <= 0 || lastOpenedDay <= 0)
+                return;
+
             if (lastOpenedDay > currentDayNumber)
                 lastOpenedDay = currentDayNumber;
 
@@ -511,6 +513,7 @@ namespace Smartphone
 
             if (pendingInitNotification && Context.IsPlayerFree)
             {
+                MessageManager.MarkPhoneOpenedToday();
                 Game1.drawLetterMessage("=== Smartphone ===^^Looks like this is your first time here, or you have recently updated the mod and >> LOST YOUR DATA @@^^" +
                     "Please note that your data, including conversations, photos, StardewSocial, everything,... are saved in             $$/Mods/Smartphone/Userdata$$ folder.^     >> YOU MUST COPY IT WHEN UPDATE THE MOD @@^^                                      > continue >" +
                     "^Smartphone costs $real money$ to maintain. To keep this mod available for everyone, please use it responsibly!!!^^Really really really like the mod and like to help keep the lights on? Check out the mod page for ways to contribute.^^" +
