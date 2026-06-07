@@ -101,7 +101,10 @@ namespace Smartphone
             Search,
             Chat,
             SocialPost,
-            SocialComment
+            SocialComment,
+            ProfileAge,
+            ProfileBirthday,
+            ProfileDescription
         }
 
         private enum RootLandingState
@@ -230,7 +233,10 @@ namespace Smartphone
 
         // buttons
         private ClickableTextureComponent okButton;
+        private ClickableTextureComponent playerDescriptionButton;
         private ClickableTextureComponent backButton;
+        private ClickableTextureComponent lockButton;
+        private ClickableTextureComponent homeButton;
         private ClickableTextureComponent removeButton;
         private ClickableTextureComponent captureButton;
         private ClickableTextureComponent photoNextButton;
@@ -266,7 +272,7 @@ namespace Smartphone
         private const string SettingMenuOptionSound = "sound";
         private const string SettingMenuOptionTheme = "theme";
         private const string ThemeReadmeFileName = "readme.txt";
-        private const int SettingsTitleXOffsetBase = 105;
+        private const int SettingsTitleXOffsetBase = 65;
         private const int SettingsTitleYOffsetBase = 67;
         private const int SettingsMainOptionsStartYBase = 260;
         private const int SettingsListStartYBase = 150;
@@ -398,6 +404,25 @@ namespace Smartphone
         private readonly List<string> chatSelectedPhotos = new();
         private int chatPhotoCandidateIndex = -1;
         private string currentSettingMenuState = SettingMenuMainState;
+        private bool textProfileMenuOpen = false;
+        private EditableTextFieldKind textProfileActiveField = EditableTextFieldKind.ProfileAge;
+
+        private Rectangle textProfileAvatarCameraButtonBounds = Rectangle.Empty;
+        private Rectangle textProfileAgeFieldBounds = Rectangle.Empty;
+        private Rectangle textProfileBirthdayFieldBounds = Rectangle.Empty;
+        private Rectangle textProfileDescriptionFieldBounds = Rectangle.Empty;
+        private Rectangle textProfileSeasonButtonBounds = Rectangle.Empty;
+
+        private int textProfileAgeCursorIndex = 0;
+        private int textProfileAgeSelectionAnchorIndex = 0;
+        private int textProfileBirthdayCursorIndex = 0;
+        private int textProfileBirthdaySelectionAnchorIndex = 0;
+        private int textProfileDescriptionCursorIndex = 0;
+        private int textProfileDescriptionSelectionAnchorIndex = 0;
+
+        private readonly List<TextEditSnapshot> textProfileAgeUndoHistory = new();
+        private readonly List<TextEditSnapshot> textProfileBirthdayUndoHistory = new();
+        private readonly List<TextEditSnapshot> textProfileDescriptionUndoHistory = new();
 
         private EditableTextFieldKind activeTextInputRepeatField = EditableTextFieldKind.None;
         private Keys? activeTextInputRepeatKey = null;
@@ -408,6 +433,7 @@ namespace Smartphone
         private const double TextInputRepeatInitialDelaySeconds = 0.45d;
         private const double TextInputRepeatIntervalSeconds = 0.05d;
         private const int TextUndoHistoryLimit = 128;
+        private const int ProfileDescriptionMaxLength = 160;
         private const double LockScreenInitializationDurationSeconds = 7d;
         private const double LockScreenInitializationProgressIntervalMinSeconds = 0.06d;
         private const double LockScreenInitializationProgressIntervalMaxSeconds = 0.45d;
@@ -659,13 +685,34 @@ namespace Smartphone
             // global
             backButton = new ClickableTextureComponent(
                 new Rectangle(
-                    this.xPositionOnScreen + ScaleUiValue(40),
-                    this.yPositionOnScreen + ScaleUiValue(59),
+                    this.xPositionOnScreen + ScaleUiValue(132),
+                    this.yPositionOnScreen + ScaleUiValue(925),
                     ScaleUiValue(64),
                     ScaleUiValue(64)),
-                Game1.mouseCursors,
+                null,
                 Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 44),
-                ScaleUiValue(0.95f));
+                ScaleUiValue(1f));
+
+            lockButton = new ClickableTextureComponent(
+                new Rectangle(
+                    this.xPositionOnScreen + ScaleUiValue(405),
+                    this.yPositionOnScreen + ScaleUiValue(925),
+                    ScaleUiValue(64),
+                    ScaleUiValue(64)),
+                null,
+                Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 44),
+                ScaleUiValue(1f));
+
+            homeButton = new ClickableTextureComponent(
+                new Rectangle(
+                    this.xPositionOnScreen + ScaleUiValue(265),
+                    this.yPositionOnScreen + ScaleUiValue(915),
+                    ScaleUiValue(64),
+                    ScaleUiValue(64)),
+                null,
+                Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 33),
+                ScaleUiValue(1.3f));
+
 
             cameraZoomOutButtonBounds = Rectangle.Empty;
             cameraZoomInButtonBounds = Rectangle.Empty;
@@ -678,6 +725,8 @@ namespace Smartphone
             if (currentApp == null)
             {
                 DrawRootPhoneScreen(b);
+                lockButton.draw(b, Color.Tan, 1f);
+                homeButton.draw(b, Color.Tan, 1f);
 
             }
             else if (currentApp == ExternalGroupAppState)
@@ -685,7 +734,9 @@ namespace Smartphone
                 b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
                 DrawPhoneScreenBackground(b, xOffset: 0, applyBackgroundImage: true);
                 DrawPhoneFrame(b);
-                backButton.draw(b);
+                backButton.draw(b, Color.Tan, 1f);
+                lockButton.draw(b, Color.Tan, 1f);
+                homeButton.draw(b, Color.Tan, 1f);
 
                 string title = string.IsNullOrWhiteSpace(currentExternalGroupName)
                     ? "App Group"
@@ -806,7 +857,9 @@ namespace Smartphone
                         landscapeTransform);
 
                     DrawPhoneFrame(b);
-                    backButton.draw(b);
+                    backButton.draw(b, Color.Tan, 1f);
+                    lockButton.draw(b, Color.Tan, 1f);
+                    homeButton.draw(b, Color.Tan, 1f);
 
                     b.End();
                     b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
@@ -814,7 +867,9 @@ namespace Smartphone
                 else
                 {
                     DrawPhoneFrame(b);
-                    backButton.draw(b);
+                    backButton.draw(b, Color.Tan, 1f);
+                    lockButton.draw(b, Color.Tan, 1f);
+                    homeButton.draw(b, Color.Tan, 1f);
                 }
 
                 if (!hideCameraOverlayButtons)
@@ -838,7 +893,9 @@ namespace Smartphone
                 b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
                 DrawPhoneScreenBackground(b, xOffset: 0);
                 DrawPhoneFrame(b);
-                backButton.draw(b);
+                backButton.draw(b, Color.Tan, 1f);
+                lockButton.draw(b, Color.Tan, 1f);
+                homeButton.draw(b, Color.Tan, 1f);
                 photoAvatarButtonBounds = Rectangle.Empty;
                 //okButton.draw(b);
 
@@ -956,7 +1013,9 @@ namespace Smartphone
                         SpriteEffects.None,
                         1f
                     );
-                backButton.draw(b);
+                backButton.draw(b, Color.Tan, 1f);
+                lockButton.draw(b, Color.Tan, 1f);
+                homeButton.draw(b, Color.Tan, 1f);
 
                 b.End();
                 Rectangle notificationClipRect = new Rectangle(xPositionOnScreen, yPositionOnScreen + NotificationViewportYOffset, width, NotificationViewportHeight);
@@ -1307,6 +1366,20 @@ namespace Smartphone
                 }
             }
 
+            if (IsLockButtonPressed(x, y))
+            {
+                ClosePhoneMenu();
+                return;
+            }
+
+            if (IsHomeButtonPressed(x, y))
+            {
+                ClosePhoneMenu();
+                ModEntry.OpenPhoneFromHudTrigger();
+                return;
+
+            }
+
             if (HandleTextRemoveButtonClick(x, y))
             {
                 return;
@@ -1591,6 +1664,9 @@ namespace Smartphone
 
             if (currentApp == TextAppState)
             {
+                if (textProfileMenuOpen)
+                    return textProfileActiveField;
+
                 if (selectedNpc == null)
                     return EditableTextFieldKind.Search;
 
@@ -1642,6 +1718,9 @@ namespace Smartphone
                 EditableTextFieldKind.SocialComment => currentApp == SocialAppState
                     && !string.IsNullOrWhiteSpace(selectedSocialPostId)
                     && !socialCreateMenuOpen,
+                EditableTextFieldKind.ProfileAge => IsTextAppOpen() && textProfileMenuOpen,
+                EditableTextFieldKind.ProfileBirthday => IsTextAppOpen() && textProfileMenuOpen,
+                EditableTextFieldKind.ProfileDescription => IsTextAppOpen() && textProfileMenuOpen,
                 _ => false
             };
         }
@@ -1668,6 +1747,12 @@ namespace Smartphone
             {
                 RegisterTextInputActivity(selectedNpc);
                 ResetChatQuickActionsState();
+            }
+            else if (field == EditableTextFieldKind.ProfileAge
+                || field == EditableTextFieldKind.ProfileBirthday
+                || field == EditableTextFieldKind.ProfileDescription)
+            {
+                NormalizeProfileFieldState(field);
             }
 
             Game1.playSound("coin");
@@ -1706,6 +1791,33 @@ namespace Smartphone
                         ref socialCommentDraft,
                         ref socialCommentDraftCursorIndex,
                         ref socialCommentDraftSelectionAnchorIndex,
+                        insertionText);
+                    return true;
+
+                case EditableTextFieldKind.ProfileAge:
+                    ApplyEditableTextInsertion(
+                        field,
+                        ref MessageManager.currentPlayerAge,
+                        ref textProfileAgeCursorIndex,
+                        ref textProfileAgeSelectionAnchorIndex,
+                        insertionText);
+                    return true;
+
+                case EditableTextFieldKind.ProfileBirthday:
+                    ApplyEditableTextInsertion(
+                        field,
+                        ref MessageManager.currentPlayerBirthDate,
+                        ref textProfileBirthdayCursorIndex,
+                        ref textProfileBirthdaySelectionAnchorIndex,
+                        insertionText);
+                    return true;
+
+                case EditableTextFieldKind.ProfileDescription:
+                    ApplyEditableTextInsertion(
+                        field,
+                        ref MessageManager.currentPlayerProfile,
+                        ref textProfileDescriptionCursorIndex,
+                        ref textProfileDescriptionSelectionAnchorIndex,
                         insertionText);
                     return true;
 
@@ -1791,6 +1903,9 @@ namespace Smartphone
                 EditableTextFieldKind.Search or EditableTextFieldKind.Chat => currentMessageUndoHistory,
                 EditableTextFieldKind.SocialPost => socialPostDraftUndoHistory,
                 EditableTextFieldKind.SocialComment => socialCommentDraftUndoHistory,
+                EditableTextFieldKind.ProfileAge => textProfileAgeUndoHistory,
+                EditableTextFieldKind.ProfileBirthday => textProfileBirthdayUndoHistory,
+                EditableTextFieldKind.ProfileDescription => textProfileDescriptionUndoHistory,
                 _ => currentMessageUndoHistory
             };
         }
@@ -1857,6 +1972,24 @@ namespace Smartphone
                     socialCommentDraftCursorIndex = safeCursorIndex;
                     socialCommentDraftSelectionAnchorIndex = safeSelectionAnchorIndex;
                     break;
+
+                case EditableTextFieldKind.ProfileAge:
+                    MessageManager.currentPlayerAge = safeText;
+                    textProfileAgeCursorIndex = safeCursorIndex;
+                    textProfileAgeSelectionAnchorIndex = safeSelectionAnchorIndex;
+                    break;
+
+                case EditableTextFieldKind.ProfileBirthday:
+                    MessageManager.currentPlayerBirthDate = safeText;
+                    textProfileBirthdayCursorIndex = safeCursorIndex;
+                    textProfileBirthdaySelectionAnchorIndex = safeSelectionAnchorIndex;
+                    break;
+
+                case EditableTextFieldKind.ProfileDescription:
+                    MessageManager.currentPlayerProfile = safeText;
+                    textProfileDescriptionCursorIndex = safeCursorIndex;
+                    textProfileDescriptionSelectionAnchorIndex = safeSelectionAnchorIndex;
+                    break;
             }
 
             if (clearUndoHistory)
@@ -1866,6 +1999,59 @@ namespace Smartphone
         private void ResetEditableTextFieldState(EditableTextFieldKind field, bool clearUndoHistory = true)
         {
             SetEditableTextFieldState(field, "", 0, 0, clearUndoHistory);
+        }
+
+        private static string NormalizeProfileBirthdayText(string? text)
+        {
+            string digitsOnly = new string((text ?? string.Empty).Where(char.IsDigit).ToArray());
+            if (string.IsNullOrWhiteSpace(digitsOnly))
+                return string.Empty;
+
+            if (!int.TryParse(digitsOnly, out int parsedValue))
+                return string.Empty;
+
+            return Math.Clamp(parsedValue, 1, 28).ToString();
+        }
+
+        private static string NormalizeProfileDescriptionText(string? text)
+        {
+            string safeText = text ?? string.Empty;
+            return safeText.Length <= ProfileDescriptionMaxLength || ModEntry.IsBringYourOwnAiProviderMode()
+                ? safeText
+                : safeText[..ProfileDescriptionMaxLength];
+        }
+
+        private void NormalizeProfileFieldState(EditableTextFieldKind field)
+        {
+            switch (field)
+            {
+                case EditableTextFieldKind.ProfileAge:
+                {
+                    string normalizedAge = (MessageManager.currentPlayerAge ?? string.Empty).Trim();
+                    if (!string.Equals(normalizedAge, MessageManager.currentPlayerAge, StringComparison.Ordinal))
+                        SetEditableTextFieldState(field, normalizedAge, normalizedAge.Length, normalizedAge.Length, clearUndoHistory: false);
+
+                    break;
+                }
+
+                case EditableTextFieldKind.ProfileBirthday:
+                {
+                    string normalizedBirthday = NormalizeProfileBirthdayText(MessageManager.currentPlayerBirthDate);
+                    if (!string.Equals(normalizedBirthday, MessageManager.currentPlayerBirthDate, StringComparison.Ordinal))
+                        SetEditableTextFieldState(field, normalizedBirthday, normalizedBirthday.Length, normalizedBirthday.Length, clearUndoHistory: false);
+
+                    break;
+                }
+
+                case EditableTextFieldKind.ProfileDescription:
+                {
+                    string normalizedDescription = NormalizeProfileDescriptionText(MessageManager.currentPlayerProfile);
+                    if (!string.Equals(normalizedDescription, MessageManager.currentPlayerProfile, StringComparison.Ordinal))
+                        SetEditableTextFieldState(field, normalizedDescription, normalizedDescription.Length, normalizedDescription.Length, clearUndoHistory: false);
+
+                    break;
+                }
+            }
         }
 
         internal void ResetEditableTextFieldStateForChat()
@@ -2144,7 +2330,9 @@ namespace Smartphone
             b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
             DrawPhoneScreenBackground(b, xOffset: 0);
             DrawPhoneFrame(b);
-            backButton.draw(b);
+            backButton.draw(b, Color.Tan, 1f);
+            lockButton.draw(b, Color.Tan, 1f);
+            homeButton.draw(b, Color.Tan, 1f);
 
             string title = currentSettingMenuState switch
             {
@@ -3783,6 +3971,12 @@ namespace Smartphone
                     return true;
 
                 case BuiltinAppTextId:
+                    if (ModEntry.Config != null && !ModEntry.Config.EnableAI)
+                    {
+                        ClosePhoneMenu();
+                        Game1.drawDialogueNoTyping("You need to enable the AI feature in the Mod Settings to use Messages.");
+                        return true;
+                    }
                     scrollOffset = 0;
                     UpdateNpcList();
                     currentApp = "appText";
@@ -3798,6 +3992,12 @@ namespace Smartphone
                     return true;
 
                 case BuiltinAppSocialId:
+                    if (ModEntry.Config != null && !ModEntry.Config.EnableAI)
+                    {
+                        ClosePhoneMenu();
+                        Game1.drawDialogueNoTyping("You need to enable the AI feature in the Config to use StardewSocial.");
+                        return true;
+                    }
                     OpenSocialApp();
                     return true;
 
@@ -4047,11 +4247,33 @@ namespace Smartphone
 
         private bool IsBackButtonPressed(int x, int y)
         {
-            if (backButton.containsPoint(x, y))
+            if (backButton.containsPoint(x, y) && !(currentApp == "appCamera" && ModEntry.cameraLandscapeMode))
                 return true;
 
             if (currentApp == "appCamera" && ModEntry.cameraLandscapeMode)
                 return GetLandscapeRotatedBounds(backButton.bounds).Contains(x, y);
+
+            return false;
+        }
+
+        private bool IsLockButtonPressed(int x, int y)
+        {
+            if (lockButton.containsPoint(x, y) && !(currentApp == "appCamera" && ModEntry.cameraLandscapeMode))
+                return true;
+
+            if (currentApp == "appCamera" && ModEntry.cameraLandscapeMode)
+                return GetLandscapeRotatedBounds(lockButton.bounds).Contains(x, y);
+
+            return false;
+        }
+
+        private bool IsHomeButtonPressed(int x, int y)
+        {
+            if (homeButton.containsPoint(x, y) && !(currentApp == "appCamera" && ModEntry.cameraLandscapeMode))
+                return true;
+
+            if (currentApp == "appCamera" && ModEntry.cameraLandscapeMode)
+                return GetLandscapeRotatedBounds(homeButton.bounds).Contains(x, y);
 
             return false;
         }
@@ -4082,7 +4304,7 @@ namespace Smartphone
                         false);
                 }
 
-                    int baseIconSize = Math.Max(1, Math.Min(bounds.Width, bounds.Height) - (useDarkInactiveStyle ? 16 : 20));
+                int baseIconSize = Math.Max(1, Math.Min(bounds.Width, bounds.Height) - (useDarkInactiveStyle ? 16 : 20));
                 int iconSize = Math.Max(1, (int)Math.Round(baseIconSize * iconScaleFactor));
 
                 Rectangle iconBounds = new Rectangle(
@@ -4511,6 +4733,9 @@ namespace Smartphone
             if (currentApp == TextAppState && selectedNpc != null)
                 MessageManager.SetUnreadCount(selectedNpc);
 
+            if (textProfileMenuOpen)
+                CloseTextProfileEditor();
+
             if (currentApp == SocialAppState)
                 CloseSocialApp();
 
@@ -4574,6 +4799,8 @@ namespace Smartphone
             SetPhoneTextInputFocus(false);
             ResetChatQuickActionsState();
             CloseChatPhotoPicker(clearSelection: true);
+            if (textProfileMenuOpen)
+                CloseTextProfileEditor();
             currentMessage = null;
             lockScreenUnlockAnimating = false;
             lockScreenUnlockElapsedSeconds = 0d;

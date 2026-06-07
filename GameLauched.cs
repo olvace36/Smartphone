@@ -169,7 +169,7 @@ namespace Smartphone
             if (e.Button == SButton.MouseLeft
                 && canOpenPhoneMenu
                 && ShouldDrawHudPhoneIcon()
-                && GetHudPhoneIconBounds().Contains(Game1.getMouseX(), Game1.getMouseY()))
+                && GetHudPhoneIconBounds().Contains(Game1.getMouseX(true), Game1.getMouseY(true)))
             {
                 OpenPhoneFromHudTrigger();
                 Helper.Input.Suppress(e.Button);
@@ -230,6 +230,7 @@ namespace Smartphone
             LoadImageTags();
             UpdatePostInteractionLimit();
             PhoneDialogueRuntime.ClearDailyState();
+            MessageManager.LoadData();
             StardewConnectManager.LoadData();
 
             string npc_characteristic_minimal = Helper.ModContent.GetInternalAssetName("assets/npc_characteristics_minimal.json").BaseName;
@@ -497,7 +498,7 @@ namespace Smartphone
             HandleAiUsageTimeChanged(e.NewTime);
             HandleAiModelSettingTimeChanged(e.NewTime);
 
-            if (ShouldHostRunSocialSimulation())
+            if (ShouldHostRunSocialSimulation() && Config.EnableAI)
             {
                 HandleScheduledSocialPostsOnTimeChanged(e.NewTime);
 
@@ -508,7 +509,7 @@ namespace Smartphone
                     QueueRandomNpcLikeEngagement();
             }
 
-            if (Game1.timeOfDay < 2200)
+            if (Game1.timeOfDay < 2200 && Config.EnableAI)
                 CheckSendNewMessage();
 
             if (pendingInitNotification && Context.IsPlayerFree)
@@ -557,7 +558,8 @@ namespace Smartphone
 
         private static bool ShouldDrawHudPhoneIcon()
         {
-            return Context.IsWorldReady
+            return Config.ShowPhoneIcon
+                && Context.IsWorldReady
                 && Game1.displayHUD
                 && Game1.activeClickableMenu == null
                 && Game1.currentMinigame == null;
@@ -635,7 +637,7 @@ namespace Smartphone
                 phoneMenu = new PhoneMenu();
         }
 
-        private void OpenPhoneFromHudTrigger()
+        public static void OpenPhoneFromHudTrigger()
         {
             EnsurePhoneMenuUsesCurrentScale();
 

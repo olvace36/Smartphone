@@ -67,7 +67,9 @@ namespace Smartphone
             b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
             DrawPhoneScreenBackground(b, xOffset: 0);
             DrawPhoneFrame(b);
-            backButton.draw(b);
+            backButton.draw(b, Color.Tan, 1f);
+            lockButton.draw(b, Color.Tan, 1f);
+            homeButton.draw(b, Color.Tan, 1f);
 
 
             if (selectedNpc == null)
@@ -77,57 +79,60 @@ namespace Smartphone
                 ResetChatQuickActionsState();
                 favourityNpcButton.Clear();
                 socialProfileNpcButtonBounds.Clear();
-                int yStart = PhoneY(150);
-                for (int i = 0; i < visibleSlots; i++)
+                if (textProfileMenuOpen)
                 {
-                    int index = i + scrollOffset;
-                    if (index >= messageableNpcList.Count) break;
-
-                    ClickableComponent conversation = messageableNpcList[index];
-                    string conversationKey = conversation.name ?? string.Empty;
-                    bool isPlayerConversation = TryGetPlayerConversationName(conversationKey, out string conversationPlayerName);
-                    int y = yStart + i * spacing;
-
-
-
-                    // === Draw scaled background box behind portrait ===
-                    int portraitSize = Math.Max(1, ScaleUiValue(56)); // Target display size
-                    float scale = portraitSize / 64f * 1.5f; // Your texture is 64x64
-
-                    Vector2 boxPosition = new Vector2(PhoneX(100), y);
-
-                    int unread = MessageManager.GetUnreadCount(conversationKey);
-                    if (unread > 0)
+                    DrawTextProfileEditor(b);
+                    SetPhoneTextInputFocus(true);
+                }
+                else
+                {
+                    int yStart = PhoneY(150);
+                    for (int i = 0; i < visibleSlots; i++)
                     {
-                        string number = Math.Min(unread, 9).ToString(); // display max 9
-                        int digitSize = 8;
-                        int spacingBetweenDigits = 0;
-                        int totalWidth = number.Length * (digitSize + spacingBetweenDigits);
+                        int index = i + scrollOffset;
+                        if (index >= messageableNpcList.Count) break;
 
-                        int numberX = (int)boxPosition.X - totalWidth - ScaleUiValue(41);
-                        int numberY = (int)boxPosition.Y + ScaleUiValue(15);
+                        ClickableComponent conversation = messageableNpcList[index];
+                        string conversationKey = conversation.name ?? string.Empty;
+                        bool isPlayerConversation = TryGetPlayerConversationName(conversationKey, out string conversationPlayerName);
+                        int y = yStart + i * spacing;
 
-                        int digitWidth = 8;
-                        int digitHeight = 8;
+                        // === Draw scaled background box behind portrait ===
+                        int portraitSize = Math.Max(1, ScaleUiValue(56));
+                        float scale = portraitSize / 64f * 1.5f;
 
-                        int digitsPerRow = 6;
+                        Vector2 boxPosition = new Vector2(PhoneX(100), y);
 
-                        for (int j = 0; j < number.Length; j++)
+                        int unread = MessageManager.GetUnreadCount(conversationKey);
+                        if (unread > 0)
                         {
-                            char c = number[j];
-                            if (char.IsDigit(c))
-                            {
-                                int digit = c - '0';
+                            string number = Math.Min(unread, 9).ToString();
+                            int digitSize = 8;
+                            int spacingBetweenDigits = 0;
+                            int totalWidth = number.Length * (digitSize + spacingBetweenDigits);
 
+                            int numberX = (int)boxPosition.X - totalWidth - ScaleUiValue(41);
+                            int numberY = (int)boxPosition.Y + ScaleUiValue(15);
+
+                            int digitWidth = 8;
+                            int digitHeight = 8;
+                            int digitsPerRow = 6;
+
+                            for (int j = 0; j < number.Length; j++)
+                            {
+                                char c = number[j];
+                                if (!char.IsDigit(c))
+                                    continue;
+
+                                int digit = c - '0';
                                 int row = digit / digitsPerRow;
                                 int col = digit % digitsPerRow;
 
                                 Rectangle sourceRect = new Rectangle(
-                                    512 + col * digitWidth,     // X offset starts at 512
-                                    128 + row * digitHeight,    // Y offset starts at 128
+                                    512 + col * digitWidth,
+                                    128 + row * digitHeight,
                                     digitWidth,
-                                    digitHeight
-                                );
+                                    digitHeight);
 
                                 b.Draw(
                                     Game1.mouseCursors,
@@ -136,150 +141,163 @@ namespace Smartphone
                                     Color.White,
                                     0f,
                                     Vector2.Zero,
-                                    ScaleUiValue(5f), // Scale it up to be visible
+                                    ScaleUiValue(5f),
                                     SpriteEffects.None,
-                                    1f
-                                );
+                                    1f);
                             }
                         }
-                    }
 
+                        b.Draw(
+                            texturePortraitBackground,
+                            position: boxPosition,
+                            sourceRectangle: null,
+                            color: Color.White,
+                            rotation: 0f,
+                            origin: Vector2.Zero,
+                            scale: scale,
+                            effects: SpriteEffects.None,
+                            layerDepth: 0f);
+                        int nameX = (int)boxPosition.X + portraitSize + ScaleUiValue(40);
+                        conversation.bounds = new Rectangle(nameX, y, ScaleUiValue(200), portraitSize);
 
-
-                    b.Draw(
-                        texturePortraitBackground,
-                        position: boxPosition,
-                        sourceRectangle: null,
-                        color: Color.White,
-                        rotation: 0f,
-                        origin: Vector2.Zero,
-                        scale: scale,
-                        effects: SpriteEffects.None,
-                        layerDepth: 0f
-                    );
-                    int nameX = (int)boxPosition.X + portraitSize + ScaleUiValue(40);
-                    conversation.bounds = new Rectangle(nameX, y, ScaleUiValue(200), portraitSize);
-
-                    if (isPlayerConversation)
-                    {
-                        string playerDisplayName = string.IsNullOrWhiteSpace(conversationPlayerName)
-                            ? GetConversationDisplayName(conversationKey)
-                            : conversationPlayerName;
-
-                        bool hasAvatar = TryGetSelectedPlayerAvatarTexture(playerDisplayName, out Texture2D avatarTexture);
-                        Rectangle portraitRect = new Rectangle(
-                            (int)boxPosition.X + ScaleUiValue(9),
-                            (int)boxPosition.Y + ScaleUiValue(10),
-                            ScaleUiValue(67),
-                            ScaleUiValue(67));
-                        if (hasAvatar && avatarTexture != null)
+                        if (isPlayerConversation)
                         {
-                            b.Draw(avatarTexture, portraitRect, Color.White);
-                        }
-                        else
-                        {
-                            IClickableMenu.drawTextureBox(
-                                b,
-                                Game1.menuTexture,
-                                new Rectangle(0, 256, 60, 60),
-                                portraitRect.X,
-                                portraitRect.Y,
-                                portraitRect.Width,
-                                portraitRect.Height,
-                                new Color(235, 235, 235, 220),
-                                1f,
-                                false);
+                            string playerDisplayName = string.IsNullOrWhiteSpace(conversationPlayerName)
+                                ? GetConversationDisplayName(conversationKey)
+                                : conversationPlayerName;
 
-                            string initial = string.IsNullOrWhiteSpace(playerDisplayName)
-                                ? "P"
-                                : playerDisplayName.Trim()[0].ToString().ToUpperInvariant();
-                            DrawPhoneText(
-                                b,
-                                Game1.smallFont,
-                                initial,
-                                new Vector2(portraitRect.X + ScaleUiValue(24), portraitRect.Y + ScaleUiValue(20)),
-                                Color.Gray);
-                        }
-
-                        DrawPhoneText(
-                            b,
-                            Game1.dialogueFont,
-                            playerDisplayName,
-                            new Vector2(nameX, y + ScaleUiValue(15)),
-                            Color.Black);
-                    }
-                    else
-                    {
-                        NPC? realNpc = Game1.getCharacterFromName(conversationKey, mustBeVillager: false);
-                        string npcDisplayName = GetNpcDisplayNameOrFallback(realNpc);
-                        if (string.IsNullOrWhiteSpace(npcDisplayName))
-                            npcDisplayName = GetNpcDisplayName(conversationKey);
-
-                        if (realNpc?.Portrait != null)
-                        {
+                            bool hasAvatar = TryGetSelectedPlayerAvatarTexture(playerDisplayName, out Texture2D avatarTexture);
                             Rectangle portraitRect = new Rectangle(
                                 (int)boxPosition.X + ScaleUiValue(9),
                                 (int)boxPosition.Y + ScaleUiValue(10),
                                 ScaleUiValue(67),
                                 ScaleUiValue(67));
-                            Rectangle sourceRect = new Rectangle(0, 0, 64, 64);
-                            b.Draw(realNpc.Portrait, portraitRect, sourceRect, Color.White);
+                            if (hasAvatar && avatarTexture != null)
+                            {
+                                b.Draw(avatarTexture, portraitRect, Color.White);
+                            }
+                            else
+                            {
+                                IClickableMenu.drawTextureBox(
+                                    b,
+                                    Game1.menuTexture,
+                                    new Rectangle(0, 256, 60, 60),
+                                    portraitRect.X,
+                                    portraitRect.Y,
+                                    portraitRect.Width,
+                                    portraitRect.Height,
+                                    new Color(235, 235, 235, 220),
+                                    1f,
+                                    false);
+
+                                string initial = string.IsNullOrWhiteSpace(playerDisplayName)
+                                    ? "P"
+                                    : playerDisplayName.Trim()[0].ToString().ToUpperInvariant();
+                                DrawPhoneText(
+                                    b,
+                                    Game1.smallFont,
+                                    initial,
+                                    new Vector2(portraitRect.X + ScaleUiValue(24), portraitRect.Y + ScaleUiValue(20)),
+                                    Color.Gray);
+                            }
+
+                            DrawPhoneText(
+                                b,
+                                Game1.dialogueFont,
+                                playerDisplayName,
+                                new Vector2(nameX, y + ScaleUiValue(15)),
+                                Color.Black);
+                        }
+                        else
+                        {
+                            NPC? realNpc = Game1.getCharacterFromName(conversationKey, mustBeVillager: false);
+                            string npcDisplayName = GetNpcDisplayNameOrFallback(realNpc);
+                            if (string.IsNullOrWhiteSpace(npcDisplayName))
+                                npcDisplayName = GetNpcDisplayName(conversationKey);
+
+                            if (realNpc?.Portrait != null)
+                            {
+                                Rectangle portraitRect = new Rectangle(
+                                    (int)boxPosition.X + ScaleUiValue(9),
+                                    (int)boxPosition.Y + ScaleUiValue(10),
+                                    ScaleUiValue(67),
+                                    ScaleUiValue(67));
+                                Rectangle sourceRect = new Rectangle(0, 0, 64, 64);
+                                b.Draw(realNpc.Portrait, portraitRect, sourceRect, Color.White);
+                            }
+
+                            DrawPhoneText(
+                                b,
+                                Game1.dialogueFont,
+                                npcDisplayName,
+                                new Vector2(nameX, y + ScaleUiValue(15)),
+                                Color.Black);
                         }
 
-                        DrawPhoneText(
-                            b,
-                            Game1.dialogueFont,
-                            npcDisplayName,
-                            new Vector2(nameX, y + ScaleUiValue(15)),
-                            Color.Black);
+                        var rect = new Rectangle(218, 428, 7, 7);
+                        if (MessageManager.favouriteNpc.Contains(conversationKey))
+                            rect = new Rectangle(211, 428, 7, 7);
+
+                        heartButton = new ClickableTextureComponent(
+                            name: conversationKey,
+                            bounds: new Rectangle(
+                                nameX + ScaleUiValue(280),
+                                y + ScaleUiValue(20),
+                                ScaleUiValue(35),
+                                ScaleUiValue(35)),
+                            label: null,
+                            hoverText: "",
+                            texture: Game1.mouseCursors,
+                            sourceRect: rect,
+                            scale: ScaleUiValue(5f));
+
+                        favourityNpcButton[conversationKey] = heartButton;
+                        heartButton.draw(b);
+
+                        Rectangle profileButtonBounds = new Rectangle(
+                            nameX + ScaleUiValue(330),
+                            y + ScaleUiValue(20),
+                            ScaleUiValue(35),
+                            ScaleUiValue(35));
+                        socialProfileNpcButtonBounds[conversationKey] = profileButtonBounds;
+                        DrawOpenSocialProfileButton(b, profileButtonBounds);
                     }
 
-                    var rect = new Rectangle(218, 428, 7, 7);
-                    if (MessageManager.favouriteNpc.Contains(conversationKey))
-                        rect = new Rectangle(211, 428, 7, 7);
+                    int inputX = PhoneX(100);
+                    int inputY = PhoneY(835);
+                    int inputWidth = ScaleUiValue(330);
 
-                    heartButton = new ClickableTextureComponent(
-                    name: conversationKey,
-                    bounds: new Rectangle(
-                        nameX + ScaleUiValue(280),
-                        y + ScaleUiValue(20),
-                        ScaleUiValue(35),
-                        ScaleUiValue(35)),
-                        label: null,
-                        hoverText: "",
-                    texture: Game1.mouseCursors,
-                        sourceRect: rect,
-                        scale: ScaleUiValue(5f)
-                    );
+                    int fontHeight = (int)Game1.smallFont.MeasureString("A").Y;
+                    int inputHeight = fontHeight + ScaleUiValue(30);
 
-                    favourityNpcButton[conversationKey] = heartButton;
-                    heartButton.draw(b);
+                    Rectangle inputBounds = new Rectangle(inputX, inputY, inputWidth, inputHeight);
+                    IClickableMenu.drawTextureBox(
+                        b,
+                        Game1.menuTexture,
+                        new Rectangle(0, 256, 60, 60),
+                        inputBounds.X,
+                        inputBounds.Y,
+                        inputBounds.Width,
+                        inputBounds.Height,
+                        Color.White,
+                        1f,
+                        false);
 
-                    Rectangle profileButtonBounds = new Rectangle(
-                        nameX + ScaleUiValue(330),
-                        y + ScaleUiValue(20),
-                        ScaleUiValue(35),
-                        ScaleUiValue(35));
-                    socialProfileNpcButtonBounds[conversationKey] = profileButtonBounds;
-                    DrawOpenSocialProfileButton(b, profileButtonBounds);
+                    DrawEditableTextInput(b, inputBounds, currentMessage, currentMessageCursorIndex, currentMessageSelectionAnchorIndex);
 
+                    playerDescriptionButton = new ClickableTextureComponent(
+                        new Rectangle(
+                            inputBounds.Right + ScaleUiValue(30),
+                            inputBounds.Y,
+                            inputBounds.Height,
+                            inputBounds.Height),
+                        Game1.mouseCursors_1_6,
+                        new Rectangle(1, 277, 19, 19),
+                        ScaleUiValue(3f));
+                    playerDescriptionButton.draw(b);
+
+                    SetPhoneTextInputFocus(true);
                 }
-
-                // Draw input box
-                int inputX = PhoneX(100);
-                int inputY = PhoneY(835);
-                int inputWidth = ScaleUiValue(400);
-
-                int fontHeight = (int)Game1.smallFont.MeasureString("A").Y;
-                int inputHeight = fontHeight + ScaleUiValue(30);
-
-                IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
-                    inputX, inputY, inputWidth, inputHeight,
-                    Color.White, 1f, false);
-
-                DrawEditableTextInput(b, new Rectangle(inputX, inputY, inputWidth, inputHeight), currentMessage, currentMessageCursorIndex, currentMessageSelectionAnchorIndex);
-
-                SetPhoneTextInputFocus(true);
             }
             else
             {
@@ -288,10 +306,12 @@ namespace Smartphone
                     b,
                     Game1.dialogueFont,
                     selectedNpcDisplayName,
-                    new Vector2(PhoneX(105), PhoneY(65)),
+                    new Vector2(PhoneX(65), PhoneY(65)),
                     Color.Black);
 
-                backButton.draw(b);
+                backButton.draw(b, Color.Tan, 1f);
+                lockButton.draw(b, Color.Tan, 1f);
+                homeButton.draw(b, Color.Tan, 1f);
                 b.Draw(
                     removeButton.texture,
                     new Vector2(removeButton.bounds.X, removeButton.bounds.Y),
@@ -719,6 +739,7 @@ namespace Smartphone
                         b,
                         Game1.menuTexture,
                         new Rectangle(0, 256, 60, 60),
+
                         bubbleRect.X - ScaleUiValue(5),
                         bubbleRect.Y,
                         bubbleRect.Width + ScaleUiValue(12),
@@ -737,6 +758,307 @@ namespace Smartphone
 
                 messageY += bubbleHeight + ScaleUiValue(10);
             }
+        }
+
+        private void OpenTextProfileEditor()
+        {
+            textProfileMenuOpen = true;
+            textProfileActiveField = EditableTextFieldKind.ProfileAge;
+            ResetTextInputRepeatState();
+
+            SetEditableTextFieldState(
+                EditableTextFieldKind.ProfileAge,
+                MessageManager.currentPlayerAge,
+                MessageManager.currentPlayerAge?.Length ?? 0,
+                MessageManager.currentPlayerAge?.Length ?? 0);
+
+            SetEditableTextFieldState(
+                EditableTextFieldKind.ProfileBirthday,
+                MessageManager.currentPlayerBirthDate,
+                MessageManager.currentPlayerBirthDate?.Length ?? 0,
+                MessageManager.currentPlayerBirthDate?.Length ?? 0);
+
+            SetEditableTextFieldState(
+                EditableTextFieldKind.ProfileDescription,
+                MessageManager.currentPlayerProfile,
+                MessageManager.currentPlayerProfile?.Length ?? 0,
+                MessageManager.currentPlayerProfile?.Length ?? 0);
+
+            NormalizeProfileFieldState(EditableTextFieldKind.ProfileAge);
+            NormalizeProfileFieldState(EditableTextFieldKind.ProfileBirthday);
+            NormalizeProfileFieldState(EditableTextFieldKind.ProfileDescription);
+        }
+
+        private void CloseTextProfileEditor()
+        {
+            textProfileMenuOpen = false;
+            textProfileActiveField = EditableTextFieldKind.ProfileAge;
+            textProfileAvatarCameraButtonBounds = Rectangle.Empty;
+            textProfileAgeFieldBounds = Rectangle.Empty;
+            textProfileBirthdayFieldBounds = Rectangle.Empty;
+            textProfileDescriptionFieldBounds = Rectangle.Empty;
+            textProfileSeasonButtonBounds = Rectangle.Empty;
+            ResetTextInputRepeatState();
+        }
+
+        private static string GetNextPlayerBirthSeason(string currentSeason)
+        {
+            return (currentSeason ?? string.Empty).Trim().ToLowerInvariant() switch
+            {
+                "spring" => "Summer",
+                "summer" => "Fall",
+                "fall" => "Winter",
+                "winter" => "Spring",
+                _ => "Spring"
+            };
+        }
+
+        private void CyclePlayerBirthSeason()
+        {
+            MessageManager.currentPlayerBirthSeason = GetNextPlayerBirthSeason(MessageManager.currentPlayerBirthSeason);
+        }
+
+        private void DrawTextProfileEditor(SpriteBatch b)
+        {
+            textProfileAvatarCameraButtonBounds = Rectangle.Empty;
+            textProfileAgeFieldBounds = Rectangle.Empty;
+            textProfileBirthdayFieldBounds = Rectangle.Empty;
+            textProfileDescriptionFieldBounds = Rectangle.Empty;
+            textProfileSeasonButtonBounds = Rectangle.Empty;
+
+            int titleX = PhoneX(65);
+            int titleY = PhoneY(65);
+            DrawPhoneText(b, Game1.dialogueFont, "Profile", new Vector2(titleX, titleY), Color.Black);
+
+            Rectangle headerBounds = PhoneRect(50, 120, 500, 190);
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.menuTexture,
+                new Rectangle(0, 256, 60, 60),
+                headerBounds.X,
+                headerBounds.Y,
+                headerBounds.Width,
+                headerBounds.Height,
+                new Color(255, 255, 255, 230),
+                1f,
+                false);
+
+            Rectangle avatarBounds = new Rectangle(
+                headerBounds.X + ScaleUiValue(15),
+                headerBounds.Y + ScaleUiValue(15),
+                ScaleUiValue(150),
+                ScaleUiValue(150));
+            DrawSocialActorIcon(b, Game1.player?.Name ?? "Player", true, avatarBounds);
+
+            textProfileAvatarCameraButtonBounds = new Rectangle(
+                avatarBounds.Right - ScaleUiValue(48),
+                avatarBounds.Bottom - ScaleUiValue(48),
+                ScaleUiValue(44),
+                ScaleUiValue(44));
+            DrawSocialProfileAvatarCameraButton(b, textProfileAvatarCameraButtonBounds);
+
+            DrawPhoneText(
+                b,
+                Game1.dialogueFont,
+                "Profile Settings",
+                new Vector2(avatarBounds.Right + ScaleUiValue(18), headerBounds.Y + ScaleUiValue(22)),
+                Color.Black);
+
+            int fieldX = PhoneX(50);
+            int fieldWidth = ScaleUiValue(500);
+            int fieldHeight = Math.Max(1, ScaleUiValue(60));
+
+            int ageLabelY = PhoneY(315);
+            DrawPhoneText(b, Game1.smallFont, "Age", new Vector2(fieldX, ageLabelY), Color.Black);
+            textProfileAgeFieldBounds = new Rectangle(fieldX, PhoneY(350), fieldWidth, fieldHeight);
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.menuTexture,
+                new Rectangle(0, 256, 60, 60),
+                textProfileAgeFieldBounds.X,
+                textProfileAgeFieldBounds.Y,
+                textProfileAgeFieldBounds.Width,
+                textProfileAgeFieldBounds.Height,
+                new Color(255, 255, 255, 230),
+                1f,
+                false);
+            DrawEditableTextInput(
+                b,
+                textProfileAgeFieldBounds,
+                MessageManager.currentPlayerAge,
+                textProfileAgeCursorIndex,
+                textProfileAgeSelectionAnchorIndex);
+
+            int birthdayLabelY = PhoneY(420);
+            DrawPhoneText(b, Game1.smallFont, "Birthday", new Vector2(fieldX, birthdayLabelY), Color.Black);
+            int birthdayInputWidth = ScaleUiValue(115);
+            int seasonButtonWidth = ScaleUiValue(150);
+            textProfileBirthdayFieldBounds = new Rectangle(fieldX, PhoneY(450), birthdayInputWidth, fieldHeight);
+            textProfileSeasonButtonBounds = new Rectangle(textProfileBirthdayFieldBounds.Right + ScaleUiValue(1), textProfileBirthdayFieldBounds.Y, seasonButtonWidth, fieldHeight);
+
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.menuTexture,
+                new Rectangle(0, 256, 60, 60),
+                textProfileBirthdayFieldBounds.X,
+                textProfileBirthdayFieldBounds.Y,
+                textProfileBirthdayFieldBounds.Width,
+                textProfileBirthdayFieldBounds.Height,
+                new Color(255, 255, 255, 230),
+                1f,
+                false);
+            if (string.IsNullOrWhiteSpace(MessageManager.currentPlayerBirthDate))
+            {
+                DrawPhoneText(
+                    b,
+                    Game1.smallFont,
+                    "1-28",
+                    new Vector2(textProfileBirthdayFieldBounds.X + ScaleUiValue(15), textProfileBirthdayFieldBounds.Y + ScaleUiValue(15)),
+                    Color.Gray * 0.6f);
+            }
+            DrawEditableTextInput(
+                b,
+                textProfileBirthdayFieldBounds,
+                MessageManager.currentPlayerBirthDate,
+                textProfileBirthdayCursorIndex,
+                textProfileBirthdaySelectionAnchorIndex);
+
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.menuTexture,
+                new Rectangle(0, 256, 60, 60),
+                textProfileSeasonButtonBounds.X,
+                textProfileSeasonButtonBounds.Y,
+                textProfileSeasonButtonBounds.Width,
+                textProfileSeasonButtonBounds.Height,
+                new Color(255, 255, 255, 230),
+                1f,
+                false);
+            DrawPhoneText(
+                b,
+                Game1.smallFont,
+                MessageManager.currentPlayerBirthSeason,
+                new Vector2(
+                    textProfileSeasonButtonBounds.X + ScaleUiValue(16),
+                    textProfileSeasonButtonBounds.Y + ScaleUiValue(16)),
+                Color.Black);
+
+            Rectangle seasonArrowBounds = new Rectangle(
+                textProfileSeasonButtonBounds.Right - ScaleUiValue(34),
+                textProfileSeasonButtonBounds.Y + ScaleUiValue(10),
+                ScaleUiValue(20),
+                ScaleUiValue(20));
+            b.Draw(
+                Game1.mouseCursors,
+                seasonArrowBounds,
+                Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 33),
+                Color.White);
+
+            int descriptionLabelY = PhoneY(520);
+            DrawPhoneText(b, Game1.smallFont, "About me", new Vector2(fieldX, descriptionLabelY), Color.Black);
+            textProfileDescriptionFieldBounds = new Rectangle(fieldX, PhoneY(555), fieldWidth, ScaleUiValue(250));
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.menuTexture,
+                new Rectangle(0, 256, 60, 60),
+                textProfileDescriptionFieldBounds.X,
+                textProfileDescriptionFieldBounds.Y,
+                textProfileDescriptionFieldBounds.Width,
+                textProfileDescriptionFieldBounds.Height,
+                new Color(255, 255, 255, 230),
+                1f,
+                false);
+
+            if (string.IsNullOrWhiteSpace(MessageManager.currentPlayerProfile))
+            {
+                const string descriptionPlaceholder = "Significant things about your farmer that you'd like other NPCs to know. Don't give boring invaluable details like 'I like farming' - something that stands out! Get a key to bypass the limit.";
+                int placeholderX = textProfileDescriptionFieldBounds.X + ScaleUiValue(15);
+                int placeholderY = textProfileDescriptionFieldBounds.Y + ScaleUiValue(15);
+                int placeholderWidth = Math.Max(1, textProfileDescriptionFieldBounds.Width - ScaleUiValue(30));
+                List<string> placeholderLines = SplitTextIntoLines(descriptionPlaceholder, Game1.smallFont, placeholderWidth);
+                int placeholderLineHeight = GetPhoneScaledLineHeight(Game1.smallFont, extraPadding: 4);
+
+                foreach (string line in placeholderLines)
+                {
+                    DrawPhoneText(b, Game1.smallFont, line, new Vector2(placeholderX, placeholderY), Color.Gray * 0.6f);
+                    placeholderY += placeholderLineHeight;
+                    if (placeholderY > textProfileDescriptionFieldBounds.Bottom - ScaleUiValue(18))
+                        break;
+                }
+            }
+
+            DrawEditableTextInput(
+                b,
+                textProfileDescriptionFieldBounds,
+                MessageManager.currentPlayerProfile,
+                textProfileDescriptionCursorIndex,
+                textProfileDescriptionSelectionAnchorIndex,
+                true);
+
+            okButton = new ClickableTextureComponent(
+                new Rectangle(
+                    PhoneX(490),
+                    PhoneY(850),
+                    ScaleUiValue(64),
+                    ScaleUiValue(64)),
+                Game1.mouseCursors,
+                new Rectangle(128, 256, 64, 64),
+                ScaleUiValue(1f));
+            okButton.draw(b);
+        }
+
+        private bool HandleTextProfileMenuClick(int x, int y)
+        {
+            if (!textProfileMenuOpen)
+                return false;
+
+            if (textProfileAvatarCameraButtonBounds.Contains(x, y))
+            {
+                ModEntry.cameraSquareMode = true;
+                OpenCameraApp();
+                Game1.playSound("smallSelect");
+                return true;
+            }
+
+            if (okButton.containsPoint(x, y))
+            {
+                MessageManager.SaveData();
+                NormalizeProfileFieldState(EditableTextFieldKind.ProfileAge);
+                NormalizeProfileFieldState(EditableTextFieldKind.ProfileBirthday);
+                NormalizeProfileFieldState(EditableTextFieldKind.ProfileDescription);
+                Game1.playSound("smallSelect");
+                return true;
+            }
+
+            if (textProfileAgeFieldBounds.Contains(x, y))
+            {
+                textProfileActiveField = EditableTextFieldKind.ProfileAge;
+                Game1.playSound("smallSelect");
+                return true;
+            }
+
+            if (textProfileBirthdayFieldBounds.Contains(x, y))
+            {
+                textProfileActiveField = EditableTextFieldKind.ProfileBirthday;
+                Game1.playSound("smallSelect");
+                return true;
+            }
+
+            if (textProfileDescriptionFieldBounds.Contains(x, y))
+            {
+                textProfileActiveField = EditableTextFieldKind.ProfileDescription;
+                Game1.playSound("smallSelect");
+                return true;
+            }
+
+            if (textProfileSeasonButtonBounds.Contains(x, y))
+            {
+                CyclePlayerBirthSeason();
+                Game1.playSound("smallSelect");
+                return true;
+            }
+
+            return false;
         }
 
         private void UpdateTextChatScroll(GameTime time)
@@ -810,6 +1132,12 @@ namespace Smartphone
             if (!IsTextAppOpen())
                 return false;
 
+            if (textProfileMenuOpen)
+            {
+                CloseTextProfileEditor();
+                return true;
+            }
+
             if (chatPhotoPickerOpen)
             {
                 CloseChatPhotoPicker(clearSelection: false);
@@ -863,6 +1191,9 @@ namespace Smartphone
             if (!IsTextAppOpen())
                 return false;
 
+            if (textProfileMenuOpen)
+                return HandleTextProfileMenuClick(x, y);
+
             if (selectedNpc == null)
             {
                 foreach (var button in favourityNpcButton.Values)
@@ -892,6 +1223,13 @@ namespace Smartphone
 
                     OpenSocialApp();
                     OpenSocialProfile(actorName, actorIsPlayer);
+                    Game1.playSound("smallSelect");
+                    return true;
+                }
+
+                if (playerDescriptionButton.containsPoint(x, y))
+                {
+                    OpenTextProfileEditor();
                     Game1.playSound("smallSelect");
                     return true;
                 }
@@ -982,6 +1320,9 @@ namespace Smartphone
             if (chatPhotoPickerOpen)
                 return true;
 
+            if (textProfileMenuOpen)
+                return true;
+
             float scrollSteps = GetNormalizedScrollSteps(direction);
             if (Math.Abs(scrollSteps) <= 0.0001f)
                 return true;
@@ -1010,6 +1351,12 @@ namespace Smartphone
 
             if (key == Keys.Escape)
             {
+                if (textProfileMenuOpen)
+                {
+                    CloseTextProfileEditor();
+                    return true;
+                }
+
                 if (selectedNpc != null)
                 {
                     if (chatPhotoPickerOpen)
@@ -1029,7 +1376,7 @@ namespace Smartphone
                     ResetEditableTextFieldState(EditableTextFieldKind.Search);
                     currentSuggestion = new("", "");
                     ResetChatQuickActionsState();
-                    CloseChatPhotoPicker(clearSelection: true); 
+                    CloseChatPhotoPicker(clearSelection: true);
                     scrollOffset = 0;
                     UpdateNpcList();
                     return true;
@@ -1041,6 +1388,9 @@ namespace Smartphone
                 currentApp = null;
                 return true;
             }
+
+            if (textProfileMenuOpen)
+                return HandleTextProfileInputKey(key, isRepeat: false);
 
             if (selectedNpc == null)
                 return HandleSearchInputKey(key, isRepeat: false);
@@ -1054,6 +1404,47 @@ namespace Smartphone
             return HandleChatInputKey(key, isRepeat: false);
         }
 
+        private bool HandleTextProfileInputKey(Keys key, bool isRepeat)
+        {
+            if (!textProfileMenuOpen)
+                return false;
+
+            EditableTextFieldKind field = GetActiveEditableTextField();
+            if (field != EditableTextFieldKind.ProfileAge
+                && field != EditableTextFieldKind.ProfileBirthday
+                && field != EditableTextFieldKind.ProfileDescription)
+            {
+                return true;
+            }
+
+            bool handled = TryApplyEditableTextKeyToField(
+                field,
+                key,
+                allowEnter: false,
+                allowPaste: !isRepeat,
+                out bool textChanged,
+                out _);
+
+            if (!handled)
+                return false;
+
+            if (textChanged)
+                NormalizeProfileFieldState(field);
+
+            if (!isRepeat)
+            {
+                if (IsRepeatableTextInputKey(key))
+                    BeginTextInputRepeat(field, key);
+                else
+                    ResetTextInputRepeatState();
+            }
+
+            if (textChanged && ShouldPlayTypingSound(key, allowPaste: !isRepeat))
+                Game1.playSound("coin");
+
+            return true;
+        }
+
         private bool ApplyRepeatableTextInputKey(EditableTextFieldKind field, Keys key)
         {
             return field switch
@@ -1062,6 +1453,9 @@ namespace Smartphone
                 EditableTextFieldKind.Chat => HandleChatInputKey(key, isRepeat: true),
                 EditableTextFieldKind.SocialPost => HandleSocialPostInputKey(key, isRepeat: true),
                 EditableTextFieldKind.SocialComment => HandleSocialCommentInputKey(key, isRepeat: true),
+                EditableTextFieldKind.ProfileAge => HandleTextProfileInputKey(key, isRepeat: true),
+                EditableTextFieldKind.ProfileBirthday => HandleTextProfileInputKey(key, isRepeat: true),
+                EditableTextFieldKind.ProfileDescription => HandleTextProfileInputKey(key, isRepeat: true),
                 _ => false
             };
         }
@@ -1199,6 +1593,36 @@ namespace Smartphone
                     ref socialCommentDraft,
                     ref socialCommentDraftCursorIndex,
                     ref socialCommentDraftSelectionAnchorIndex,
+                    key,
+                    allowEnter,
+                    allowPaste,
+                    out textChanged,
+                    out submitted),
+                EditableTextFieldKind.ProfileAge => TryApplyEditableTextKey(
+                    EditableTextFieldKind.ProfileAge,
+                    ref MessageManager.currentPlayerAge,
+                    ref textProfileAgeCursorIndex,
+                    ref textProfileAgeSelectionAnchorIndex,
+                    key,
+                    allowEnter,
+                    allowPaste,
+                    out textChanged,
+                    out submitted),
+                EditableTextFieldKind.ProfileBirthday => TryApplyEditableTextKey(
+                    EditableTextFieldKind.ProfileBirthday,
+                    ref MessageManager.currentPlayerBirthDate,
+                    ref textProfileBirthdayCursorIndex,
+                    ref textProfileBirthdaySelectionAnchorIndex,
+                    key,
+                    allowEnter,
+                    allowPaste,
+                    out textChanged,
+                    out submitted),
+                EditableTextFieldKind.ProfileDescription => TryApplyEditableTextKey(
+                    EditableTextFieldKind.ProfileDescription,
+                    ref MessageManager.currentPlayerProfile,
+                    ref textProfileDescriptionCursorIndex,
+                    ref textProfileDescriptionSelectionAnchorIndex,
                     key,
                     allowEnter,
                     allowPaste,
@@ -1581,7 +2005,7 @@ namespace Smartphone
             }
         }
 
-        
+
         private static void RegisterTextInputActivity(string npcName)
         {
             if (string.IsNullOrWhiteSpace(npcName))
@@ -2289,7 +2713,7 @@ namespace Smartphone
                 {
                     if (!eventButton.Value.Contains(x, y))
                         continue;
-                    
+
                     NPC selected = Game1.getCharacterFromName(selectedNpc);
                     if (selected == null)
                         return false;
@@ -2475,7 +2899,7 @@ namespace Smartphone
                 1f,
                 false);
 
-            if(ModEntry.iUnlimitedEventExpansionApi == null)
+            if (ModEntry.iUnlimitedEventExpansionApi == null)
             {
                 DrawPhoneText(
                     b,
@@ -2483,7 +2907,7 @@ namespace Smartphone
                     "Get UnlimitedEventExpansion",
                     new Vector2(panelX + panelPadding, panelY + panelPadding + 3),
                     Color.Black);
-                    
+
                 DrawPhoneText(
                     b,
                     Game1.smallFont,

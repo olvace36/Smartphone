@@ -6,6 +6,46 @@ When updating to a newer version of the mod, copy the folder ** userdata ** to t
 This folder contains all data you created (photos, chat history, settings, ...).
 
 
+*** ADVANCED AI CUSTOM PROVIDER (CONFIG.JSON ONLY) ***
+
+Power users can route Smartphone AI calls to a custom service (local LLM or another provider) by editing config.json.
+
+When CustomApiEndpoint is configured, Smartphone uses custom template mode for:
+- NPC chat responses
+- Daily conversation summaries
+- StardewSocial post text generation
+- StardewSocial comment generation
+
+Network policy:
+- Remote endpoints must use HTTPS.
+- HTTP is only allowed for localhost or loopback hosts (localhost, 127.0.0.1, ::1).
+
+Supported payload placeholders (plain TOKEN and {{TOKEN}} are both supported):
+- INPUT_HERE (combined SYSTEM + USER text)
+- SYSTEM_INPUT_HERE
+- USER_INPUT_HERE
+- SYSTEM_MESSAGE_HERE
+- USER_MESSAGE_HERE
+- MODEL_HERE
+
+Example config.json values:
+
+{
+	"CustomApiEndpoint": "http://localhost:11434/v1/chat/completions",
+	"CustomApiKey": "",
+	"CustomApiKeyHeader": "Authorization",
+	"CustomApiKeyPrefix": "Bearer",
+	"CustomApiPayloadTemplate": "{\"model\":\"MODEL_HERE\",\"messages\":[{\"role\":\"system\",\"content\":\"SYSTEM_INPUT_HERE\"},{\"role\":\"user\",\"content\":\"USER_INPUT_HERE\"}]}",
+	"CustomApiResponseTextPath": "choices[0].message.content",
+	"CustomApiTimeoutSeconds": 45
+}
+
+Notes:
+- CustomApiKey is optional.
+- If your provider returns text in a different field, set CustomApiResponseTextPath (for example output_text, result.text, or candidates[0].content.parts[0].text).
+- In custom template mode, function calling is disabled for chat. The mod use function call for Unlimited Event Expansion only, so you can fall back to use the button instead.
+
+
 *** EXTERNAL APP API (FOR OTHER MODDERS) ***
 
 This mod now exposes a phone app registration API.

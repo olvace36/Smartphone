@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -18,7 +19,24 @@ namespace Smartphone
     {
         private const string AiProviderOpenAi = "openai";
         private const string AiProviderGemini = "gemini";
+        private const string AiProviderCustom = "custom";
         private const string GeminiThinkingLevelMinimal = "MINIMAL";
+        private const string CustomPayloadTokenModel = "MODEL_HERE";
+        private const string CustomPayloadTokenInput = "INPUT_HERE";
+        private const string CustomPayloadTokenSystemInput = "SYSTEM_INPUT_HERE";
+        private const string CustomPayloadTokenUserInput = "USER_INPUT_HERE";
+        private const string CustomPayloadTokenSystemMessage = "SYSTEM_MESSAGE_HERE";
+        private const string CustomPayloadTokenUserMessage = "USER_MESSAGE_HERE";
+        private const string CustomDefaultPayloadTemplate = "{\"model\":\"MODEL_HERE\",\"messages\":[{\"role\":\"system\",\"content\":\"SYSTEM_INPUT_HERE\"},{\"role\":\"user\",\"content\":\"USER_INPUT_HERE\"}]}";
+        private static readonly string[] CustomResponseFallbackPaths =
+        {
+            "choices[0].message.content",
+            "choices[0].text",
+            "output_text",
+            "output[0].content[0].text",
+            "candidates[0].content.parts[0].text",
+            "text"
+        };
 
         public static bool IsMaxedLimit = false;
         public static bool IsReducedQuality = false;
@@ -41,8 +59,26 @@ namespace Smartphone
             return !string.IsNullOrWhiteSpace(Config?.Key);
         }
 
-        private static string ResolveAiRuntimeKey()
+        private static bool HasCustomProviderConfigured()
         {
+            return !string.IsNullOrWhiteSpace((Config?.CustomApiEndpoint ?? string.Empty).Trim());
+        }
+
+        internal static bool IsBringYourOwnAiProviderMode()
+        {
+            return HasUserProvidedAiKey() || HasCustomProviderConfigured();
+        }
+
+        internal static bool IsSharedAiProviderMode()
+        {
+            return !IsBringYourOwnAiProviderMode();
+        }
+
+        private static string ResolveAiRuntimeKey(string provider)
+        {
+            if (string.Equals(provider, AiProviderCustom, StringComparison.OrdinalIgnoreCase))
+                return (Config?.CustomApiKey ?? string.Empty).Trim();
+
             if (HasUserProvidedAiKey())
                 return (Config.Key ?? string.Empty).Trim();
 
@@ -62,6 +98,9 @@ namespace Smartphone
 
         private static string GetProviderForModel(string? model)
         {
+            if (HasCustomProviderConfigured())
+                return AiProviderCustom;
+
             return IsGeminiModel(model) ? AiProviderGemini : AiProviderOpenAi;
         }
 
@@ -82,22 +121,290 @@ namespace Smartphone
             return $"{normalizedInstruction}\nUse {language} language and alphabet";
         }
 
+        private static string ResolveCustomApiEndpoint()
+        {
+            return (Config?.CustomApiEndpoint ?? string.Empty).Trim();
+        }
+
+        private static string ResolveCustomApiPayloadTemplate()
+        {
+            string configuredTemplate = (Config?.CustomApiPayloadTemplate ?? string.Empty).Trim();
+            return string.IsNullOrWhiteSpace(configuredTemplate)
+                ? CustomDefaultPayloadTemplate
+                : configuredTemplate;
+        }
+
+        private static string ResolveCustomApiResponseTextPath()
+        {
+            return (Config?.CustomApiResponseTextPath ?? string.Empty).Trim();
+        }
+
+        private static int ResolveCustomApiTimeoutSeconds()
+        {
+            return Math.Clamp(Config?.CustomApiTimeoutSeconds ?? 45, 5, 300);
+        }
+
+        private static bool TryResolveCustomApiEndpointUri(out Uri endpointUri, out string errorMessage)
+        {
+            endpointUri = null!;
+            errorMessage = string.Empty;
+
+            string endpoint = ResolveCustomApiEndpoint();
+            if (string.IsNullOrWhiteSpace(endpoint))
+            {
+                errorMessage = "Custom API endpoint is empty.";
+                return false;
+            }
+
+            if (!Uri.TryCreate(endpoint, UriKind.Absolute, out Uri? parsedUri) || parsedUri == null)
+            {
+                errorMessage = $"Custom API endpoint '{endpoint}' is not a valid absolute URL.";
+                return false;
+            }
+
+            if (string.Equals(parsedUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            {
+                endpointUri = parsedUri;
+                return true;
+            }
+
+            if (!string.Equals(parsedUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
+            {
+                errorMessage = $"Custom API endpoint scheme '{parsedUri.Scheme}' is not supported. Use HTTPS, or HTTP only for localhost.";
+                return false;
+            }
+
+            if (!IsAllowedLocalHttpHost(parsedUri.Host))
+            {
+                errorMessage = "Custom API endpoint must use HTTPS for remote hosts. HTTP is only allowed for localhost or loopback addresses.";
+                return false;
+            }
+
+            endpointUri = parsedUri;
+            return true;
+        }
+
+        private static bool IsAllowedLocalHttpHost(string host)
+        {
+            if (string.IsNullOrWhiteSpace(host))
+                return false;
+
+            if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (IPAddress.TryParse(host, out IPAddress? parsedAddress))
+                return IPAddress.IsLoopback(parsedAddress);
+
+            return false;
+        }
+
+        private static bool IsValidHttpHeaderName(string headerName)
+        {
+            if (string.IsNullOrWhiteSpace(headerName))
+                return false;
+
+            foreach (char character in headerName)
+            {
+                bool isLetterOrDigit = char.IsLetterOrDigit(character);
+                if (!isLetterOrDigit && character != '-')
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static string BuildCustomAuthHeaderValue(string apiKey)
+        {
+            string normalizedApiKey = (apiKey ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedApiKey))
+                return string.Empty;
+
+            string prefix = (Config?.CustomApiKeyPrefix ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(prefix))
+                return normalizedApiKey;
+
+            return $"{prefix} {normalizedApiKey}";
+        }
+
+        private static string BuildCombinedCustomInputPrompt(string systemMessage, string userMessage)
+        {
+            string normalizedSystemMessage = (systemMessage ?? string.Empty).Trim();
+            string normalizedUserMessage = (userMessage ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(normalizedSystemMessage))
+                return normalizedUserMessage;
+
+            if (string.IsNullOrWhiteSpace(normalizedUserMessage))
+                return normalizedSystemMessage;
+
+            return $"SYSTEM:\n{normalizedSystemMessage}\n\nUSER:\n{normalizedUserMessage}";
+        }
+
+        private static bool ContainsCustomPayloadInputToken(string payloadTemplate)
+        {
+            string template = payloadTemplate ?? string.Empty;
+
+            return template.Contains(CustomPayloadTokenInput, StringComparison.Ordinal)
+                || template.Contains(CustomPayloadTokenSystemInput, StringComparison.Ordinal)
+                || template.Contains(CustomPayloadTokenUserInput, StringComparison.Ordinal)
+                || template.Contains(CustomPayloadTokenSystemMessage, StringComparison.Ordinal)
+                || template.Contains(CustomPayloadTokenUserMessage, StringComparison.Ordinal)
+                || template.Contains($"{{{{{CustomPayloadTokenInput}}}}}", StringComparison.Ordinal)
+                || template.Contains($"{{{{{CustomPayloadTokenSystemInput}}}}}", StringComparison.Ordinal)
+                || template.Contains($"{{{{{CustomPayloadTokenUserInput}}}}}", StringComparison.Ordinal)
+                || template.Contains($"{{{{{CustomPayloadTokenSystemMessage}}}}}", StringComparison.Ordinal)
+                || template.Contains($"{{{{{CustomPayloadTokenUserMessage}}}}}", StringComparison.Ordinal);
+        }
+
+        private static string ReplaceTemplateToken(string source, string token, string replacementValue)
+        {
+            string value = replacementValue ?? string.Empty;
+            return (source ?? string.Empty)
+                .Replace(token, value, StringComparison.Ordinal)
+                .Replace($"{{{{{token}}}}}", value, StringComparison.Ordinal);
+        }
+
+        private static string ReplaceCustomPayloadTokens(string source, string model, string systemMessage, string userMessage, string combinedInput)
+        {
+            string resolvedSource = source ?? string.Empty;
+            resolvedSource = ReplaceTemplateToken(resolvedSource, CustomPayloadTokenModel, model ?? string.Empty);
+            resolvedSource = ReplaceTemplateToken(resolvedSource, CustomPayloadTokenSystemInput, systemMessage ?? string.Empty);
+            resolvedSource = ReplaceTemplateToken(resolvedSource, CustomPayloadTokenUserInput, userMessage ?? string.Empty);
+            resolvedSource = ReplaceTemplateToken(resolvedSource, CustomPayloadTokenSystemMessage, systemMessage ?? string.Empty);
+            resolvedSource = ReplaceTemplateToken(resolvedSource, CustomPayloadTokenUserMessage, userMessage ?? string.Empty);
+            resolvedSource = ReplaceTemplateToken(resolvedSource, CustomPayloadTokenInput, combinedInput ?? string.Empty);
+            return resolvedSource;
+        }
+
+        private static void ReplaceCustomPayloadTokensInPlace(JToken token, string model, string systemMessage, string userMessage, string combinedInput)
+        {
+            if (token == null)
+                return;
+
+            if (token.Type == JTokenType.Object)
+            {
+                foreach (JProperty property in ((JObject)token).Properties())
+                    ReplaceCustomPayloadTokensInPlace(property.Value, model, systemMessage, userMessage, combinedInput);
+
+                return;
+            }
+
+            if (token.Type == JTokenType.Array)
+            {
+                foreach (JToken child in (JArray)token)
+                    ReplaceCustomPayloadTokensInPlace(child, model, systemMessage, userMessage, combinedInput);
+
+                return;
+            }
+
+            if (token.Type == JTokenType.String && token is JValue value)
+            {
+                value.Value = ReplaceCustomPayloadTokens(value.Value?.ToString() ?? string.Empty, model, systemMessage, userMessage, combinedInput);
+            }
+        }
+
+        private static bool TryBuildCustomApiPayload(string model, string systemMessage, string userMessage, out string payloadJson, out string errorMessage)
+        {
+            payloadJson = string.Empty;
+            errorMessage = string.Empty;
+
+            string payloadTemplate = ResolveCustomApiPayloadTemplate();
+            if (!ContainsCustomPayloadInputToken(payloadTemplate))
+            {
+                errorMessage = "Custom payload template must include INPUT_HERE, SYSTEM_INPUT_HERE, or USER_INPUT_HERE placeholders.";
+                return false;
+            }
+
+            try
+            {
+                JToken payloadToken = JToken.Parse(payloadTemplate);
+                string combinedInput = BuildCombinedCustomInputPrompt(systemMessage, userMessage);
+                ReplaceCustomPayloadTokensInPlace(payloadToken, model, systemMessage, userMessage, combinedInput);
+
+                payloadJson = payloadToken.ToString(Formatting.None);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Custom payload template is invalid JSON: {ex.Message}";
+                return false;
+            }
+        }
+
+        private static async Task<HttpResponseMessage?> SendCustomProviderRequestAsync(HttpClient httpClient, string model, string systemMessage, string userMessage, string runtimeKey, string operationName)
+        {
+            if (httpClient == null)
+                return null;
+
+            if (!TryResolveCustomApiEndpointUri(out Uri endpointUri, out string endpointError))
+            {
+                SMonitor.Log($"Unable to call custom AI endpoint for {operationName}. {endpointError}", LogLevel.Warn);
+                return null;
+            }
+
+            if (!TryBuildCustomApiPayload(model, systemMessage, userMessage, out string payloadJson, out string payloadError))
+            {
+                SMonitor.Log($"Unable to build custom AI payload for {operationName}. {payloadError}", LogLevel.Warn);
+                return null;
+            }
+
+            string headerName = (Config?.CustomApiKeyHeader ?? string.Empty).Trim();
+            string headerValue = BuildCustomAuthHeaderValue(runtimeKey);
+
+            if (!string.IsNullOrWhiteSpace(headerValue))
+            {
+                if (string.IsNullOrWhiteSpace(headerName))
+                    headerName = "Authorization";
+
+                if (!IsValidHttpHeaderName(headerName))
+                {
+                    SMonitor.Log($"Unable to call custom AI endpoint for {operationName}. Header name '{headerName}' is invalid.", LogLevel.Warn);
+                    return null;
+                }
+
+                if (!httpClient.DefaultRequestHeaders.TryAddWithoutValidation(headerName, headerValue))
+                {
+                    SMonitor.Log($"Unable to call custom AI endpoint for {operationName}. Failed to attach header '{headerName}'.", LogLevel.Warn);
+                    return null;
+                }
+            }
+
+            httpClient.Timeout = TimeSpan.FromSeconds(ResolveCustomApiTimeoutSeconds());
+
+            var httpContent = new StringContent(payloadJson, Encoding.UTF8, "application/json");
+            return await httpClient.PostAsync(endpointUri, httpContent);
+        }
+
         internal static void HandleAiModelSettingTimeChanged(int newTime)
         {
             if (IsAiTemporarilyDisabledForPhoneInactivity())
                 return;
 
-            if (HasUserProvidedAiKey())
+            if (IsBringYourOwnAiProviderMode())
             {
                 chatModel = Config.Model;
                 summaryModel = Config.Model;
 
-                if (IsGeminiModel(chatModel))
+                string provider = GetProviderForModel(chatModel);
+
+                if (string.Equals(provider, AiProviderGemini, StringComparison.OrdinalIgnoreCase))
                 {
                     chatGeminiThinkingLevel = GeminiThinkingLevelMinimal;
                     summaryGeminiThinkingLevel = GeminiThinkingLevelMinimal;
                     chatReasoningEffort = new { effort = "minimal" };
                     summaryReasoningEffort = new { effort = "minimal" };
+                    return;
+                }
+
+                if (string.Equals(provider, AiProviderCustom, StringComparison.OrdinalIgnoreCase))
+                {
+                    chatGeminiThinkingLevel = GeminiThinkingLevelMinimal;
+                    summaryGeminiThinkingLevel = GeminiThinkingLevelMinimal;
+                    chatReasoningEffort = new { effort = "none" };
+                    summaryReasoningEffort = new { effort = "none" };
+                    IsReducedQuality = false;
+                    IsMaxedLimit = false;
+                    totalFailedCheck = 0;
                     return;
                 }
 
@@ -132,7 +439,7 @@ namespace Smartphone
             }
 
 
-            if (!HasUserProvidedAiKey() && newTime % 300 == 0)
+            if (IsSharedAiProviderMode() && newTime % 300 == 0)
             {
                 Task.Run(async () =>
                 {
@@ -204,11 +511,11 @@ namespace Smartphone
 
             string npcCharacteristic = $" {npc.Name} is {npcAge}, {npcManner}, and is {npcSocial}";
 
-            if (getMinimal && !HasUserProvidedAiKey())
+            if (getMinimal && IsSharedAiProviderMode())
                 return npcCharacteristic;
 
             // CUSTOM CHARACTERISTIC OVERRIDE
-            if (HasUserProvidedAiKey())
+            if (IsBringYourOwnAiProviderMode())
             {
                 if (Config.CharacteristicMode == ModConfig.CharacteristicModeLong && NpcCharacteristicsLong.TryGetValue(npc.Name, out string? customCharacteristicLong) && !string.IsNullOrWhiteSpace(customCharacteristicLong) && !getMinimal)
                 {
@@ -250,8 +557,10 @@ namespace Smartphone
                 return "SYSTEM: ---Got an error---";
             }
 
-            string key = ResolveAiRuntimeKey();
-            if (string.IsNullOrWhiteSpace(key))
+            string provider = GetProviderForModel(chatModel);
+            string key = ResolveAiRuntimeKey(provider);
+            if (!string.Equals(provider, AiProviderCustom, StringComparison.OrdinalIgnoreCase)
+                && string.IsNullOrWhiteSpace(key))
             {
                 SMonitor.Log("AI key is missing. Add a Key in config or provide shared OpenAI keys in .env before building.", LogLevel.Warn);
                 return "SYSTEM: ---Got an error---";
@@ -260,8 +569,7 @@ namespace Smartphone
             string user = type == "response"
                 ? ModEntry.BuildResponseConversationUserInput(npc, text)
                 : text;
-            string system = GetSystemMessage(npc, type);
-            string provider = GetProviderForModel(chatModel);
+            string system = GetSystemMessage(npc, type, allowToolCalling: !string.Equals(provider, AiProviderCustom, StringComparison.OrdinalIgnoreCase));
 
             string responseMessage = "";
             using (var httpClient = new HttpClient())
@@ -339,6 +647,21 @@ namespace Smartphone
                     var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
                     httpResponse = await httpClient.PostAsync(endpoint, httpContent);
                 }
+                else if (provider == AiProviderCustom)
+                {
+                    HttpResponseMessage? customResponse = await SendCustomProviderRequestAsync(
+                        httpClient,
+                        chatModel,
+                        system,
+                        user,
+                        key,
+                        "SendMessageToAssistant");
+
+                    if (customResponse == null)
+                        return "SYSTEM: ---Got an error---";
+
+                    httpResponse = customResponse;
+                }
                 else
                 {
                     httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
@@ -392,13 +715,45 @@ namespace Smartphone
                     var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
                     RegisterSuccessfulAiCall();
 
-                    JObject json = JObject.Parse(jsonResponse);
-                    JArray toolCalls = provider == AiProviderGemini
-                        ? GetGeminiResponseFunctionCalls(json)
-                        : GetResponseFunctionCalls(json);
-                    responseMessage = provider == AiProviderGemini
-                        ? GetGeminiResponseOutputText(json)
-                        : GetResponseOutputText(json);
+                    JToken parsedToken;
+                    try
+                    {
+                        parsedToken = JToken.Parse(jsonResponse);
+                    }
+                    catch (JsonReaderException)
+                    {
+                        if (provider == AiProviderCustom)
+                        {
+                            responseMessage = (jsonResponse ?? string.Empty).Trim();
+                            if (responseMessage.StartsWith($"{npc.Name}:", StringComparison.OrdinalIgnoreCase))
+                                responseMessage = responseMessage.Substring(npc.Name.Length + 1).TrimStart();
+                            return responseMessage;
+                        }
+
+                        SMonitor.Log($"Unable to parse AI response payload from {provider}: {jsonResponse}", LogLevel.Trace);
+                        return "SYSTEM: ---Got an error---";
+                    }
+
+                    JArray toolCalls = new JArray();
+
+                    if (provider == AiProviderGemini)
+                    {
+                        JObject geminiJson = parsedToken as JObject ?? new JObject();
+                        toolCalls = GetGeminiResponseFunctionCalls(geminiJson);
+                        responseMessage = GetGeminiResponseOutputText(geminiJson);
+                    }
+                    else if (provider == AiProviderOpenAi)
+                    {
+                        JObject openAiJson = parsedToken as JObject ?? new JObject();
+                        toolCalls = GetResponseFunctionCalls(openAiJson);
+                        responseMessage = GetResponseOutputText(openAiJson);
+                    }
+                    else
+                    {
+                        responseMessage = GetCustomResponseOutputText(parsedToken);
+                        if (string.IsNullOrWhiteSpace(responseMessage))
+                            responseMessage = (jsonResponse ?? string.Empty).Trim();
+                    }
 
 
                     // SMonitor.Log(jsonResponse.ToString(), LogLevel.Error);
@@ -615,7 +970,7 @@ namespace Smartphone
             return $"{speaker}: [Sent photo tags: {normalizedTags}]";
         }
 
-        private static string GetSystemMessage(NPC npc, string type)
+        private static string GetSystemMessage(NPC npc, string type, bool allowToolCalling = true)
         {
             try
             {
@@ -656,7 +1011,13 @@ namespace Smartphone
                             ? FarmTreeNames[Game1.random.Next(FarmTreeNames.Count)]
                             : FarmCropNames[Game1.random.Next(FarmCropNames.Count)]);
 
+
                 string data = @$"{npc.Name} currently at {npcLocation}; Today weather: {Game1.currentLocation.GetWeather().Weather}; Tomorrow weather: {Game1.weatherForTomorrow};  Time: {timeFormatted}, day {Game1.dayOfMonth} {Game1.currentLocation.GetSeason()};";
+
+
+                bool isPlayerBirthdayToday = MessageManager.IsPlayerBirthdayToday();
+                if (isPlayerBirthdayToday)
+                    data += $"It is PLAYER **{Game1.player.Name}**'s birthday today.";
 
                 if (planting != "")
                     data += $"\nPlayer planting some {planting} on the farm";
@@ -691,13 +1052,19 @@ namespace Smartphone
                     summary = npcConversationSummary[npc.Name];
 
                 var npcCharacteristic = GetNpcCharacteristicForPrompt(npc);
+                string playerProfile = MessageManager.currentPlayerProfile;
+
+                playerProfile = playerProfile.Length > 150 && string.IsNullOrEmpty(Config.OpenAIKey) ? playerProfile.Substring(0, 150): playerProfile;
 
                 if (type == "response")
                 {
-                    object[] possibleEvent = GetToolList(npc, listOnly: true);
+                    object[] possibleEvent = allowToolCalling
+                        ? GetToolList(npc, listOnly: true)
+                        : Array.Empty<object>();
                     var systemMessage = $@"
                             **Context**
-                            * You are roleplaying as NPC **{npc.Name}** in Stardew Valley, responding to a conversation with PLAYER **{Game1.player.Name}** ({(Game1.player.IsMale ? "Male" : "Female")}, teen/young adult).
+                            * You are roleplaying as NPC **{npc.Name}** in Stardew Valley, responding to a conversation with PLAYER **{Game1.player.Name}**
+                            PLAYER profile: {(Game1.player.IsMale ? "Male" : "Female")}, {playerProfile}
 
                             **Response Instructions**
                             1. **Response:** Reply to the user with a message of <30 words.
@@ -709,10 +1076,11 @@ namespace Smartphone
                             * **Conversation History:** {summary}
                             ";
 
-                    if (possibleEvent.Any())
+                    if (allowToolCalling && possibleEvent.Any())
                         systemMessage = $@"
                             **Context**
-                            * You are roleplaying as NPC **{npc.Name}** in Stardew Valley, responding to a conversation with PLAYER **{Game1.player.Name}** ({(Game1.player.IsMale ? "Male" : "Female")}, teen/young adult).
+                            * You are roleplaying as NPC **{npc.Name}** in Stardew Valley, responding to a conversation with PLAYER **{Game1.player.Name}**
+                            PLAYER profile: {(Game1.player.IsMale ? "Male" : "Female")}, {playerProfile}
 
                             **Response Instructions**
                             1. **Function call:** When the player intends to invite the NPC for an event that is in the possible event list below, then you must return the function schedule_event and finish.
@@ -789,17 +1157,19 @@ namespace Smartphone
                 return parsedSummaries;
             }
 
-            var key = ResolveAiRuntimeKey();
-            if (string.IsNullOrWhiteSpace(key))
+            string provider = GetProviderForModel(summaryModel);
+            var key = ResolveAiRuntimeKey(provider);
+            if (!string.Equals(provider, AiProviderCustom, StringComparison.OrdinalIgnoreCase)
+                && string.IsNullOrWhiteSpace(key))
             {
                 SMonitor.Log("SummaryConversationsBatch skipped because no AI key is available.", LogLevel.Trace);
                 return parsedSummaries;
             }
 
             var maxAiSummaryLength = 200;
-            bool hasUserKey = HasUserProvidedAiKey();
-            var maxConversationsToSummarize = hasUserKey ? 6 : 3;
-            if (hasUserKey && Config.MaxSummaryWordCount != 0)
+            bool hasDedicatedProvider = IsBringYourOwnAiProviderMode();
+            var maxConversationsToSummarize = hasDedicatedProvider ? 6 : 3;
+            if (hasDedicatedProvider && Config.MaxSummaryWordCount != 0)
             {
                 maxAiSummaryLength = Config.MaxSummaryWordCount;
             }
@@ -864,8 +1234,6 @@ namespace Smartphone
                 todayConversation = todayConversations
             };
 
-            string provider = GetProviderForModel(summaryModel);
-
             using (var httpClient = new HttpClient())
             {
                 HttpResponseMessage httpResponse;
@@ -909,6 +1277,21 @@ namespace Smartphone
                     var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
                     httpResponse = await httpClient.PostAsync(endpoint, httpContent);
                 }
+                else if (provider == AiProviderCustom)
+                {
+                    HttpResponseMessage? customResponse = await SendCustomProviderRequestAsync(
+                        httpClient,
+                        summaryModel,
+                        system,
+                        JsonConvert.SerializeObject(userPayload),
+                        key,
+                        "SummaryConversationsBatch");
+
+                    if (customResponse == null)
+                        return parsedSummaries;
+
+                    httpResponse = customResponse;
+                }
                 else
                 {
                     httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
@@ -948,11 +1331,33 @@ namespace Smartphone
                 {
                     var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
                     RegisterSuccessfulAiCall();
-                    JObject json = JObject.Parse(jsonResponse);
-                    // SMonitor.Log(json.ToString(), LogLevel.Error);
-                    string responseText = provider == AiProviderGemini
-                        ? GetGeminiResponseOutputText(json)
-                        : GetResponseOutputText(json);
+
+                    JToken parsedToken;
+                    try
+                    {
+                        parsedToken = JToken.Parse(jsonResponse);
+                    }
+                    catch (JsonReaderException)
+                    {
+                        SMonitor.Log($"Unable to parse summary response payload from {provider}: {jsonResponse}", LogLevel.Trace);
+                        return parsedSummaries;
+                    }
+
+                    string responseText;
+                    if (provider == AiProviderGemini)
+                    {
+                        JObject geminiJson = parsedToken as JObject ?? new JObject();
+                        responseText = GetGeminiResponseOutputText(geminiJson);
+                    }
+                    else if (provider == AiProviderOpenAi)
+                    {
+                        JObject openAiJson = parsedToken as JObject ?? new JObject();
+                        responseText = GetResponseOutputText(openAiJson);
+                    }
+                    else
+                    {
+                        responseText = GetCustomResponseOutputText(parsedToken);
+                    }
 
                     if (TryParseBatchConversationSummaries(responseText, expectedNpcNames, out Dictionary<string, string> summaries))
                         return summaries;
@@ -1008,8 +1413,10 @@ namespace Smartphone
 
             try
             {
-                var key = ResolveAiRuntimeKey();
-                if (string.IsNullOrWhiteSpace(key))
+                string provider = GetProviderForModel(chatModel);
+                var key = ResolveAiRuntimeKey(provider);
+                if (!string.Equals(provider, AiProviderCustom, StringComparison.OrdinalIgnoreCase)
+                    && string.IsNullOrWhiteSpace(key))
                 {
                     SMonitor.Log("GenerateNpcSocialPostTextsBatch skipped because no AI key is available.", LogLevel.Trace);
                     return generatedPosts;
@@ -1051,7 +1458,6 @@ namespace Smartphone
 
                 using (var httpClient = new HttpClient())
                 {
-                    string provider = GetProviderForModel(chatModel);
                     HttpResponseMessage httpResponse;
 
                     if (provider == AiProviderGemini)
@@ -1094,6 +1500,21 @@ namespace Smartphone
                         var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
                         httpResponse = await httpClient.PostAsync(endpoint, httpContent);
                     }
+                    else if (provider == AiProviderCustom)
+                    {
+                        HttpResponseMessage? customResponse = await SendCustomProviderRequestAsync(
+                            httpClient,
+                            chatModel,
+                            developerMessage,
+                            JsonConvert.SerializeObject(userPayload, Formatting.Indented),
+                            key,
+                            "GenerateNpcSocialPostTextsBatch");
+
+                        if (customResponse == null)
+                            return generatedPosts;
+
+                        httpResponse = customResponse;
+                    }
                     else
                     {
                         httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
@@ -1134,11 +1555,33 @@ namespace Smartphone
                     {
                         string jsonResponse = await httpResponse.Content.ReadAsStringAsync();
                         RegisterSuccessfulAiCall();
-                        JObject json = JObject.Parse(jsonResponse);
 
-                        string responseText = provider == AiProviderGemini
-                            ? GetGeminiResponseOutputText(json).Trim()
-                            : GetResponseOutputText(json).Trim();
+                        JToken parsedToken;
+                        try
+                        {
+                            parsedToken = JToken.Parse(jsonResponse);
+                        }
+                        catch (JsonReaderException)
+                        {
+                            SMonitor.Log($"Unable to parse social posts response payload from {provider}: {jsonResponse}", LogLevel.Trace);
+                            return generatedPosts;
+                        }
+
+                        string responseText;
+                        if (provider == AiProviderGemini)
+                        {
+                            JObject geminiJson = parsedToken as JObject ?? new JObject();
+                            responseText = GetGeminiResponseOutputText(geminiJson).Trim();
+                        }
+                        else if (provider == AiProviderOpenAi)
+                        {
+                            JObject openAiJson = parsedToken as JObject ?? new JObject();
+                            responseText = GetResponseOutputText(openAiJson).Trim();
+                        }
+                        else
+                        {
+                            responseText = GetCustomResponseOutputText(parsedToken).Trim();
+                        }
 
                         string[] expectedPostIds = validPlans
                             .Select(plan => plan.PlanId)
@@ -1314,8 +1757,10 @@ namespace Smartphone
 
             try
             {
-                var key = ResolveAiRuntimeKey();
-                if (string.IsNullOrWhiteSpace(key))
+                string provider = GetProviderForModel(chatModel);
+                var key = ResolveAiRuntimeKey(provider);
+                if (!string.Equals(provider, AiProviderCustom, StringComparison.OrdinalIgnoreCase)
+                    && string.IsNullOrWhiteSpace(key))
                 {
                     SMonitor.Log("GenerateNpcSocialPostCommentsBatch skipped because no AI key is available.", LogLevel.Trace);
                     return generatedCommentsByPost;
@@ -1358,7 +1803,6 @@ namespace Smartphone
 
                 using (var httpClient = new HttpClient())
                 {
-                    string provider = GetProviderForModel(chatModel);
                     HttpResponseMessage httpResponse;
 
                     if (provider == AiProviderGemini)
@@ -1401,6 +1845,21 @@ namespace Smartphone
                         var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
                         httpResponse = await httpClient.PostAsync(endpoint, httpContent);
                     }
+                    else if (provider == AiProviderCustom)
+                    {
+                        HttpResponseMessage? customResponse = await SendCustomProviderRequestAsync(
+                            httpClient,
+                            chatModel,
+                            developerMessage,
+                            JsonConvert.SerializeObject(userPayload, Formatting.Indented),
+                            key,
+                            "GenerateNpcSocialPostCommentsBatch");
+
+                        if (customResponse == null)
+                            return generatedCommentsByPost;
+
+                        httpResponse = customResponse;
+                    }
                     else
                     {
                         httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
@@ -1441,10 +1900,33 @@ namespace Smartphone
                     {
                         string jsonResponse = await httpResponse.Content.ReadAsStringAsync();
                         RegisterSuccessfulAiCall();
-                        JObject json = JObject.Parse(jsonResponse);
-                        string responseText = provider == AiProviderGemini
-                            ? GetGeminiResponseOutputText(json).Trim()
-                            : GetResponseOutputText(json).Trim();
+
+                        JToken parsedToken;
+                        try
+                        {
+                            parsedToken = JToken.Parse(jsonResponse);
+                        }
+                        catch (JsonReaderException)
+                        {
+                            SMonitor.Log($"Unable to parse social comments response payload from {provider}: {jsonResponse}", LogLevel.Trace);
+                            return generatedCommentsByPost;
+                        }
+
+                        string responseText;
+                        if (provider == AiProviderGemini)
+                        {
+                            JObject geminiJson = parsedToken as JObject ?? new JObject();
+                            responseText = GetGeminiResponseOutputText(geminiJson).Trim();
+                        }
+                        else if (provider == AiProviderOpenAi)
+                        {
+                            JObject openAiJson = parsedToken as JObject ?? new JObject();
+                            responseText = GetResponseOutputText(openAiJson).Trim();
+                        }
+                        else
+                        {
+                            responseText = GetCustomResponseOutputText(parsedToken).Trim();
+                        }
 
                         if (TryParseGeneratedNpcSocialCommentsBatch(responseText, expectedCommentersByPost, out Dictionary<string, Dictionary<string, string>> parsedCommentsByPost))
                             return parsedCommentsByPost;
@@ -1754,6 +2236,103 @@ namespace Smartphone
             }
 
             return string.Empty;
+        }
+
+        private static JToken? TrySelectJsonPathToken(JToken responseToken, string path)
+        {
+            if (responseToken == null)
+                return null;
+
+            string normalizedPath = (path ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedPath))
+                return null;
+
+            try
+            {
+                JToken? selectedToken = responseToken.SelectToken(normalizedPath, errorWhenNoMatch: false);
+                if (selectedToken != null)
+                    return selectedToken;
+
+                string rootedPath = normalizedPath.StartsWith("$", StringComparison.Ordinal)
+                    ? normalizedPath
+                    : normalizedPath.StartsWith("[", StringComparison.Ordinal)
+                        ? $"${normalizedPath}"
+                        : $"$.{normalizedPath}";
+
+                return responseToken.SelectToken(rootedPath, errorWhenNoMatch: false);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string ExtractTextFromCustomResponseToken(JToken? token)
+        {
+            if (token == null)
+                return string.Empty;
+
+            if (token.Type == JTokenType.String)
+                return token.ToString().Trim();
+
+            if (token.Type == JTokenType.Array)
+            {
+                string[] values = ((JArray)token)
+                    .Select(ExtractTextFromCustomResponseToken)
+                    .Where(text => !string.IsNullOrWhiteSpace(text))
+                    .ToArray();
+
+                return values.Length == 0 ? string.Empty : string.Join("\n", values).Trim();
+            }
+
+            if (token.Type == JTokenType.Object)
+            {
+                JObject tokenObject = (JObject)token;
+                string[] preferredKeys = { "text", "content", "message", "output_text", "response", "result" };
+                foreach (string preferredKey in preferredKeys)
+                {
+                    if (!TryGetJsonPropertyValue(tokenObject, preferredKey, out JToken? preferredValue))
+                        continue;
+
+                    string extracted = ExtractTextFromCustomResponseToken(preferredValue);
+                    if (!string.IsNullOrWhiteSpace(extracted))
+                        return extracted;
+                }
+
+                string[] fallbackValues = tokenObject.Properties()
+                    .Select(property => ExtractTextFromCustomResponseToken(property.Value))
+                    .Where(text => !string.IsNullOrWhiteSpace(text))
+                    .ToArray();
+
+                return fallbackValues.Length == 0 ? string.Empty : string.Join("\n", fallbackValues).Trim();
+            }
+
+            return token.ToString().Trim();
+        }
+
+        private static string GetCustomResponseOutputText(JToken responseToken)
+        {
+            if (responseToken == null)
+                return string.Empty;
+
+            string configuredPath = ResolveCustomApiResponseTextPath();
+            if (!string.IsNullOrWhiteSpace(configuredPath))
+            {
+                JToken? configuredToken = TrySelectJsonPathToken(responseToken, configuredPath);
+                string configuredText = ExtractTextFromCustomResponseToken(configuredToken);
+                if (!string.IsNullOrWhiteSpace(configuredText))
+                    return configuredText;
+            }
+
+            foreach (string fallbackPath in CustomResponseFallbackPaths)
+            {
+                JToken? fallbackToken = TrySelectJsonPathToken(responseToken, fallbackPath);
+                string fallbackText = ExtractTextFromCustomResponseToken(fallbackToken);
+                if (!string.IsNullOrWhiteSpace(fallbackText))
+                    return fallbackText;
+            }
+
+            return ExtractTextFromCustomResponseToken(responseToken);
         }
 
         private static bool TryParseBatchConversationSummaries(string responseText, IEnumerable<string> expectedNpcNames, out Dictionary<string, string> summaries)

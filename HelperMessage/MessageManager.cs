@@ -22,6 +22,10 @@ namespace Smartphone
             public string CurrentPhoneTextColor { get; set; } = "Black";
             public string CurrentPhoneTheme { get; set; } = AssetHelper.DefaultPhoneThemeName;
             public string CurrentPlayerAvatar { get; set; } = "";
+            public string CurrentPlayerBirthDate { get; set; } = "1";
+            public string CurrentPlayerBirthSeason { get; set; } = "Spring";
+            public string CurrentPlayerAge { get; set; } = "Adult";
+            public string CurrentPlayerProfile { get; set; } = "";
             public List<string> FavouriteNpc { get; set; } = new();
             public Dictionary<string, long> LatestAdd { get; set; } = new();
             public Dictionary<string, int> UnreadCounts { get; set; } = new();
@@ -38,11 +42,27 @@ namespace Smartphone
         public static string currentPhoneSound = "getNewSpecialItem";
         public static string currentPhoneBackground = "";
         public static string currentPlayerAvatar = "";
+        public static string currentPlayerBirthDate = "1";
+        public static string currentPlayerBirthSeason = "Spring";
+        public static string currentPlayerAge = "Adult";
+        public static string currentPlayerProfile = "";
         public static string currentPhoneTextColor = "Black";
         public static string currentPhoneTheme = AssetHelper.DefaultPhoneThemeName;
         public static int lastPhoneOpenedDay = 0;
 
         private static IModHelper Helper => ModEntry.SHelper;
+
+        public static bool IsPlayerBirthdayToday()
+        {
+            if (!Context.IsWorldReady)
+                return false;
+
+            string playerBirthSeason = NormalizePlayerBirthSeason(currentPlayerBirthSeason);
+            string playerBirthDate = NormalizePlayerBirthDate(currentPlayerBirthDate);
+
+            return string.Equals(playerBirthSeason, Game1.currentSeason, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(playerBirthDate, Game1.dayOfMonth.ToString(), StringComparison.OrdinalIgnoreCase);
+        }
 
         private static bool IsNpcMessageable(string npc)
         {
@@ -320,6 +340,40 @@ namespace Smartphone
             };
         }
 
+        private static string NormalizePlayerBirthDate(string? birthDate)
+        {
+            string digitsOnly = new string((birthDate ?? string.Empty).Where(char.IsDigit).ToArray());
+            if (string.IsNullOrWhiteSpace(digitsOnly))
+                return "1";
+
+            if (!int.TryParse(digitsOnly, out int parsedValue))
+                return "1";
+
+            return Math.Clamp(parsedValue, 1, 28).ToString();
+        }
+
+        private static string NormalizePlayerBirthSeason(string? season)
+        {
+            string safeSeason = (season ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(safeSeason))
+                return "Spring";
+
+            return safeSeason.ToLowerInvariant() switch
+            {
+                "spring" => "Spring",
+                "summer" => "Summer",
+                "fall" => "Fall",
+                "winter" => "Winter",
+                _ => "Spring"
+            };
+        }
+
+        private static string NormalizePlayerAge(string? age)
+        {
+            string safeAge = (age ?? string.Empty).Trim();
+            return string.IsNullOrWhiteSpace(safeAge) ? "Adult" : safeAge;
+        }
+
 
 
         private static string GetPhoneSettingDataPath()
@@ -329,6 +383,11 @@ namespace Smartphone
 
         private static void SavePhoneSettingData()
         {
+            currentPlayerBirthDate = NormalizePlayerBirthDate(currentPlayerBirthDate);
+            currentPlayerBirthSeason = NormalizePlayerBirthSeason(currentPlayerBirthSeason);
+            currentPlayerAge = NormalizePlayerAge(currentPlayerAge);
+            currentPlayerProfile = currentPlayerProfile ?? string.Empty;
+
             PhoneSettingData data = new()
             {
                 CurrentPhoneBackground = currentPhoneBackground ?? "",
@@ -336,6 +395,10 @@ namespace Smartphone
                 CurrentPhoneTextColor = string.IsNullOrWhiteSpace(currentPhoneTextColor) ? "Black" : currentPhoneTextColor,
                 CurrentPhoneTheme = string.IsNullOrWhiteSpace(currentPhoneTheme) ? AssetHelper.DefaultPhoneThemeName : currentPhoneTheme,
                 CurrentPlayerAvatar = currentPlayerAvatar ?? "",
+                CurrentPlayerBirthDate = currentPlayerBirthDate,
+                CurrentPlayerBirthSeason = currentPlayerBirthSeason,
+                CurrentPlayerAge = currentPlayerAge,
+                CurrentPlayerProfile = currentPlayerProfile,
                 FavouriteNpc = favouriteNpc?.ToList() ?? new List<string>(),
                 LatestAdd = latestAdd?.ToDictionary(pair => pair.Key, pair => pair.Value) ?? new Dictionary<string, long>(),
                 UnreadCounts = unreadCounts?.ToDictionary(pair => pair.Key, pair => pair.Value) ?? new Dictionary<string, int>(),
@@ -356,6 +419,10 @@ namespace Smartphone
             currentPhoneSound = string.IsNullOrWhiteSpace(data.CurrentPhoneSound) ? "getNewSpecialItem" : data.CurrentPhoneSound;
             currentPhoneBackground = data.CurrentPhoneBackground ?? "";
             currentPlayerAvatar = data.CurrentPlayerAvatar ?? "";
+            currentPlayerBirthDate = NormalizePlayerBirthDate(data.CurrentPlayerBirthDate);
+            currentPlayerBirthSeason = NormalizePlayerBirthSeason(data.CurrentPlayerBirthSeason);
+            currentPlayerAge = NormalizePlayerAge(data.CurrentPlayerAge);
+            currentPlayerProfile = data.CurrentPlayerProfile ?? string.Empty;
             currentPhoneTextColor = string.IsNullOrWhiteSpace(data.CurrentPhoneTextColor) ? "Black" : data.CurrentPhoneTextColor;
             currentPhoneTheme = string.IsNullOrWhiteSpace(data.CurrentPhoneTheme) ? AssetHelper.DefaultPhoneThemeName : data.CurrentPhoneTheme;
             lastPhoneOpenedDay = Math.Max(0, data.LastPhoneOpenedDay);

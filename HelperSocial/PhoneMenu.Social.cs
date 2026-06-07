@@ -23,7 +23,7 @@ namespace Smartphone
         private const int SocialPostTextMaxWidthBase = 450;
         private const int SocialCommentPreviewCount = 2;
         private const int SocialCreateSelectionMaxCount = 3;
-        private const int SocialFeedCreateButtonXBase = 100;
+        private const int SocialFeedCreateButtonXBase = 60;
         private const int SocialFeedCreateButtonYBase = 65;
         private const int SocialFeedCreateButtonWidthBase = 150;
         private const int SocialFeedCreateButtonHeightBase = 50;
@@ -42,7 +42,7 @@ namespace Smartphone
         private const int SocialCreatePreviewWidthBase = 440;
         private const int SocialCreatePreviewHeightBase = 380;
         private const int SocialCreateSelectionToggleXOffsetBase = 190;
-        private const int SocialCreateSelectionToggleYOffsetBase = 60;
+        private const int SocialCreateSelectionToggleYOffsetBase = 10;
         private const int SocialCreateSelectionToggleWidthBase = 120;
         private const int SocialCreateSelectionToggleHeightBase = 50;
         private const int SocialCreateSelectionHeartXOffsetBase = 17;
@@ -1041,7 +1041,9 @@ namespace Smartphone
             b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
             DrawPhoneScreenBackground(b, xOffset: 0);
             DrawPhoneFrame(b);
-            backButton.draw(b);
+            backButton.draw(b, Color.Tan, 1f);
+            lockButton.draw(b, Color.Tan, 1f);
+            homeButton.draw(b, Color.Tan, 1f);
 
             //string title = socialCreateMenuOpen
             //    ? "Create Post"
@@ -1637,16 +1639,16 @@ namespace Smartphone
                     Color.Black);
             }
 
-            //string selectedImagesLabel = socialCreateSelectedImages.Count == 0
+            // string selectedImagesLabel = socialCreateSelectedImages.Count == 0
             //    ? "Selected images: none"
             //    : "Selected images: " + string.Join(", ", socialCreateSelectedImages.Select(name => Path.GetFileNameWithoutExtension(name)));
-            //b.DrawString(Game1.smallFont, selectedImagesLabel, new Vector2(panelBounds.X + 20, panelBounds.Y + 470), Color.Black);
+            // b.DrawString(Game1.smallFont, selectedImagesLabel, new Vector2(panelBounds.X + 20, panelBounds.Y + 470), Color.Black);
 
             int inputX = panelBounds.X + SocialCreateInputXOffset;
-            int inputY = panelBounds.Bottom - SocialCreateInputBottomOffset;
+            int inputY = panelBounds.Bottom - SocialCreateInputBottomOffset - 90;
             int inputWidth = SocialCreateInputWidth;
             int fontHeight = (int)Game1.smallFont.MeasureString("A").Y;
-            int inputHeight = fontHeight + SocialCreateInputHeightPadding;
+            int inputHeight = fontHeight + SocialCreateInputHeightPadding + 90;
 
             IClickableMenu.drawTextureBox(
                 b,
@@ -1660,7 +1662,7 @@ namespace Smartphone
                 1f,
                 false);
 
-            DrawEditableTextInput(b, new Rectangle(inputX, inputY, inputWidth, inputHeight), socialPostDraft, socialPostDraftCursorIndex, socialPostDraftSelectionAnchorIndex);
+            DrawEditableTextInput(b, new Rectangle(inputX, inputY, inputWidth, inputHeight), socialPostDraft, socialPostDraftCursorIndex, socialPostDraftSelectionAnchorIndex, true);
 
 
             var socialOkButton = new ClickableTextureComponent(
@@ -1911,7 +1913,7 @@ namespace Smartphone
             cursorY += interactionBounds.Height + SocialProfileSectionSpacing;
 
             Rectangle postsHeaderBounds = new Rectangle(cardX, cursorY, cardWidth, SocialProfilePostsHeaderHeight);
-            
+
             DrawPhoneText(
                 b,
                 Game1.smallFont,
@@ -3832,7 +3834,10 @@ namespace Smartphone
         private string GetSocialProfileAgeLabel(string actorName, bool actorIsPlayer)
         {
             if (actorIsPlayer)
-                return "Adult";
+            {
+                string age = (MessageManager.currentPlayerAge ?? string.Empty).Trim();
+                return string.IsNullOrWhiteSpace(age) ? "Adult" : age;
+            }
 
             string resolvedName = ResolveSocialProfileActorName(actorName, actorIsPlayer);
             NPC? npc = Game1.getCharacterFromName(resolvedName);
@@ -3846,7 +3851,16 @@ namespace Smartphone
         private string GetSocialProfileBirthdayLabel(string actorName, bool actorIsPlayer)
         {
             if (actorIsPlayer)
-                return "Unknown";
+            {
+                string birthDate = (MessageManager.currentPlayerBirthDate ?? string.Empty).Trim();
+                string birthSeason = (MessageManager.currentPlayerBirthSeason ?? string.Empty).Trim();
+
+                if (string.IsNullOrWhiteSpace(birthDate) || string.IsNullOrWhiteSpace(birthSeason))
+                    return "Unknown";
+
+                string playerSeasonLabel = char.ToUpperInvariant(birthSeason[0]) + birthSeason.Substring(1).ToLowerInvariant();
+                return $"{playerSeasonLabel} {birthDate}";
+            }
 
             string resolvedName = ResolveSocialProfileActorName(actorName, actorIsPlayer);
             if (string.IsNullOrWhiteSpace(resolvedName))
@@ -4078,7 +4092,7 @@ namespace Smartphone
             return (visibleText, startIndex, cursorOffset);
         }
 
-        private void DrawEditableTextInput(SpriteBatch b, Rectangle inputBounds, string text, int cursorIndex, int selectionAnchorIndex)
+        private void DrawEditableTextInput(SpriteBatch b, Rectangle inputBounds, string text, int cursorIndex, int selectionAnchorIndex, bool breakLine = false)
         {
             SpriteFont font = Game1.smallFont;
             float textScale = GetPhoneTextScale();
@@ -4087,34 +4101,139 @@ namespace Smartphone
             int safeCursorIndex = Math.Clamp(cursorIndex, 0, safeText.Length);
             int safeSelectionAnchorIndex = Math.Clamp(selectionAnchorIndex, 0, safeText.Length);
 
-            (string visibleText, int visibleStartIndex, int cursorOffset) = GetVisibleTextForInput(safeText, font, maxWidth, safeCursorIndex);
             (int selectionStart, int selectionEnd) = GetSelectionRange(safeCursorIndex, safeSelectionAnchorIndex, safeText.Length);
             bool hasSelection = selectionStart != selectionEnd;
+            int lineHeight = Math.Max(1, (int)Math.Ceiling(((int)font.MeasureString("A").Y + 2) * textScale));
 
-            if (hasSelection)
+            if (!breakLine)
             {
-                int visibleSelectionStart = Math.Clamp(selectionStart, visibleStartIndex, visibleStartIndex + visibleText.Length);
-                int visibleSelectionEnd = Math.Clamp(selectionEnd, visibleStartIndex, visibleStartIndex + visibleText.Length);
-                if (visibleSelectionEnd > visibleSelectionStart)
+                (string visibleText, int visibleStartIndex, int cursorOffset) = GetVisibleTextForInput(safeText, font, maxWidth, safeCursorIndex);
+
+                if (hasSelection)
                 {
-                    int highlightX = inputBounds.X + 15 + (int)Math.Round(MeasureTextSubstringWidth(font, safeText, visibleStartIndex, visibleSelectionStart - visibleStartIndex) * textScale);
-                    int highlightWidth = (int)Math.Round(MeasureTextSubstringWidth(font, safeText, visibleSelectionStart, visibleSelectionEnd - visibleSelectionStart) * textScale);
-                    int highlightHeight = Math.Max(1, (int)Math.Ceiling(((int)font.MeasureString("A").Y + 2) * textScale));
-                    b.Draw(Game1.staminaRect, new Rectangle(highlightX, inputBounds.Y + 15, Math.Max(2, highlightWidth), highlightHeight), new Color(80, 140, 255, 140));
+                    int visibleSelectionStart = Math.Clamp(selectionStart, visibleStartIndex, visibleStartIndex + visibleText.Length);
+                    int visibleSelectionEnd = Math.Clamp(selectionEnd, visibleStartIndex, visibleStartIndex + visibleText.Length);
+                    if (visibleSelectionEnd > visibleSelectionStart)
+                    {
+                        int highlightX = inputBounds.X + 15 + (int)Math.Round(MeasureTextSubstringWidth(font, safeText, visibleStartIndex, visibleSelectionStart - visibleStartIndex) * textScale);
+                        int highlightWidth = (int)Math.Round(MeasureTextSubstringWidth(font, safeText, visibleSelectionStart, visibleSelectionEnd - visibleSelectionStart) * textScale);
+                        b.Draw(Game1.staminaRect, new Rectangle(highlightX, inputBounds.Y + 15, Math.Max(2, highlightWidth), lineHeight), new Color(80, 140, 255, 140));
+                    }
+                }
+
+                Vector2 textPosition = new Vector2(inputBounds.X + 15, inputBounds.Y + 17);
+                DrawPhoneText(b, font, visibleText, textPosition, Color.Black);
+
+                bool showCursor = ((int)(textCursorBlinkElapsedSeconds / 0.5d) % 2) == 0;
+                if (showCursor)
+                {
+                    int cursorX = inputBounds.X + 15 + (int)Math.Round(cursorOffset * textScale);
+                    b.Draw(Game1.staminaRect, new Rectangle(cursorX, inputBounds.Y + 15, 2, lineHeight), Color.Black);
                 }
             }
+            else
+            {
+                List<string> lines = new List<string>();
+                List<int> lineStartIndices = new List<int>();
+                int lineStart = 0;
 
-            Vector2 textPosition = new Vector2(inputBounds.X + 15, inputBounds.Y + 17);
-            DrawPhoneText(b, font, visibleText, textPosition, Color.Black);
+                for (int i = 0; i < safeText.Length; i++)
+                {
+                    if (safeText[i] == '\n')
+                    {
+                        lines.Add(safeText.Substring(lineStart, i - lineStart));
+                        lineStartIndices.Add(lineStart);
+                        lineStart = i + 1;
+                        continue;
+                    }
 
-            bool showCursor = ((int)(textCursorBlinkElapsedSeconds / 0.5d) % 2) == 0;
-            if (!showCursor)
-                return;
+                    if (MeasureTextSubstringWidth(font, safeText, lineStart, i - lineStart + 1) * textScale > maxWidth && i > lineStart)
+                    {
+                        int lastSpace = safeText.LastIndexOf(' ', i, i - lineStart);
+                        if (lastSpace != -1 && lastSpace > lineStart)
+                        {
+                            lines.Add(safeText.Substring(lineStart, lastSpace - lineStart));
+                            lineStartIndices.Add(lineStart);
+                            lineStart = lastSpace + 1;
+                            i = lineStart - 1;
+                        }
+                        else
+                        {
+                            lines.Add(safeText.Substring(lineStart, i - lineStart));
+                            lineStartIndices.Add(lineStart);
+                            lineStart = i;
+                            i--;
+                        }
+                    }
+                }
 
-            int cursorHeight = Math.Max(1, (int)Math.Ceiling(((int)font.MeasureString("A").Y + 2) * textScale));
-            int cursorX = inputBounds.X + 15 + (int)Math.Round(cursorOffset * textScale);
-            int cursorY = inputBounds.Y + 15;
-            b.Draw(Game1.staminaRect, new Rectangle(cursorX, cursorY, 2, cursorHeight), Color.Black);
+                if (lineStart <= safeText.Length)
+                {
+                    lines.Add(safeText.Substring(lineStart));
+                    lineStartIndices.Add(lineStart);
+                }
+
+                int cursorLineIndex = 0;
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    int currentLineStart = lineStartIndices[i];
+                    int currentLineEnd = currentLineStart + lines[i].Length;
+
+                    if (safeCursorIndex >= currentLineStart && safeCursorIndex <= currentLineEnd)
+                    {
+                        cursorLineIndex = i;
+                        if (safeCursorIndex == currentLineEnd && i < lines.Count - 1 && safeText.Length > currentLineEnd && safeText[currentLineEnd] != '\n')
+                        {
+                            continue;
+                        }
+                        break;
+                    }
+                }
+
+                int maxVisibleLines = Math.Max(1, (inputBounds.Height - 30) / lineHeight);
+                int firstVisibleLine = Math.Max(0, cursorLineIndex - maxVisibleLines + 1);
+                int lastVisibleLine = Math.Min(lines.Count - 1, firstVisibleLine + maxVisibleLines - 1);
+
+                if (hasSelection)
+                {
+                    for (int i = firstVisibleLine; i <= lastVisibleLine; i++)
+                    {
+                        int currentLineStart = lineStartIndices[i];
+                        int currentLineEnd = currentLineStart + lines[i].Length;
+
+                        int visibleSelectionStart = Math.Max(selectionStart, currentLineStart);
+                        int visibleSelectionEnd = Math.Min(selectionEnd, currentLineEnd);
+
+                        if (visibleSelectionEnd > visibleSelectionStart)
+                        {
+                            int highlightX = inputBounds.X + 15 + (int)Math.Round(MeasureTextSubstringWidth(font, safeText, currentLineStart, visibleSelectionStart - currentLineStart) * textScale);
+                            int highlightWidth = (int)Math.Round(MeasureTextSubstringWidth(font, safeText, visibleSelectionStart, visibleSelectionEnd - visibleSelectionStart) * textScale);
+
+                            int highlightY = inputBounds.Y + 15 + ((i - firstVisibleLine) * lineHeight);
+
+                            b.Draw(Game1.staminaRect, new Rectangle(highlightX, highlightY, Math.Max(2, highlightWidth), lineHeight), new Color(80, 140, 255, 140));
+                        }
+                    }
+                }
+
+                for (int i = firstVisibleLine; i <= lastVisibleLine; i++)
+                {
+                    Vector2 textPosition = new Vector2(inputBounds.X + 15, inputBounds.Y + 17 + ((i - firstVisibleLine) * lineHeight));
+                    DrawPhoneText(b, font, lines[i], textPosition, Color.Black);
+                }
+
+                bool showCursor = ((int)(textCursorBlinkElapsedSeconds / 0.5d) % 2) == 0;
+                if (showCursor)
+                {
+                    int cursorLineStartIdx = lineStartIndices[cursorLineIndex];
+                    int cursorXOffset = (int)Math.Round(MeasureTextSubstringWidth(font, safeText, cursorLineStartIdx, safeCursorIndex - cursorLineStartIdx) * textScale);
+
+                    int cursorX = inputBounds.X + 15 + cursorXOffset;
+                    int cursorY = inputBounds.Y + 15 + ((cursorLineIndex - firstVisibleLine) * lineHeight);
+
+                    b.Draw(Game1.staminaRect, new Rectangle(cursorX, cursorY, 2, lineHeight), Color.Black);
+                }
+            }
         }
 
         private static string FormatSocialPostDateTime(string season, int day, int timeOfDay)

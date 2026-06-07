@@ -64,6 +64,14 @@ namespace Smartphone
             // main page: options most players change often
             configMenu.AddSectionTitle(mod: ModManifest, text: () => "Quick Setup");
 
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Enable AI",
+                tooltip: () => "App Message and StardewSocial use AI to generate content. By enabling this option, you acknowledge that you understand \nthe potential privacy and security implications of using AI features, for example of harmful content, personal data leaks, and so on.\nNever include sensitive information, such as real name, contact details, credentials, etc in the conversation with the AI.",
+                getValue: () => Config.EnableAI,
+                setValue: value => Config.EnableAI = value
+            );
+
             configMenu.AddKeybind(
                 mod: ModManifest,
                 name: () => "Open phone key",
@@ -151,7 +159,7 @@ namespace Smartphone
             configMenu.AddPage(mod: ModManifest, pageId: "ai-settings", pageTitle: () => "AI Settings");
             configMenu.AddParagraph(
                 mod: ModManifest,
-                text: () => "These settings are only effective when an API key is provided. You can use your own OpenAI or Gemini key."
+                text: () => "These settings are only effective when an API key is provided. You can use your own OpenAI or Gemini key. Advanced custom endpoint settings are available in config.json only."
             );
 
             configMenu.AddTextOption(
@@ -311,10 +319,18 @@ namespace Smartphone
                 setValue: value => Config.UseSmallPhoneSize = value
             );
 
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Show phone icon",
+                tooltip: () => "Show the phone icon on the screen. You can adjust its position with the options below.",
+                getValue: () => Config.ShowPhoneIcon,
+                setValue: value => Config.ShowPhoneIcon = value
+            );
+
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "HUD phone icon X",
-                tooltip: () => "Horizontal offset in pixels for the HUD phone icon.\nNegative = move left, positive = move right.",
+                name: () => "Phone icon X",
+                tooltip: () => "Horizontal offset in pixels for the phone icon.\nNegative = move left, positive = move right.",
                 getValue: () => Config.HudPhoneIconOffsetX,
                 setValue: value => Config.HudPhoneIconOffsetX = Math.Clamp(value, -2000, 2000),
                 min: -2000,
@@ -324,8 +340,8 @@ namespace Smartphone
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "HUD phone icon Y",
-                tooltip: () => "Vertical offset in pixels for the HUD phone icon.\nNegative = move up, positive = move down.",
+                name: () => "Phone icon Y",
+                tooltip: () => "Vertical offset in pixels for the phone icon.\nNegative = move up, positive = move down.",
                 getValue: () => Config.HudPhoneIconOffsetY,
                 setValue: value => Config.HudPhoneIconOffsetY = Math.Clamp(value, -2000, 2000),
                 min: -2000,

@@ -1,4 +1,4 @@
-﻿using StardewModdingAPI;
+using StardewModdingAPI;
 using StardewValley;
 using System.Collections.Generic;
 
@@ -50,6 +50,7 @@ namespace Smartphone
 
         private string _key = string.Empty;
         private string _model = OpenAIModel_54mini;
+        private string _customApiKey = string.Empty;
 
         // advance
         public string Key
@@ -63,6 +64,20 @@ namespace Smartphone
             get => string.IsNullOrWhiteSpace(_model) ? OpenAIModel_54mini : _model;
             set => _model = string.IsNullOrWhiteSpace(value) ? OpenAIModel_54mini : value.Trim();
         }
+
+        public string CustomApiEndpoint { get; set; } = string.Empty;
+
+        public string CustomApiKey
+        {
+            get => _customApiKey;
+            set => _customApiKey = (value ?? string.Empty).Trim();
+        }
+
+        public string CustomApiKeyHeader { get; set; } = "Authorization";
+        public string CustomApiKeyPrefix { get; set; } = "Bearer";
+        public string CustomApiPayloadTemplate { get; set; } = "{\"model\":\"MODEL_HERE\",\"messages\":[{\"role\":\"system\",\"content\":\"SYSTEM_INPUT_HERE\"},{\"role\":\"user\",\"content\":\"USER_INPUT_HERE\"}]}";
+        public string CustomApiResponseTextPath { get; set; } = "choices[0].message.content";
+        public int CustomApiTimeoutSeconds { get; set; } = 45;
 
         // Legacy aliases for older config.json files.
         public string OpenAIKey
@@ -125,5 +140,7 @@ namespace Smartphone
         public bool DisableUpdateWarning { get; set; } = false;
 
         public bool DisableDailyMessage { get; set; } = false;
+        public bool EnableAI { get; set; } = false;
+        public bool ShowPhoneIcon { get; set; } = true;
     }
 }

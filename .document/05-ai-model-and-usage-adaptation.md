@@ -13,8 +13,8 @@ This document explains AI request entry points, model switching, quota enforceme
 ### Chat response
 
 - `SendMessageToAssistant(npcName, text, type)`
-- Uses OpenAI Responses API (`/v1/responses`)
-- For normal chat (`type == "response"`), can include tool definitions (e.g. schedule event)
+- Uses one of: OpenAI Responses API (`/v1/responses`), Gemini `generateContent`, or a custom template endpoint from config.json.
+- For normal chat (`type == "response"`), OpenAI/Gemini can include tool definitions (e.g. schedule event).
 
 ### Daily conversation memory summarization
 
@@ -35,13 +35,21 @@ This document explains AI request entry points, model switching, quota enforceme
 
 Controlled by `HandleAiModelSettingTimeChanged(newTime)`.
 
-### Mode A: User-provided API key (`Config.OpenAIKey` not empty)
+### Mode A: Bring-your-own provider mode
 
-- Uses user-selected model (`Config.OpenAIModel`) directly.
+Enabled when either:
+
+- `Config.Key` is provided, or
+- `Config.CustomApiEndpoint` is provided.
+
+- Uses user-selected model (`Config.Model`) directly.
 - Reasoning effort is mapped by model family.
 - No shared-usage adaptive downgrading.
+- If `CustomApiEndpoint` is set, provider routing prefers the custom provider path.
 
-### Mode B: Shared-key mode (`Config.OpenAIKey == ""`)
+### Mode B: Shared-key mode
+
+Enabled only when both `Config.Key` and `Config.CustomApiEndpoint` are empty.
 
 - Periodically checks organization usage (`GetOpenAIUsage`) every 300 time units.
 - Adapts model quality by regular-model token usage:
@@ -86,16 +94,29 @@ Separate from token/credit limits.
 
 ### Request shape
 
-Most calls include:
+- OpenAI calls include:
 
 - `model`
 - `input` with developer + user roles
 - `text` format preferences (plain text or `json_object`)
 - `reasoning` effort object
 
+- Gemini calls include:
+
+- `systemInstruction`
+- `contents`
+- `generationConfig`
+
+- Custom template calls include:
+
+- `CustomApiPayloadTemplate` rendered with placeholders such as `INPUT_HERE`, `SYSTEM_INPUT_HERE`, `USER_INPUT_HERE`, and `MODEL_HERE`.
+- Optional auth header built from `CustomApiKeyHeader` and `CustomApiKeyPrefix`.
+
 ### Parsing strategy
 
 - `GetResponseOutputText(...)` extracts final text from Responses payload.
+- `GetGeminiResponseOutputText(...)` extracts Gemini text output.
+- `GetCustomResponseOutputText(...)` extracts text from configurable JSON path (`CustomApiResponseTextPath`) with fallback paths.
 - For structured outputs, helper parsers extract JSON payloads from:
   - plain JSON
   - fenced code blocks
@@ -110,6 +131,9 @@ Used parsers include:
 ## 7. Tool Call Integration in Chat
 
 For response chat, tool list can include `schedule_event` function.
+
+- OpenAI/Gemini: tool-calling path is enabled.
+- Custom template provider: tool-calling is disabled in this release.
 
 When model emits function call:
 
@@ -130,8 +154,15 @@ Common behavior on failed HTTP responses:
 
 Key controls:
 
-- `OpenAIKey`
-- `OpenAIModel`
+- `Key`
+- `Model`
+- `CustomApiEndpoint`
+- `CustomApiKey`
+- `CustomApiKeyHeader`
+- `CustomApiKeyPrefix`
+- `CustomApiPayloadTemplate`
+- `CustomApiResponseTextPath`
+- `CustomApiTimeoutSeconds`
 - `CharacteristicMode`
 - `MaxSummaryWordCount`
 - `BetterQualityComment`
@@ -148,7 +179,7 @@ sequenceDiagram
     participant Trigger as Game Event/UI
     participant Limit as AiUsageLimiter
     participant AI as HelperAI
-    participant OAI as OpenAI Responses
+  participant Provider as OpenAI/Gemini/Custom
 
     Trigger->>Limit: RunAiActionWithQueueAsync(action, key)
     alt Slot available
@@ -158,8 +189,8 @@ sequenceDiagram
         Note over Limit: Refilled later on time ticks
     end
 
-    AI->>OAI: POST /v1/responses
-    OAI-->>AI: response payload
+    AI->>Provider: POST provider request
+    Provider-->>AI: response payload
     AI->>AI: parse text/json/tool calls
     AI-->>Trigger: domain result
 ```
