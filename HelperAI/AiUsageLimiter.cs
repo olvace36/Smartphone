@@ -14,8 +14,8 @@ namespace Smartphone
             public string QueueKey { get; init; } = string.Empty;
         }
 
-        private const int AiCreditRemaining = 4;
-        public const int DailyAiLimit = 10;
+        private const int AiCreditRemaining = 5;
+        public const int DailyAiLimit = 15;
         public static int AiCallsRemainingToday = AiCreditRemaining;
         public static int DailyAiUsageRemainingToday = DailyAiLimit;
         public static int SuccessfulAiCallsToday = 0;
@@ -97,7 +97,7 @@ namespace Smartphone
                 return;
             }
 
-            if (newTime % 200 != 0)
+            if (newTime % 100 != 0)
                 return;
 
             bool refilled = false;

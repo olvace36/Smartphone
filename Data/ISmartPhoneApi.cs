@@ -258,6 +258,38 @@ namespace Smartphone
 
 
         /// ======================================
+        /// API to get player profile
+        /// ======================================
+        
+        /// <summary>
+        /// Gets the player's profile information as a string.
+        /// </summary> 
+        /// <returns>A string representing the player's profile information.</returns>
+        string GetPlayerProfile();
+
+        /// <summary>
+        /// Gets the player's birth date as a string.
+        /// </summary>
+        /// <returns>A string representing the player's birth date.</returns>
+        string GetPlayerBirthDate();
+
+        /// <summary>
+        /// Gets the player's birth season as a string.
+        /// </summary>
+        /// <returns>A string representing the player's birth season.</returns>
+        string GetPlayerBirthSeason();
+
+        /// <summary>
+        /// Gets the player's age as a string.
+        /// </summary>
+        /// <returns>A string representing the player's age.</returns>
+        string GetPlayerAge();
+
+
+
+
+
+        /// ======================================
         /// API for Unlimited Event Expansion only
         /// ======================================
 

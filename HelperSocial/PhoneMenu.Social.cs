@@ -34,9 +34,9 @@ namespace Smartphone
         private const int SocialFeedCreateTextYPaddingBase = 12;
         private const float SocialFeedProfileIconScale = 0.75f;
         private const int SocialCreatePanelXBase = 50;
-        private const int SocialCreatePanelYBase = 200;
+        private const int SocialCreatePanelYBase = 180;
         private const int SocialCreatePanelWidthBase = 500;
-        private const int SocialCreatePanelHeightBase = 670;
+        private const int SocialCreatePanelHeightBase = 710;
         private const int SocialCreatePreviewXOffsetBase = 30;
         private const int SocialCreatePreviewYOffsetBase = 46;
         private const int SocialCreatePreviewWidthBase = 440;
@@ -259,10 +259,12 @@ namespace Smartphone
         private string socialPostDraft = "";
         private int socialPostDraftCursorIndex = 0;
         private int socialPostDraftSelectionAnchorIndex = 0;
+        private Rectangle socialPostInputBounds = Rectangle.Empty;
         private readonly List<TextEditSnapshot> socialPostDraftUndoHistory = new();
         private string socialCommentDraft = "";
         private int socialCommentDraftCursorIndex = 0;
         private int socialCommentDraftSelectionAnchorIndex = 0;
+        private Rectangle socialCommentInputBounds = Rectangle.Empty;
         private readonly List<TextEditSnapshot> socialCommentDraftUndoHistory = new();
         private bool socialCreateMenuOpen = false;
         private bool socialProfileMenuOpen = false;
@@ -1454,6 +1456,7 @@ namespace Smartphone
                 false);
 
             DrawEditableTextInput(b, inputBounds, socialCommentDraft, socialCommentDraftCursorIndex, socialCommentDraftSelectionAnchorIndex);
+            socialCommentInputBounds = inputBounds;
 
             socialDetailCommentSendBounds = okButton.bounds;
             okButton.draw(b);
@@ -1663,7 +1666,7 @@ namespace Smartphone
                 false);
 
             DrawEditableTextInput(b, new Rectangle(inputX, inputY, inputWidth, inputHeight), socialPostDraft, socialPostDraftCursorIndex, socialPostDraftSelectionAnchorIndex, true);
-
+            socialPostInputBounds = new Rectangle(inputX, inputY, inputWidth, inputHeight);
 
             var socialOkButton = new ClickableTextureComponent(
                 new Rectangle(
@@ -3298,6 +3301,51 @@ namespace Smartphone
             return false;
         }
 
+        private void ApplySocialTouchScrollDelta(int pixelDelta)
+        {
+            if (socialCreateMenuOpen)
+                return;
+
+            if (socialNotificationMenuOpen)
+            {
+                List<SocialNotificationEntry> notifications = GetActiveSocialNotifications();
+                socialNotificationScrollTarget = Math.Clamp(
+                    socialNotificationScrollTarget + pixelDelta,
+                    0f,
+                    CalculateSocialNotificationMaxScroll(notifications));
+                return;
+            }
+
+            if (socialProfileMenuOpen)
+            {
+                List<StardewConnectPost> profilePosts = GetSelectedProfilePosts();
+                socialProfileScrollTarget = Math.Clamp(
+                    socialProfileScrollTarget + pixelDelta,
+                    0f,
+                    CalculateSocialProfileMaxScroll(profilePosts));
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(selectedSocialPostId))
+            {
+                List<StardewConnectPost> feedPosts = StardewConnectManager.GetPostsSnapshot();
+                socialFeedScrollTarget = Math.Clamp(
+                    socialFeedScrollTarget + pixelDelta,
+                    0f,
+                    CalculateSocialFeedMaxScroll(feedPosts));
+                return;
+            }
+
+            StardewConnectPost? selectedPost = StardewConnectManager.GetPost(selectedSocialPostId);
+            if (selectedPost != null)
+            {
+                socialDetailScrollTarget = Math.Clamp(
+                    socialDetailScrollTarget + pixelDelta,
+                    0f,
+                    CalculateSocialDetailMaxScroll(selectedPost));
+            }
+        }
+
         private void HandleSocialScroll(int direction)
         {
             if (socialCreateMenuOpen)
@@ -4091,8 +4139,7 @@ namespace Smartphone
             int cursorOffset = MeasureTextSubstringWidth(font, safeText, startIndex, cursorIndex - startIndex);
             return (visibleText, startIndex, cursorOffset);
         }
-
-        private void DrawEditableTextInput(SpriteBatch b, Rectangle inputBounds, string text, int cursorIndex, int selectionAnchorIndex, bool breakLine = false)
+        private void DrawEditableTextInput(SpriteBatch b, Rectangle inputBounds, string text, int cursorIndex, int selectionAnchorIndex, bool breakLine = false, bool isFocused = true)
         {
             SpriteFont font = Game1.smallFont;
             float textScale = GetPhoneTextScale();
@@ -4124,7 +4171,7 @@ namespace Smartphone
                 Vector2 textPosition = new Vector2(inputBounds.X + 15, inputBounds.Y + 17);
                 DrawPhoneText(b, font, visibleText, textPosition, Color.Black);
 
-                bool showCursor = ((int)(textCursorBlinkElapsedSeconds / 0.5d) % 2) == 0;
+                bool showCursor = isFocused && ((int)(textCursorBlinkElapsedSeconds / 0.5d) % 2) == 0;
                 if (showCursor)
                 {
                     int cursorX = inputBounds.X + 15 + (int)Math.Round(cursorOffset * textScale);
@@ -4222,7 +4269,7 @@ namespace Smartphone
                     DrawPhoneText(b, font, lines[i], textPosition, Color.Black);
                 }
 
-                bool showCursor = ((int)(textCursorBlinkElapsedSeconds / 0.5d) % 2) == 0;
+                bool showCursor = isFocused && ((int)(textCursorBlinkElapsedSeconds / 0.5d) % 2) == 0;
                 if (showCursor)
                 {
                     int cursorLineStartIdx = lineStartIndices[cursorLineIndex];

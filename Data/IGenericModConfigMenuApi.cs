@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Utilities;
@@ -118,6 +118,10 @@ namespace Smartphone.Data
         /// <param name="titleScreenOnly">Whether the options can only be edited from the title screen.</param>
         /// <remarks>This lets you have different values per-field. Most mods should just set it once in <see cref="Register"/>.</remarks>
         void SetTitleScreenOnlyForNextOptions(IManifest mod, bool titleScreenOnly);
+
+        /// <summary>Open the config UI for a specific mod.</summary>
+        /// <param name="mod">The mod's manifest.</param>
+        void OpenModMenu(IManifest mod);
 
         /// <summary>Remove a mod from the config UI and delete all its options and pages.</summary>
         /// <param name="mod">The mod's manifest.</param>

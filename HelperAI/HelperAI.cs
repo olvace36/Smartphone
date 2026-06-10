@@ -1064,7 +1064,7 @@ namespace Smartphone
                     var systemMessage = $@"
                             **Context**
                             * You are roleplaying as NPC **{npc.Name}** in Stardew Valley, responding to a conversation with PLAYER **{Game1.player.Name}**
-                            PLAYER profile: {(Game1.player.IsMale ? "Male" : "Female")}, {playerProfile}
+                            PLAYER profile: {(Game1.player.IsMale ? "Male" : "Female")}, {MessageManager.currentPlayerAge} age, {playerProfile}
 
                             **Response Instructions**
                             1. **Response:** Reply to the user with a message of <30 words.

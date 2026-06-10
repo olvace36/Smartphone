@@ -65,6 +65,26 @@ namespace Smartphone
             return StardewConnectManager.SetPostLike(postId, npcName, liked);
         }
 
+        public string GetPlayerProfile()
+        {
+            return MessageManager.currentPlayerProfile;
+        }
+
+        public string GetPlayerBirthDate()
+        {
+            return MessageManager.currentPlayerBirthDate;
+        }
+
+        public string GetPlayerBirthSeason()
+        {
+            return MessageManager.currentPlayerBirthSeason;
+        }
+
+        public string GetPlayerAge()
+        {
+            return MessageManager.currentPlayerAge;
+        }
+
         public bool RegisterUnlimitedEvent(
             string ownerModId,
             string eventType,
@@ -529,8 +549,26 @@ namespace Smartphone
                     friendship.TalkedToToday = true;
 
                 npc.checkForNewCurrentDialogue(Game1.player.getFriendshipHeartLevelForNPC(npcName));
+                if (npc.currentMarriageDialogue != null && npc.currentMarriageDialogue.Count > 0)
+                {
+                    if (npc.CurrentDialogue == null)
+                        npc.CurrentDialogue = new Stack<Dialogue>();
 
-                if (npc.CurrentDialogue != null)
+                    for (int i = npc.currentMarriageDialogue.Count - 1; i >= 0; i--)
+                    {
+                        var dialogueRef = npc.currentMarriageDialogue[i];
+                        Dialogue actualDialogue = dialogueRef.GetDialogue(npc);
+
+                        if (actualDialogue != null)
+                        {
+                            npc.CurrentDialogue.Push(actualDialogue);
+                        }
+                    }
+
+                    npc.currentMarriageDialogue.Clear();
+                }
+
+                if (npc.CurrentDialogue != null && npc.CurrentDialogue.Count > 0)
                 {
                     Task.Run(async () =>
                     {

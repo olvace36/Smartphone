@@ -73,6 +73,7 @@ namespace Smartphone
         public override void Entry(IModHelper helper)
         {
             Config = Helper.ReadConfig<ModConfig>();
+            RefreshIgnoredNpcList();
 
             ModEntry.Instance = this;
 
@@ -483,6 +484,7 @@ namespace Smartphone
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
         {
             ClearActiveSaveFolderName();
+            ClearPendingSyncState();
             pendingInitNotification = false;
             pendingPhoneOsInitialization = false;
             hasNewVersionAvailable = false;
@@ -900,6 +902,7 @@ namespace Smartphone
             if (e.IsMultipleOf(6000))
                 CheckCurrentEvent();
 
+            ProcessPendingSyncSendQueue();
         }
 
 

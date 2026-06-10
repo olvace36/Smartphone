@@ -11,21 +11,24 @@ namespace Smartphone
 {
     public partial class ModEntry
     {
-        public static List<string> socialNpcBlacklist = new List<string>
+        public static List<string> socialNpcBlacklist = new();
+
+        public static void RefreshIgnoredNpcList()
         {
-            "Leo",
-            "Krobus",
-            "Dwarf",
-            "Gunther",
-            "Birdie",
-            "Bouncer",
-            "MoonSBV",
-            "PanSBV",
-            "RaccoonSBV",
-            "Leximonster",
-            "Dianna",
-            "Torts"
-        };
+            if (Config == null)
+            {
+                socialNpcBlacklist = new List<string>();
+                return;
+            }
+
+            socialNpcBlacklist = (Config.IgnoredNpc ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(name => name.Trim())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+            
         private static int SocialActionMaxDelayMilliseconds = 140000; // 1s = 1000ms
         private static int SocialPostMaxDelayMilliseconds = 30000;
         private static double SocialRepeatCommentChance = 0.30;

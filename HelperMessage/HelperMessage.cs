@@ -284,6 +284,7 @@ namespace Smartphone
                         false);
 
                     DrawEditableTextInput(b, inputBounds, currentMessage, currentMessageCursorIndex, currentMessageSelectionAnchorIndex);
+                    textSearchInputBounds = inputBounds;
 
                     playerDescriptionButton = new ClickableTextureComponent(
                         new Rectangle(
@@ -555,6 +556,8 @@ namespace Smartphone
                             currentMessage,
                             currentMessageCursorIndex,
                             currentMessageSelectionAnchorIndex);
+                        
+                        textChatInputBounds = new Rectangle(inputX, inputY, inputWidth, inputHeight);
 
                         SetPhoneTextInputFocus(true);
                     }
@@ -887,7 +890,9 @@ namespace Smartphone
                 textProfileAgeFieldBounds,
                 MessageManager.currentPlayerAge,
                 textProfileAgeCursorIndex,
-                textProfileAgeSelectionAnchorIndex);
+                textProfileAgeSelectionAnchorIndex,
+                false,
+                textProfileActiveField == EditableTextFieldKind.ProfileAge);
 
             int birthdayLabelY = PhoneY(420);
             DrawPhoneText(b, Game1.smallFont, "Birthday", new Vector2(fieldX, birthdayLabelY), Color.Black);
@@ -921,7 +926,9 @@ namespace Smartphone
                 textProfileBirthdayFieldBounds,
                 MessageManager.currentPlayerBirthDate,
                 textProfileBirthdayCursorIndex,
-                textProfileBirthdaySelectionAnchorIndex);
+                textProfileBirthdaySelectionAnchorIndex,
+                false,
+                textProfileActiveField == EditableTextFieldKind.ProfileBirthday);
 
             IClickableMenu.drawTextureBox(
                 b,
@@ -956,7 +963,7 @@ namespace Smartphone
 
             int descriptionLabelY = PhoneY(520);
             DrawPhoneText(b, Game1.smallFont, "About me", new Vector2(fieldX, descriptionLabelY), Color.Black);
-            textProfileDescriptionFieldBounds = new Rectangle(fieldX, PhoneY(555), fieldWidth, ScaleUiValue(250));
+            textProfileDescriptionFieldBounds = new Rectangle(fieldX, PhoneY(555), fieldWidth, ScaleUiValue(285));
             IClickableMenu.drawTextureBox(
                 b,
                 Game1.menuTexture,
@@ -971,7 +978,7 @@ namespace Smartphone
 
             if (string.IsNullOrWhiteSpace(MessageManager.currentPlayerProfile))
             {
-                const string descriptionPlaceholder = "Significant things about your farmer that you'd like other NPCs to know. Don't give boring invaluable details like 'I like farming' - something that stands out! Get a key to bypass the limit.";
+                const string descriptionPlaceholder = "Significant things about your farmer that you'd like other NPCs to know. Don't give boring invaluable details such as 'I like farming' - add something that stands out!!! Get a key to bypass the limit.";
                 int placeholderX = textProfileDescriptionFieldBounds.X + ScaleUiValue(15);
                 int placeholderY = textProfileDescriptionFieldBounds.Y + ScaleUiValue(15);
                 int placeholderWidth = Math.Max(1, textProfileDescriptionFieldBounds.Width - ScaleUiValue(30));
@@ -993,7 +1000,8 @@ namespace Smartphone
                 MessageManager.currentPlayerProfile,
                 textProfileDescriptionCursorIndex,
                 textProfileDescriptionSelectionAnchorIndex,
-                true);
+                true,
+                textProfileActiveField == EditableTextFieldKind.ProfileDescription);
 
             okButton = new ClickableTextureComponent(
                 new Rectangle(
@@ -1027,6 +1035,7 @@ namespace Smartphone
                 NormalizeProfileFieldState(EditableTextFieldKind.ProfileBirthday);
                 NormalizeProfileFieldState(EditableTextFieldKind.ProfileDescription);
                 Game1.playSound("smallSelect");
+                textProfileMenuOpen = false;
                 return true;
             }
 

@@ -1,8 +1,9 @@
-﻿using System.Collections.Specialized;
+using System.Collections.Specialized;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
+using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -152,6 +153,14 @@ namespace Smartphone
         int spacing = 95;
 
         public static string selectedNpc = null;
+        private Rectangle textSearchInputBounds = Rectangle.Empty;
+        private Rectangle textChatInputBounds = Rectangle.Empty;
+        private Task<string> pendingKeyboardTask = null;
+        private EditableTextFieldKind pendingKeyboardField = EditableTextFieldKind.None;
+        private bool isScrolling = false;
+        private int lastScrollMouseY = 0;
+        private int touchScrollStartY = 0;
+        private bool hasTouchScrolled = false;
         private string currentMessage = "";
         private int currentMessageCursorIndex = 0;
         private int currentMessageSelectionAnchorIndex = 0;
@@ -255,6 +264,7 @@ namespace Smartphone
 
         // apps
         public static string? currentApp = null;
+        private string? appAtClickStart = null;
 
         private const string BuiltinAppNotificationId = "builtin:notification";
         private const string BuiltinAppTextId = "builtin:text";
@@ -271,6 +281,7 @@ namespace Smartphone
         private const string SettingMenuOptionTextColor = "textColor";
         private const string SettingMenuOptionSound = "sound";
         private const string SettingMenuOptionTheme = "theme";
+        private const string SettingMenuOptionPhoneSetting = "phoneSetting";
         private const string ThemeReadmeFileName = "readme.txt";
         private const int SettingsTitleXOffsetBase = 65;
         private const int SettingsTitleYOffsetBase = 67;
@@ -1104,13 +1115,28 @@ namespace Smartphone
         public override void releaseLeftClick(int x, int y)
         {
             base.releaseLeftClick(x, y);
+
+            if (!hasTouchScrolled && currentApp == appAtClickStart)
+            {
+                if (currentApp == SocialAppState && HandleSocialLeftClick(x, y))
+                {
+                    // Handled
+                }
+                else if (HandleTextNpcListOrChatClick(x, y))
+                {
+                    // Handled
+                }
+            }
+
             ResetCameraZoomHoldState();
             isDragging = false;
+            isScrolling = false;
         }
 
         public override void update(GameTime time)
         {
             base.update(time);
+            UpdateAndroidKeyboard();
             EnsureFreeControllerCursor();
             UpdateLockScreenInitialization(time);
             UpdateLockScreenUnlockAnimation(time);
@@ -1213,20 +1239,48 @@ namespace Smartphone
             if (cameraZoomHoldDirection != 0)
             {
                 isDragging = false;
+                isScrolling = false;
                 return;
             }
 
-            if (GetActivePhoneDragBounds().Contains(x, y))
+            if (!isDragging && !isScrolling)
             {
-                isDragging = true;
-                dragOffsetX = x - xPositionOnScreen;
-                dragOffsetY = y - yPositionOnScreen;
+                if (currentApp != null && currentApp != "appCamera" && currentApp != "appPhoto" && GetPhoneContentBounds().Contains(x, y))
+                {
+                    isScrolling = true;
+                    lastScrollMouseY = y;
+                }
+                else if (GetActivePhoneDragBounds().Contains(x, y) && !GetPhoneContentBounds().Contains(x, y))
+                {
+                    isDragging = true;
+                    dragOffsetX = x - xPositionOnScreen;
+                    dragOffsetY = y - yPositionOnScreen;
+                }
+            }
+
+            if (isScrolling)
+            {
+                if (Math.Abs(y - touchScrollStartY) > 5)
+                    hasTouchScrolled = true;
+
+                int deltaY = y - lastScrollMouseY;
+                lastScrollMouseY = y;
+                if (deltaY != 0)
+                {
+                    ApplyTouchScrollDelta(-deltaY);
+                }
             }
         }
 
         public override void receiveLeftClick(int x, int y, bool playSound = true)
         {
             base.receiveLeftClick(x, y, playSound);
+
+            lastScrollMouseY = y;
+            touchScrollStartY = y;
+            hasTouchScrolled = false;
+            isScrolling = false;
+            appAtClickStart = currentApp;
 
             if (HandleTextPhotoPickerModalClick(x, y))
                 return;
@@ -1235,6 +1289,9 @@ namespace Smartphone
                 return;
 
             if (HandleTextFirstMessageClick(x, y))
+                return;
+
+            if (HandleAndroidKeyboardTap(x, y))
                 return;
 
             if (HandleLockScreenTap(x, y))
@@ -1277,11 +1334,6 @@ namespace Smartphone
                     return;
                 }
             }
-
-            if (currentApp == SocialAppState && HandleSocialLeftClick(x, y))
-                return;
-
-
 
             bool hideCameraOverlayButtons = currentApp == "appCamera" && ModEntry.IsPlayerCaptureCursorHidden();
 
@@ -1514,6 +1566,18 @@ namespace Smartphone
                         if (!option.Value.Contains(x, y))
                             continue;
 
+                        if (option.Key == SettingMenuOptionPhoneSetting)
+                        {
+                            var configMenu = ModEntry.SHelper?.ModRegistry?.GetApi<Smartphone.Data.IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
+                            if (configMenu != null)
+                            {
+                                Game1.playSound("smallSelect");
+                                ClosePhoneMenu();
+                                configMenu.OpenModMenu(ModEntry.Instance.ModManifest);
+                            }
+                            return;
+                        }
+
                         currentSettingMenuState = option.Key switch
                         {
                             SettingMenuOptionTextColor => SettingMenuTextColorState,
@@ -1563,12 +1627,6 @@ namespace Smartphone
                     }
                 }
             }
-            if (HandleTextNpcListOrChatClick(x, y))
-            {
-                return;
-            }
-
-
         }
 
 
@@ -1934,6 +1992,155 @@ namespace Smartphone
             history.RemoveAt(history.Count - 1);
             SetEditableTextFieldState(field, snapshot.Text, snapshot.CursorIndex, snapshot.SelectionAnchorIndex, clearUndoHistory: false);
             return true;
+        }
+
+        private void TriggerAndroidKeyboard(EditableTextFieldKind field, string currentText)
+        {
+            if (Constants.TargetPlatform != GamePlatform.Android) return;
+
+            pendingKeyboardField = field;
+            
+            try
+            {
+                Type keyboardInputType = typeof(Microsoft.Xna.Framework.Input.Keyboard).Assembly.GetType("Microsoft.Xna.Framework.Input.KeyboardInput");
+                if (keyboardInputType != null)
+                {
+                    var showMethod = keyboardInputType.GetMethod("Show", new[] { typeof(string), typeof(string), typeof(string), typeof(bool) });
+                    if (showMethod != null)
+                    {
+                        pendingKeyboardTask = (Task<string>)showMethod.Invoke(null, new object[] { "Input", "Enter text", currentText, false });
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                pendingKeyboardTask = null;
+                pendingKeyboardField = EditableTextFieldKind.None;
+            }
+        }
+
+        private void UpdateAndroidKeyboard()
+        {
+            if (pendingKeyboardTask != null && pendingKeyboardTask.IsCompleted)
+            {
+                if (!pendingKeyboardTask.IsFaulted && pendingKeyboardTask.Result != null)
+                {
+                    string result = pendingKeyboardTask.Result;
+                    EditableTextFieldKind field = pendingKeyboardField;
+                    SetEditableTextFieldState(field, result, result.Length, result.Length, clearUndoHistory: false);
+                    
+                    if (field == EditableTextFieldKind.Search)
+                    {
+                        UpdateNpcList();
+                    }
+                }
+                pendingKeyboardTask = null;
+                pendingKeyboardField = EditableTextFieldKind.None;
+            }
+        }
+
+        private bool HandleAndroidKeyboardTap(int x, int y)
+        {
+            if (Constants.TargetPlatform != GamePlatform.Android)
+                return false;
+
+            if (textSearchInputBounds.Contains(x, y) && currentApp == TextAppState && selectedNpc == null && !textProfileMenuOpen)
+            {
+                TriggerAndroidKeyboard(EditableTextFieldKind.Search, currentMessage);
+                return true;
+            }
+
+            if (textChatInputBounds.Contains(x, y) && currentApp == TextAppState && selectedNpc != null && !chatPhotoPickerOpen)
+            {
+                TriggerAndroidKeyboard(EditableTextFieldKind.Chat, currentMessage);
+                return true;
+            }
+
+            if (currentApp == SocialAppState)
+            {
+                if (socialCreateMenuOpen && socialPostInputBounds.Contains(x, y))
+                {
+                    TriggerAndroidKeyboard(EditableTextFieldKind.SocialPost, socialPostDraft);
+                    return true;
+                }
+
+                if (!string.IsNullOrWhiteSpace(selectedSocialPostId) && socialCommentInputBounds.Contains(x, y))
+                {
+                    TriggerAndroidKeyboard(EditableTextFieldKind.SocialComment, socialCommentDraft);
+                    return true;
+                }
+            }
+
+            if (currentApp == TextAppState && textProfileMenuOpen)
+            {
+                if (textProfileAgeFieldBounds.Contains(x, y))
+                {
+                    TriggerAndroidKeyboard(EditableTextFieldKind.ProfileAge, MessageManager.currentPlayerAge);
+                    return true;
+                }
+                if (textProfileBirthdayFieldBounds.Contains(x, y))
+                {
+                    TriggerAndroidKeyboard(EditableTextFieldKind.ProfileBirthday, MessageManager.currentPlayerBirthDate);
+                    return true;
+                }
+                if (textProfileDescriptionFieldBounds.Contains(x, y))
+                {
+                    TriggerAndroidKeyboard(EditableTextFieldKind.ProfileDescription, MessageManager.currentPlayerProfile);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void ApplyTouchScrollDelta(int pixelDelta)
+        {
+            if (currentApp == TextAppState)
+            {
+                if (selectedNpc != null)
+                {
+                    chatScrollTarget = Math.Clamp(chatScrollTarget + pixelDelta, 0f, CalculateScrollToBottomOffset(messageHistory));
+                }
+                else if (!textProfileMenuOpen)
+                {
+                    // Accumulate delta for slots
+                    chatScrollOffset += pixelDelta;
+                    while (chatScrollOffset >= spacing)
+                    {
+                        chatScrollOffset -= spacing;
+                        scrollOffset = Math.Min(scrollOffset + 1, Math.Max(0, messageableNpcList.Count - maxVisibleNPCs));
+                    }
+                    while (chatScrollOffset <= -spacing)
+                    {
+                        chatScrollOffset += spacing;
+                        scrollOffset = Math.Max(0, scrollOffset - 1);
+                    }
+                }
+            }
+            else if (currentApp == "appSetting")
+            {
+                // Simple accumulation for settings
+                chatScrollOffset += pixelDelta;
+                while (chatScrollOffset >= 60)
+                {
+                    chatScrollOffset -= 60;
+                    scrollOffset = Math.Min(scrollOffset + 1, Math.Max(0, 20)); // Approximate max scroll
+                }
+                while (chatScrollOffset <= -60)
+                {
+                    chatScrollOffset += 60;
+                    scrollOffset = Math.Max(0, scrollOffset - 1);
+                }
+            }
+            else if (currentApp == "appNotification")
+            {
+                float maxScroll = CalculateNotificationScrollToBottomOffset(notificationHistory);
+                notificationScrollTarget = Math.Clamp(notificationScrollTarget + pixelDelta, 0f, maxScroll);
+            }
+            else if (currentApp == SocialAppState)
+            {
+                ApplySocialTouchScrollDelta(pixelDelta);
+            }
         }
 
         private void ClearTextUndoHistory(EditableTextFieldKind field)
@@ -2383,6 +2590,7 @@ namespace Smartphone
             DrawSettingOptionRow(b, SettingMenuOptionTextColor, "Text Color", yStart);
             DrawSettingOptionRow(b, SettingMenuOptionSound, "Sound", yStart + spacing);
             DrawSettingOptionRow(b, SettingMenuOptionTheme, "Theme", yStart + spacing * 2);
+            DrawSettingOptionRow(b, SettingMenuOptionPhoneSetting, "Phone setting", yStart + spacing * 3);
         }
 
         private void DrawSettingOptionRow(SpriteBatch b, string optionId, string displayText, int rowY)
@@ -3974,7 +4182,7 @@ namespace Smartphone
                     if (ModEntry.Config != null && !ModEntry.Config.EnableAI)
                     {
                         ClosePhoneMenu();
-                        Game1.drawDialogueNoTyping("You need to enable the AI feature in the Mod Settings to use Messages.");
+                        Game1.drawDialogueNoTyping("You need to acknowledge and enable AI feature in the Mod Settings to use Messages.");
                         return true;
                     }
                     scrollOffset = 0;
@@ -3995,7 +4203,7 @@ namespace Smartphone
                     if (ModEntry.Config != null && !ModEntry.Config.EnableAI)
                     {
                         ClosePhoneMenu();
-                        Game1.drawDialogueNoTyping("You need to enable the AI feature in the Config to use StardewSocial.");
+                        Game1.drawDialogueNoTyping("You need to acknowledge and enable AI feature in the Mod Settings to use StardewSocial.");
                         return true;
                     }
                     OpenSocialApp();

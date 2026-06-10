@@ -57,8 +57,16 @@ namespace Smartphone
             // register mod
             configMenu.Register(
                 mod: ModManifest,
-                reset: () => Config = new ModConfig(),
-                save: () => Helper.WriteConfig(Config)
+                reset: () =>
+                {
+                    Config = new ModConfig();
+                    RefreshIgnoredNpcList();
+                },
+                save: () =>
+                {
+                    Helper.WriteConfig(Config);
+                    RefreshIgnoredNpcList();
+                }
             );
 
             // main page: options most players change often
@@ -66,7 +74,7 @@ namespace Smartphone
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Enable AI",
+                name: () => "Acknowledge and enable AI",
                 tooltip: () => "App Message and StardewSocial use AI to generate content. By enabling this option, you acknowledge that you understand \nthe potential privacy and security implications of using AI features, for example of harmful content, personal data leaks, and so on.\nNever include sensitive information, such as real name, contact details, credentials, etc in the conversation with the AI.",
                 getValue: () => Config.EnableAI,
                 setValue: value => Config.EnableAI = value
@@ -119,14 +127,6 @@ namespace Smartphone
                 setValue: value => Config.DisableUpdateWarning = value
             );
 
-            configMenu.AddBoolOption(
-                mod: ModManifest,
-                name: () => "Show AI credit button",
-                tooltip: () => "You have a limited number of usage of the AI features each day when no key is provided.\nThis option shows how many usages you have left. Check it at Messages -> NPC -> AI Credit.",
-                getValue: () => Config.ShowAiCredit,
-                setValue: value => Config.ShowAiCredit = value
-            );
-
             configMenu.AddPageLink(
                 mod: ModManifest,
                 pageId: "ai-settings",
@@ -153,6 +153,13 @@ namespace Smartphone
                 pageId: "notifications",
                 text: () => "HUD Notifications",
                 tooltip: () => "Toggle popup notifications for each app."
+            );
+
+            configMenu.AddPageLink(
+                mod: ModManifest,
+                pageId: "misc",
+                text: () => "Miscellaneous",
+                tooltip: () => "Various other settings."
             );
 
             // AI Settings page
@@ -289,6 +296,13 @@ namespace Smartphone
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
+                name: () => "Show AI credit button",
+                tooltip: () => "You have a limited number of usage of the AI features each day when no key is provided.\nThis option shows how many usages you have left. Check it at Messages -> NPC -> AI Credit.",
+                getValue: () => Config.ShowAiCredit,
+                setValue: value => Config.ShowAiCredit = value
+            );
+            configMenu.AddBoolOption(
+                mod: ModManifest,
                 name: () => "Show StardewSocial image tags",
                 tooltip: () => "Shows saved image tag text above attached images in StardewSocial posts.",
                 getValue: () => Config.ShowSocialImageTags,
@@ -309,6 +323,27 @@ namespace Smartphone
                 tooltip: () => "Shows attached image tags when hovering photo bubbles in the Text app.",
                 getValue: () => Config.ShowMessageImageTags,
                 setValue: value => Config.ShowMessageImageTags = value
+            );
+
+            configMenu.AddNumberOption(
+                mod: ModManifest,
+                name: () => "Camera flash radius",
+                tooltip: () => "Radius of the temporary world light when camera FLASH mode is enabled.",
+                getValue: () => Math.Clamp(Config.PlayerCaptureWorldFlashRadius, 1f, 10f),
+                setValue: value =>
+                {
+                    float clamped = Math.Clamp(value, 1f, 10f);
+                    Config.PlayerCaptureWorldFlashRadius = MathF.Round(clamped * 10f) / 10f;
+                },
+                min: 1f,
+                max: 10f,
+                interval: 0.1f,
+                formatValue: value => $"{value:0.0}"
+            );
+
+            configMenu.AddParagraph(
+                mod: ModManifest,
+                text: () => "Phone size and icon."
             );
 
             configMenu.AddBoolOption(
@@ -349,22 +384,6 @@ namespace Smartphone
                 interval: 1
             );
 
-            configMenu.AddNumberOption(
-                mod: ModManifest,
-                name: () => "Camera flash radius",
-                tooltip: () => "Radius of the temporary world light when camera FLASH mode is enabled.",
-                getValue: () => Math.Clamp(Config.PlayerCaptureWorldFlashRadius, 1f, 10f),
-                setValue: value =>
-                {
-                    float clamped = Math.Clamp(value, 1f, 10f);
-                    Config.PlayerCaptureWorldFlashRadius = MathF.Round(clamped * 10f) / 10f;
-                },
-                min: 1f,
-                max: 10f,
-                interval: 0.1f,
-                formatValue: value => $"{value:0.0}"
-            );
-
             // notification page
             configMenu.AddPage(mod: ModManifest, pageId: "notifications", pageTitle: () => "HUD Notifications");
 
@@ -390,6 +409,21 @@ namespace Smartphone
                 tooltip: () => "Show HUD popups for new StardewSocial activity.",
                 getValue: () => Config.notifyStardewSocial,
                 setValue: value => Config.notifyStardewSocial = value
+            );
+
+            // Misc page
+            configMenu.AddPage(mod: ModManifest, pageId: "misc", pageTitle: () => "Misc");
+
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => "Ignored NPCs",
+                tooltip: () => "These NPC do not have mobile phone, hence they cannot be texted or post on StardewSocial.\nMust use NPC internal name not displayed name, separated by ','",
+                getValue: () => string.IsNullOrWhiteSpace(Config.IgnoredNpc) ? string.Empty : Config.IgnoredNpc,
+                setValue: value =>
+                {
+                    Config.IgnoredNpc = value ?? string.Empty;
+                    RefreshIgnoredNpcList();
+                }
             );
         }
 

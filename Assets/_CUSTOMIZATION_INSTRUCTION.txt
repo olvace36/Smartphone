@@ -24,6 +24,7 @@ npc_characteristics_long.json
 - These files describe NPC personality and speaking style.
 - The game uses this text when AI generates chat and social content.
 - Very easy to edit.
+-
 
 
 ========================================
@@ -102,7 +103,7 @@ Simple tips:
 ========================================
 
 Purpose:
-- Controls the personality prompt for each NPC.
+- Controls the personality for each NPC so the AI understand how to roleplay as that NPC.
 
 Benefits of editing:
 - The AI know who that NPC is, especially if thay NPC is new or not popular.
@@ -123,7 +124,7 @@ Important:
 
 Difference between files:
 - minimal: shortest version (quick/compact fallback), max length of 400 characters
-- short: balanced detail (good default choice), max length of 800 npc_characteristic
+- short: balanced detail (good default choice), max length of 800 characters
 - long: most detail, max length of 1500 characters
 
 If you only want one file to maintain, edit short first.

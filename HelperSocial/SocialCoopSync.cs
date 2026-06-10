@@ -40,6 +40,29 @@ namespace Smartphone
 
         private static string PendingSocialSyncRequestId = string.Empty;
 
+        private const int PostsPerSyncChunk = 25;
+        private const int MaxSyncSendsPerTick = 10;
+
+        private static readonly Queue<Action> PendingSyncSendQueue = new();
+
+        private sealed class PendingFullSyncAccumulator
+        {
+            public string RequestId { get; set; } = string.Empty;
+            public int TotalChunks { get; set; }
+            public HashSet<int> ReceivedChunkIndices { get; set; } = new();
+            public List<StardewConnectPost> AccumulatedPosts { get; set; } = new();
+            public string SaveFolderName { get; set; } = string.Empty;
+            public Dictionary<string, StardewConnectProfileStats> ProfileStats { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+            public Dictionary<string, string> SharedPlayerAvatars { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+            public Dictionary<string, string> NpcImageTags { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+            public List<string> DeleteNpcPhotoNames { get; set; } = new();
+            public List<string> DeletePlayerAvatarNames { get; set; } = new();
+
+            public bool IsComplete => TotalChunks > 0 && ReceivedChunkIndices.Count >= TotalChunks;
+        }
+
+        private static PendingFullSyncAccumulator? pendingSyncAccumulator = null;
+
         private sealed class SocialUploadedImageMessage
         {
             public string SourceFileName { get; set; } = string.Empty;
@@ -71,6 +94,8 @@ namespace Smartphone
             public string ProtocolVersion { get; set; } = SocialSyncProtocolVersion;
             public string RequestId { get; set; } = string.Empty;
             public string SaveFolderName { get; set; } = string.Empty;
+            public int ChunkIndex { get; set; }
+            public int TotalChunks { get; set; } = 1;
             public List<StardewConnectPost> Posts { get; set; } = new();
             public Dictionary<string, StardewConnectProfileStats> ProfileStats { get; set; } = new(StringComparer.OrdinalIgnoreCase);
             public Dictionary<string, string> SharedPlayerAvatars { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -1441,7 +1466,7 @@ namespace Smartphone
 
         private void InitializeSocialCoopOnSaveLoaded()
         {
-            PendingSocialSyncRequestId = string.Empty;
+            ClearPendingSyncState();
             RefreshActiveSaveFolderName();
 
             if (!IsFarmhandSocialPeer())
@@ -1458,6 +1483,41 @@ namespace Smartphone
 
             PendingSocialSyncRequestId = payload.RequestId;
             SendMessageToHost(payload, SocialMessageFullSyncRequest);
+        }
+
+        internal static void ClearPendingSyncState()
+        {
+            PendingSyncSendQueue.Clear();
+            pendingSyncAccumulator = null;
+            PendingSocialSyncRequestId = string.Empty;
+        }
+
+        internal static void ProcessPendingSyncSendQueue()
+        {
+            if (PendingSyncSendQueue.Count == 0)
+                return;
+
+            if (!Context.IsWorldReady || !Context.IsMultiplayer)
+            {
+                PendingSyncSendQueue.Clear();
+                return;
+            }
+
+            int sent = 0;
+            while (sent < MaxSyncSendsPerTick && PendingSyncSendQueue.Count > 0)
+            {
+                Action sendAction = PendingSyncSendQueue.Dequeue();
+                try
+                {
+                    sendAction();
+                }
+                catch (Exception ex)
+                {
+                    SMonitor.Log($"Unable to process queued sync send: {ex}", LogLevel.Trace);
+                }
+
+                sent++;
+            }
         }
 
         private void OnModMessageReceived(object? sender, ModMessageReceivedEventArgs e)
@@ -1656,24 +1716,60 @@ namespace Smartphone
                 .Where(fileName => !farmhandPlayerAvatarNames.Contains(fileName))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            var snapshot = new SocialFullSyncSnapshotMessage
+            // Build the full data set for sync
+            List<StardewConnectPost> allPosts = StardewConnectManager.GetPostsSnapshot();
+            Dictionary<string, StardewConnectProfileStats> profileStats = StardewConnectManager.GetProfileStatsSnapshot();
+            Dictionary<string, string> npcImageTags = BuildNpcImageTagSnapshot();
+            string requestId = request.RequestId ?? string.Empty;
+            long targetPlayerId = e.FromPlayerID;
+
+            // Chunk posts to avoid exceeding network buffer limits
+            int totalChunks = Math.Max(1, (int)Math.Ceiling(allPosts.Count / (double)PostsPerSyncChunk));
+
+            for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
             {
-                RequestId = request.RequestId ?? string.Empty,
-                SaveFolderName = hostSaveFolderName,
-                Posts = StardewConnectManager.GetPostsSnapshot(),
-                ProfileStats = StardewConnectManager.GetProfileStatsSnapshot(),
-                SharedPlayerAvatars = sharedPlayerAvatars,
-                NpcImageTags = BuildNpcImageTagSnapshot(),
-                DeleteNpcPhotoNames = staleOnFarmhand,
-                DeletePlayerAvatarNames = stalePlayerAvatarsOnFarmhand
-            };
+                List<StardewConnectPost> chunkPosts = allPosts
+                    .Skip(chunkIndex * PostsPerSyncChunk)
+                    .Take(PostsPerSyncChunk)
+                    .ToList();
 
-            SendMessageToPlayer(snapshot, SocialMessageFullSyncSnapshot, e.FromPlayerID);
+                var chunk = new SocialFullSyncSnapshotMessage
+                {
+                    RequestId = requestId,
+                    SaveFolderName = hostSaveFolderName,
+                    ChunkIndex = chunkIndex,
+                    TotalChunks = totalChunks,
+                    Posts = chunkPosts,
+                    // Metadata only in the first chunk to keep subsequent chunks small
+                    ProfileStats = chunkIndex == 0
+                        ? profileStats
+                        : new Dictionary<string, StardewConnectProfileStats>(StringComparer.OrdinalIgnoreCase),
+                    SharedPlayerAvatars = chunkIndex == 0
+                        ? sharedPlayerAvatars
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                    NpcImageTags = chunkIndex == 0
+                        ? npcImageTags
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                    DeleteNpcPhotoNames = chunkIndex == 0
+                        ? staleOnFarmhand
+                        : new List<string>(),
+                    DeletePlayerAvatarNames = chunkIndex == 0
+                        ? stalePlayerAvatarsOnFarmhand
+                        : new List<string>()
+                };
 
+                SendMessageToPlayer(chunk, SocialMessageFullSyncSnapshot, targetPlayerId);
+            }
+
+            // Queue photo sends instead of sending all at once to avoid flooding the network buffer
             foreach (string fileName in missingOnFarmhand)
             {
-                if (TryCreateNpcPhotoUpsertPayload(fileName, out SocialPhotoUpsertMessage? payload) && payload != null)
-                    SendMessageToPlayer(payload, SocialMessagePhotoUpsert, e.FromPlayerID);
+                string capturedFileName = fileName;
+                PendingSyncSendQueue.Enqueue(() =>
+                {
+                    if (TryCreateNpcPhotoUpsertPayload(capturedFileName, out SocialPhotoUpsertMessage? payload) && payload != null)
+                        SendMessageToPlayer(payload, SocialMessagePhotoUpsert, targetPlayerId);
+                });
             }
 
             foreach ((string playerName, string avatarFileName) in sharedPlayerAvatars)
@@ -1685,21 +1781,25 @@ namespace Smartphone
                     continue;
                 }
 
-                if (!TryCreatePlayerAvatarUpsertPayload(playerName, out SocialPhotoUpsertMessage? avatarPayload)
-                    || avatarPayload == null)
+                string capturedPlayerName = playerName;
+                PendingSyncSendQueue.Enqueue(() =>
                 {
-                    continue;
-                }
+                    if (!TryCreatePlayerAvatarUpsertPayload(capturedPlayerName, out SocialPhotoUpsertMessage? avatarPayload)
+                        || avatarPayload == null)
+                    {
+                        return;
+                    }
 
-                var avatarDelta = new SocialAvatarDeltaMessage
-                {
-                    SaveFolderName = hostSaveFolderName,
-                    PlayerName = playerName,
-                    ClearAvatar = false,
-                    AvatarImage = avatarPayload
-                };
+                    var avatarDelta = new SocialAvatarDeltaMessage
+                    {
+                        SaveFolderName = hostSaveFolderName,
+                        PlayerName = capturedPlayerName,
+                        ClearAvatar = false,
+                        AvatarImage = avatarPayload
+                    };
 
-                SendMessageToPlayer(avatarDelta, SocialMessageAvatarDelta, e.FromPlayerID);
+                    SendMessageToPlayer(avatarDelta, SocialMessageAvatarDelta, targetPlayerId);
+                });
             }
         }
 
@@ -1718,13 +1818,84 @@ namespace Smartphone
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(snapshot.SaveFolderName))
-                SetActiveSaveFolderName(snapshot.SaveFolderName);
+            // Single-chunk (or legacy) path — apply immediately
+            if (snapshot.TotalChunks <= 1)
+            {
+                ApplyCompletedSyncSnapshot(snapshot.SaveFolderName, snapshot.Posts, snapshot.ProfileStats,
+                    snapshot.SharedPlayerAvatars, snapshot.NpcImageTags,
+                    snapshot.DeleteNpcPhotoNames, snapshot.DeletePlayerAvatarNames);
+                return;
+            }
 
-            StardewConnectManager.ApplySocialStateSnapshot(snapshot.Posts, snapshot.ProfileStats, snapshot.SharedPlayerAvatars);
-            ApplyNpcImageTagSnapshot(snapshot.NpcImageTags);
-            DeleteNpcPhotos(snapshot.DeleteNpcPhotoNames);
-            DeletePlayerAvatarFiles(snapshot.DeletePlayerAvatarNames);
+            // Multi-chunk path: accumulate until all chunks are received
+            string snapshotRequestId = snapshot.RequestId ?? string.Empty;
+            if (pendingSyncAccumulator == null
+                || !string.Equals(pendingSyncAccumulator.RequestId, snapshotRequestId, StringComparison.OrdinalIgnoreCase))
+            {
+                pendingSyncAccumulator = new PendingFullSyncAccumulator
+                {
+                    RequestId = snapshotRequestId,
+                    TotalChunks = snapshot.TotalChunks
+                };
+            }
+
+            if (pendingSyncAccumulator.ReceivedChunkIndices.Contains(snapshot.ChunkIndex))
+                return;
+
+            pendingSyncAccumulator.ReceivedChunkIndices.Add(snapshot.ChunkIndex);
+
+            if (snapshot.Posts != null)
+                pendingSyncAccumulator.AccumulatedPosts.AddRange(snapshot.Posts);
+
+            // Metadata is carried only in the first chunk (ChunkIndex == 0)
+            if (snapshot.ChunkIndex == 0)
+            {
+                pendingSyncAccumulator.SaveFolderName = snapshot.SaveFolderName ?? string.Empty;
+                pendingSyncAccumulator.ProfileStats = snapshot.ProfileStats
+                    ?? new Dictionary<string, StardewConnectProfileStats>(StringComparer.OrdinalIgnoreCase);
+                pendingSyncAccumulator.SharedPlayerAvatars = snapshot.SharedPlayerAvatars
+                    ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                pendingSyncAccumulator.NpcImageTags = snapshot.NpcImageTags
+                    ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                pendingSyncAccumulator.DeleteNpcPhotoNames = snapshot.DeleteNpcPhotoNames ?? new List<string>();
+                pendingSyncAccumulator.DeletePlayerAvatarNames = snapshot.DeletePlayerAvatarNames ?? new List<string>();
+            }
+
+            if (!pendingSyncAccumulator.IsComplete)
+                return;
+
+            // All chunks received — apply the full snapshot
+            ApplyCompletedSyncSnapshot(
+                pendingSyncAccumulator.SaveFolderName,
+                pendingSyncAccumulator.AccumulatedPosts,
+                pendingSyncAccumulator.ProfileStats,
+                pendingSyncAccumulator.SharedPlayerAvatars,
+                pendingSyncAccumulator.NpcImageTags,
+                pendingSyncAccumulator.DeleteNpcPhotoNames,
+                pendingSyncAccumulator.DeletePlayerAvatarNames);
+
+            pendingSyncAccumulator = null;
+        }
+
+        private void ApplyCompletedSyncSnapshot(
+            string saveFolderName,
+            List<StardewConnectPost> posts,
+            Dictionary<string, StardewConnectProfileStats> profileStats,
+            Dictionary<string, string> sharedPlayerAvatars,
+            Dictionary<string, string> npcImageTags,
+            List<string> deleteNpcPhotoNames,
+            List<string> deletePlayerAvatarNames)
+        {
+            if (!string.IsNullOrWhiteSpace(saveFolderName))
+                SetActiveSaveFolderName(saveFolderName);
+
+            StardewConnectManager.ApplySocialStateSnapshot(
+                posts ?? new List<StardewConnectPost>(),
+                profileStats,
+                sharedPlayerAvatars);
+            ApplyNpcImageTagSnapshot(npcImageTags);
+            DeleteNpcPhotos(deleteNpcPhotoNames);
+            DeletePlayerAvatarFiles(deletePlayerAvatarNames);
             InvalidateSocialImageLoadCaches();
 
             PendingSocialSyncRequestId = string.Empty;
