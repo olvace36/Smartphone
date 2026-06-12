@@ -42,7 +42,7 @@ namespace Smartphone
             new Point(0, 1),
             new Point(1, 1)
         };
-        private static bool AreaMapsLoaded;
+
         private static Dictionary<string, Dictionary<string, AreaData>> IndoorAreasByLocation = new(StringComparer.OrdinalIgnoreCase);
         private static Dictionary<string, Dictionary<string, AreaData>> OutdoorAreasByLocation = new(StringComparer.OrdinalIgnoreCase);
 

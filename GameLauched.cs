@@ -290,11 +290,9 @@ namespace Smartphone
                             try
                             {
                                 SMonitor.Log($"Smartphone: Newer version available", LogLevel.Warn);
-                                Game1.drawLetterMessage("=== Smartphone ===^^Newer version of Smartphone are available. Your current version may be outdated and no longer working.^^" +
-                                    "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in        $$/Mods/Smartphone/Userdata$$ folder.^    >> YOU MUST COPY IT WHEN UPDATE THE MOD @@");
+                                Game1.drawLetterMessage(ModEntry.SHelper.Translation.Get("mail.update_warning"));
 
-                                NotificationManager.addNotification("=== Smartphone ===^^Newer version of Smartphone are available. Your current version may be outdated and no longer working.^^" +
-                                    "Please note that your data, including conversation, summary, setting, memory, everything,... are saved in        $$/Mods/Smartphone/Userdata$$ folder.^    >> YOU MUST COPY IT WHEN UPDATE THE MOD @@");
+                                NotificationManager.addNotification(ModEntry.SHelper.Translation.Get("notification.update_warning"));
                             }
                             catch (Exception ex)
                             {
@@ -391,12 +389,12 @@ namespace Smartphone
             if (daysSinceLastOpen >= 3)
             {
                 IsAiDisabledForPhoneInactivityToday = true;
-                NotificationManager.addNotification("=== Smartphone ===^^Seem like you are not using Smartphone. All AI are disabled until you come back.");
+                NotificationManager.addNotification(ModEntry.SHelper.Translation.Get("notification.inactivity_ai_disabled"));
                 return;
             }
 
             if (daysSinceLastOpen >= 2)
-                NotificationManager.addNotification("=== Smartphone ===^^Many things are happening, remember to check your Smartphone.");
+                NotificationManager.addNotification(ModEntry.SHelper.Translation.Get("notification.check_phone"));
         }
 
         private void ApplySavedPhoneTheme()
@@ -517,14 +515,9 @@ namespace Smartphone
             if (pendingInitNotification && Context.IsPlayerFree)
             {
                 MessageManager.MarkPhoneOpenedToday();
-                Game1.drawLetterMessage("=== Smartphone ===^^Looks like this is your first time here, or you have recently updated the mod and >> LOST YOUR DATA @@^^" +
-                    "Please note that your data, including conversations, photos, StardewSocial, everything,... are saved in             $$/Mods/Smartphone/Userdata$$ folder.^     >> YOU MUST COPY IT WHEN UPDATE THE MOD @@^^                                      > continue >" +
-                    "^Smartphone costs $real money$ to maintain. To keep this mod available for everyone, please use it responsibly!!!^^Really really really like the mod and like to help keep the lights on? Check out the mod page for ways to contribute.^^" +
-                    "         Thanks for trying out the mod, HaPyke +++");
+                Game1.drawLetterMessage(ModEntry.SHelper.Translation.Get("mail.first_time"));
 
-                NotificationManager.addNotification("=== Smartphone ===^^Looks like this is your first time here, or you have recently updated the mod and >> LOST YOUR DATA @@^^" +
-                    "Please note that your data, including conversations, photos, StardewSocial, everything,... are saved in             $$/Mods/Smartphone/Userdata$$^     >> YOU MUST COPY IT WHEN UPDATE THE MOD @@^^" +
-                    "Smartphone costs $real money$ to maintain. To keep this mod available for everyone, please use it responsibly!!!^^Really really really like the mod and like to help keep the lights on? Check out the mod page for ways to contribute.^^Thanks for trying out the mod, HaPyke");
+                NotificationManager.addNotification(ModEntry.SHelper.Translation.Get("notification.first_time"));
 
                 pendingInitNotification = false;
             }

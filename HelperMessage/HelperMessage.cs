@@ -573,10 +573,10 @@ namespace Smartphone
 
                     string firstMessageNpcDisplayName = GetConversationDisplayName(selectedNpc ?? "");
                     string firstMessage = Game1.timeOfDay < 1200
-                        ? $"Good morning {firstMessageNpcDisplayName}"
+                        ? ModEntry.SHelper.Translation.Get("ui.message.good_morning", new { name = firstMessageNpcDisplayName }).ToString()
                         : Game1.timeOfDay < 1800
-                            ? $"Good afternoon {firstMessageNpcDisplayName}"
-                            : $"Good evening {firstMessageNpcDisplayName}";
+                            ? ModEntry.SHelper.Translation.Get("ui.message.good_afternoon", new { name = firstMessageNpcDisplayName }).ToString()
+                            : ModEntry.SHelper.Translation.Get("ui.message.good_evening", new { name = firstMessageNpcDisplayName }).ToString();
                     float maxWidth = MeasurePhoneText(Game1.smallFont, firstMessage).X + ScaleUiValue(20);
                     int firstMessageLineHeight = GetPhoneScaledLineHeight(Game1.smallFont, extraPadding: 20);
 
@@ -831,7 +831,7 @@ namespace Smartphone
 
             int titleX = PhoneX(65);
             int titleY = PhoneY(65);
-            DrawPhoneText(b, Game1.dialogueFont, "Profile", new Vector2(titleX, titleY), Color.Black);
+            DrawPhoneText(b, Game1.dialogueFont, ModEntry.SHelper.Translation.Get("ui.message.profile"), new Vector2(titleX, titleY), Color.Black);
 
             Rectangle headerBounds = PhoneRect(50, 120, 500, 190);
             IClickableMenu.drawTextureBox(
@@ -863,7 +863,7 @@ namespace Smartphone
             DrawPhoneText(
                 b,
                 Game1.dialogueFont,
-                "Profile Settings",
+                ModEntry.SHelper.Translation.Get("ui.message.profile_settings"),
                 new Vector2(avatarBounds.Right + ScaleUiValue(18), headerBounds.Y + ScaleUiValue(22)),
                 Color.Black);
 
@@ -872,7 +872,7 @@ namespace Smartphone
             int fieldHeight = Math.Max(1, ScaleUiValue(60));
 
             int ageLabelY = PhoneY(315);
-            DrawPhoneText(b, Game1.smallFont, "Age", new Vector2(fieldX, ageLabelY), Color.Black);
+            DrawPhoneText(b, Game1.smallFont, ModEntry.SHelper.Translation.Get("ui.message.age"), new Vector2(fieldX, ageLabelY), Color.Black);
             textProfileAgeFieldBounds = new Rectangle(fieldX, PhoneY(350), fieldWidth, fieldHeight);
             IClickableMenu.drawTextureBox(
                 b,
@@ -895,7 +895,7 @@ namespace Smartphone
                 textProfileActiveField == EditableTextFieldKind.ProfileAge);
 
             int birthdayLabelY = PhoneY(420);
-            DrawPhoneText(b, Game1.smallFont, "Birthday", new Vector2(fieldX, birthdayLabelY), Color.Black);
+            DrawPhoneText(b, Game1.smallFont, ModEntry.SHelper.Translation.Get("ui.message.birthday"), new Vector2(fieldX, birthdayLabelY), Color.Black);
             int birthdayInputWidth = ScaleUiValue(115);
             int seasonButtonWidth = ScaleUiValue(150);
             textProfileBirthdayFieldBounds = new Rectangle(fieldX, PhoneY(450), birthdayInputWidth, fieldHeight);
@@ -941,10 +941,19 @@ namespace Smartphone
                 new Color(255, 255, 255, 230),
                 1f,
                 false);
+            string displaySeason = (MessageManager.currentPlayerBirthSeason ?? "Spring").ToLowerInvariant() switch
+            {
+                "spring" => ModEntry.SHelper.Translation.Get("ui.message.season_spring").ToString(),
+                "summer" => ModEntry.SHelper.Translation.Get("ui.message.season_summer").ToString(),
+                "fall" => ModEntry.SHelper.Translation.Get("ui.message.season_fall").ToString(),
+                "winter" => ModEntry.SHelper.Translation.Get("ui.message.season_winter").ToString(),
+                _ => ModEntry.SHelper.Translation.Get("ui.message.season_spring").ToString()
+            };
+
             DrawPhoneText(
                 b,
                 Game1.smallFont,
-                MessageManager.currentPlayerBirthSeason,
+                displaySeason,
                 new Vector2(
                     textProfileSeasonButtonBounds.X + ScaleUiValue(16),
                     textProfileSeasonButtonBounds.Y + ScaleUiValue(16)),
@@ -962,7 +971,7 @@ namespace Smartphone
                 Color.White);
 
             int descriptionLabelY = PhoneY(520);
-            DrawPhoneText(b, Game1.smallFont, "About me", new Vector2(fieldX, descriptionLabelY), Color.Black);
+            DrawPhoneText(b, Game1.smallFont, ModEntry.SHelper.Translation.Get("ui.message.about_me"), new Vector2(fieldX, descriptionLabelY), Color.Black);
             textProfileDescriptionFieldBounds = new Rectangle(fieldX, PhoneY(555), fieldWidth, ScaleUiValue(285));
             IClickableMenu.drawTextureBox(
                 b,
@@ -978,7 +987,7 @@ namespace Smartphone
 
             if (string.IsNullOrWhiteSpace(MessageManager.currentPlayerProfile))
             {
-                const string descriptionPlaceholder = "Significant things about your farmer that you'd like other NPCs to know. Don't give boring invaluable details such as 'I like farming' - add something that stands out!!! Get a key to bypass the limit.";
+                string descriptionPlaceholder = ModEntry.SHelper.Translation.Get("ui.message.description_placeholder").ToString();
                 int placeholderX = textProfileDescriptionFieldBounds.X + ScaleUiValue(15);
                 int placeholderY = textProfileDescriptionFieldBounds.Y + ScaleUiValue(15);
                 int placeholderWidth = Math.Max(1, textProfileDescriptionFieldBounds.Width - ScaleUiValue(30));
@@ -1124,10 +1133,10 @@ namespace Smartphone
 
             string selectedNpcDisplayName = GetConversationDisplayName(selectedNpc ?? "");
             string firstMessage = Game1.timeOfDay < 1200
-                ? $"Good morning {selectedNpcDisplayName}"
+                ? ModEntry.SHelper.Translation.Get("ui.message.good_morning", new { name = selectedNpcDisplayName }).ToString()
                 : Game1.timeOfDay < 1800
-                    ? $"Good afternoon {selectedNpcDisplayName}"
-                    : $"Good evening {selectedNpcDisplayName}";
+                    ? ModEntry.SHelper.Translation.Get("ui.message.good_afternoon", new { name = selectedNpcDisplayName }).ToString()
+                    : ModEntry.SHelper.Translation.Get("ui.message.good_evening", new { name = selectedNpcDisplayName }).ToString();
 
             MessageManager.AddMessage(selectedNpc, $"PLAYER: {firstMessage}", isFromPlayer: true);
             ModEntry.FirstDailyText(selectedNpc, firstMessage);

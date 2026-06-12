@@ -717,7 +717,7 @@ namespace Smartphone
             homeButton = new ClickableTextureComponent(
                 new Rectangle(
                     this.xPositionOnScreen + ScaleUiValue(265),
-                    this.yPositionOnScreen + ScaleUiValue(915),
+                    this.yPositionOnScreen + ScaleUiValue(925),
                     ScaleUiValue(64),
                     ScaleUiValue(64)),
                 null,
@@ -983,7 +983,7 @@ namespace Smartphone
                             DrawPhoneText(
                                 b,
                                 Game1.smallFont,
-                                "Avatar",
+                                ModEntry.SHelper.Translation.Get("ui.photo.avatar"),
                                 new Vector2(photoAvatarButtonBounds.X + ScaleUiValue(12), photoAvatarButtonBounds.Y + ScaleUiValue(10)),
                                 Color.Black);
                         }
@@ -2543,10 +2543,10 @@ namespace Smartphone
 
             string title = currentSettingMenuState switch
             {
-                SettingMenuSoundState => "Sound",
-                SettingMenuTextColorState => "Text Color",
-                SettingMenuThemeState => "Theme",
-                _ => "Settings"
+                SettingMenuSoundState => ModEntry.SHelper.Translation.Get("ui.setting.sound"),
+                SettingMenuTextColorState => ModEntry.SHelper.Translation.Get("ui.setting.text_color"),
+                SettingMenuThemeState => ModEntry.SHelper.Translation.Get("ui.setting.theme"),
+                _ => ModEntry.SHelper.Translation.Get("ui.setting.title")
             };
 
             DrawPhoneText(
@@ -2587,10 +2587,10 @@ namespace Smartphone
             phoneThemeHoverBounds.Clear();
 
             int yStart = PhoneY(SettingsMainOptionsStartYBase);
-            DrawSettingOptionRow(b, SettingMenuOptionTextColor, "Text Color", yStart);
-            DrawSettingOptionRow(b, SettingMenuOptionSound, "Sound", yStart + spacing);
-            DrawSettingOptionRow(b, SettingMenuOptionTheme, "Theme", yStart + spacing * 2);
-            DrawSettingOptionRow(b, SettingMenuOptionPhoneSetting, "Phone setting", yStart + spacing * 3);
+            DrawSettingOptionRow(b, SettingMenuOptionTextColor, ModEntry.SHelper.Translation.Get("ui.setting.text_color"), yStart);
+            DrawSettingOptionRow(b, SettingMenuOptionSound, ModEntry.SHelper.Translation.Get("ui.setting.sound"), yStart + spacing);
+            DrawSettingOptionRow(b, SettingMenuOptionTheme, ModEntry.SHelper.Translation.Get("ui.setting.theme"), yStart + spacing * 2);
+            DrawSettingOptionRow(b, SettingMenuOptionPhoneSetting, ModEntry.SHelper.Translation.Get("ui.setting.phone_setting"), yStart + spacing * 3);
         }
 
         private void DrawSettingOptionRow(SpriteBatch b, string optionId, string displayText, int rowY)
@@ -3451,8 +3451,8 @@ namespace Smartphone
 
                 bool showUpdateHint = ModEntry.hasNewVersionAvailable;
                 string hintText = showUpdateHint
-                    ? "New version available"
-                    : "Tap to unlock";
+                    ? ModEntry.SHelper.Translation.Get("ui.lockscreen.update_available")
+                    : ModEntry.SHelper.Translation.Get("ui.lockscreen.tap_to_unlock");
                 Vector2 hintSize = Game1.smallFont.MeasureString(hintText) * LockScreenHintTextScale;
                 Vector2 hintPosition = new Vector2(
                     centerX - (hintSize.X / 2f),
@@ -3500,7 +3500,7 @@ namespace Smartphone
             {
                 b.Draw(Game1.staminaRect, contentBounds, Color.Black);
 
-                string titleText = "Initializing hapykeOS";
+                string titleText = ModEntry.SHelper.Translation.Get("ui.lockscreen.initializing");
                 string progressText = $"{Math.Clamp(lockScreenInitializationProgressPercent, 0, 100)}%";
 
                 Vector2 titleSize = Game1.dialogueFont.MeasureString(titleText) * LockScreenInitializationTitleTextScale;
@@ -3590,8 +3590,8 @@ namespace Smartphone
             float leftCenterX = centerX - LockScreenWeatherColumnHalfSpacing;
             float rightCenterX = centerX + LockScreenWeatherColumnHalfSpacing;
 
-            string todayLabel = "Today";
-            string forecastLabel = "Forecast";
+            string todayLabel = ModEntry.SHelper.Translation.Get("ui.weather.today");
+            string forecastLabel = ModEntry.SHelper.Translation.Get("ui.weather.forecast");
 
             Vector2 todayLabelSize = Game1.smallFont.MeasureString(todayLabel) * LockScreenWeatherLabelTextScale;
             Vector2 forecastLabelSize = Game1.smallFont.MeasureString(forecastLabel) * LockScreenWeatherLabelTextScale;
@@ -3945,46 +3945,46 @@ namespace Smartphone
                 new HomeAppEntry
                 {
                     Id = BuiltinAppNotificationId,
-                    DisplayName = "Notification",
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.notification.name"),
                     IconTexture = textureAppNotification,
                     GetBadgeCount = () => Math.Max(0, NotificationManager.getUnreadNotication())
                 },
                 new HomeAppEntry
                 {
                     Id = BuiltinAppTextId,
-                    DisplayName = "Messages",
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.messages.name"),
                     IconTexture = textureAppText,
                     GetBadgeCount = () => MessageManager.unreadCounts.Count(pair => pair.Value > 0)
                 },
                 new HomeAppEntry
                 {
                     Id = BuiltinAppCameraId,
-                    DisplayName = "Camera",
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.camera.name"),
                     IconTexture = textureAppCamera
                 },
                 new HomeAppEntry
                 {
                     Id = BuiltinAppPhotoId,
-                    DisplayName = "Photos",
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.photos.name"),
                     IconTexture = textureAppPhoto
                 },
                 new HomeAppEntry
                 {
                     Id = BuiltinAppSocialId,
-                    DisplayName = "StardewSocial",
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.social.name"),
                     IconTexture = textureAppSocial,
                     GetBadgeCount = () => GetTotalSocialNotificationCount()
                 },
                 new HomeAppEntry
                 {
                     Id = BuiltinAppSettingId,
-                    DisplayName = "Settings",
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.settings.name"),
                     IconTexture = textureAppSetting
                 },
                 new HomeAppEntry
                 {
                     Id = BuiltinAppCalendarId,
-                    DisplayName = "Calendar",
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.calendar.name"),
                     IconTexture = furnitureTexture,
                     SourceRect = new Rectangle(417, 698, 15, 16)
                 }

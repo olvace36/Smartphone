@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -260,7 +261,7 @@ namespace Smartphone
         /// ======================================
         /// API to get player profile
         /// ======================================
-        
+
         /// <summary>
         /// Gets the player's profile information as a string.
         /// </summary> 
@@ -284,6 +285,81 @@ namespace Smartphone
         /// </summary>
         /// <returns>A string representing the player's age.</returns>
         string GetPlayerAge();
+
+
+
+
+
+        /// ======================================
+        /// API to get phone appearance settings (theme and size).
+        /// ======================================
+
+        /// <summary>
+        /// Gets whether the phone is currently using the small size.
+        /// When true the UI scale is 0.75×; when false it is 1×.
+        /// </summary>
+        /// <returns>True if the user has the small phone size enabled; otherwise false.</returns>
+        bool IsSmallPhoneSize();
+
+        /// <summary>
+        /// Gets the current phone UI scale factor.
+        /// Returns 0.75 when small phone size is enabled, or 1.0 for the regular size.
+        /// </summary>
+        /// <returns>The active phone UI scale multiplier.</returns>
+        float GetPhoneUiScale();
+
+        /// <summary>
+        /// Gets the current scaled phone frame width in pixels.
+        /// </summary>
+        /// <returns>The phone frame width after applying the current UI scale.</returns>
+        int GetPhoneFrameWidth();
+
+        /// <summary>
+        /// Gets the current scaled phone frame height in pixels.
+        /// </summary>
+        /// <returns>The phone frame height after applying the current UI scale.</returns>
+        int GetPhoneFrameHeight();
+
+        /// <summary>
+        /// Gets the current scaled phone content area offset from the top-left of the phone frame.
+        /// This is useful for positioning custom content inside the phone screen area.
+        /// </summary>
+        /// <returns>X and Y pixel offsets of the content area within the phone frame.</returns>
+        (int offsetX, int offsetY) GetPhoneContentOffset();
+
+        /// <summary>
+        /// Gets the phone frame texture (phone_empty.png) from the currently active theme.
+        /// This is the border/bezel texture drawn on top of the phone screen.
+        /// </summary>
+        /// <returns>The phone frame Texture2D, or null if textures are not loaded.</returns>
+        Texture2D? GetPhoneFrameTexture();
+
+        /// <summary>
+        /// Gets the phone screen background texture (phone_background.png) from the currently active theme.
+        /// This is the wallpaper/background drawn behind app content inside the phone screen area.
+        /// </summary>
+        /// <returns>The phone background Texture2D, or null if textures are not loaded.</returns>
+        Texture2D? GetPhoneBackgroundTexture();
+
+        /// <summary>
+        /// Gets the current on-screen position (top-left corner) of the phone menu.
+        /// Use this to open a custom app screen at the same position the phone was at,
+        /// so the transition feels seamless.
+        /// </summary>
+        /// <returns>X and Y screen coordinates of the phone frame's top-left corner.</returns>
+        (int x, int y) GetPhonePosition();
+
+        /// <summary>
+        /// Handles clicks on the phone's built-in bottom navigation buttons.
+        /// Call this in your custom app's receiveLeftClick method.
+        /// </summary>
+        /// <param name="x">The X position of the mouse click.</param>
+        /// <param name="y">The Y position of the mouse click.</param>
+        /// <param name="phoneX">The current X position of the phone frame.</param>
+        /// <param name="phoneY">The current Y position of the phone frame.</param>
+        /// <param name="onBack">Optional action to run when the Back button is clicked.</param>
+        /// <returns>True if a button was clicked and handled, false otherwise.</returns>
+        bool HandlePhoneAppBottomNavClick(int x, int y, int phoneX, int phoneY, Action? onBack = null);
 
 
 

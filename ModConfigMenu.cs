@@ -46,6 +46,12 @@ namespace Smartphone
                 ModConfig.CharacteristicModeLong
             };
 
+            string[] newMessageChanceValues =
+            {
+                ModConfig.NewMessageChanceDefault,
+                ModConfig.NewMessageChanceLow
+            };
+
             static string EnsureAllowedValue(string? value, string fallback, string[] allowedValues)
             {
                 if (string.IsNullOrWhiteSpace(value))
@@ -70,59 +76,59 @@ namespace Smartphone
             );
 
             // main page: options most players change often
-            configMenu.AddSectionTitle(mod: ModManifest, text: () => "Quick Setup");
+            configMenu.AddSectionTitle(mod: ModManifest, text: () => Helper.Translation.Get("config.title.quick_setup"));
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Acknowledge and enable AI",
-                tooltip: () => "App Message and StardewSocial use AI to generate content. By enabling this option, you acknowledge that you understand \nthe potential privacy and security implications of using AI features, for example of harmful content, personal data leaks, and so on.\nNever include sensitive information, such as real name, contact details, credentials, etc in the conversation with the AI.",
+                name: () => Helper.Translation.Get("config.name.enable_ai"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.enable_ai"),
                 getValue: () => Config.EnableAI,
                 setValue: value => Config.EnableAI = value
             );
 
             configMenu.AddKeybind(
                 mod: ModManifest,
-                name: () => "Open phone key",
-                tooltip: () => "The key used to open your in-game smartphone.",
+                name: () => Helper.Translation.Get("config.name.open_phone_key"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.open_phone_key"),
                 getValue: () => Config.ModKey,
                 setValue: value => Config.ModKey = value
             );
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "Language",
-                tooltip: () => "Enter your prefered language. However English is the best supported.",
+                name: () => Helper.Translation.Get("config.name.language"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.language"),
                 getValue: () => string.IsNullOrWhiteSpace(Config.Language) ? "English" : Config.Language,
                 setValue: value => Config.Language = string.IsNullOrWhiteSpace(value) ? "English" : value.Trim()
             );
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "Who can message you",
-                tooltip: () => "Meet: NPC must be talked to at least once.\nFriend: NPC must have at least 1 heart.",
+                name: () => Helper.Translation.Get("config.name.who_can_message"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.who_can_message"),
                 getValue: () => EnsureAllowedValue(Config.NpcMessageRequirement, ModConfig.NpcRequirementFriend, npcRequirementValues),
                 setValue: value => Config.NpcMessageRequirement = value,
                 allowedValues: npcRequirementValues,
                 formatAllowedValue: value => value switch
                 {
-                    ModConfig.NpcRequirementMeet => "Meet",
-                    ModConfig.NpcRequirementFriend => "Friend (1+ heart)",
+                    ModConfig.NpcRequirementMeet => Helper.Translation.Get("config.value.meet"),
+                    ModConfig.NpcRequirementFriend => Helper.Translation.Get("config.value.friend"),
                     _ => value
                 }
             );
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Disable daily message",
-                tooltip: () => "If enabled, the `Good morning...` option will be disabled.\nYou should keep this option False which overtime will help the AI understand what is lore of the character.",
+                name: () => Helper.Translation.Get("config.name.disable_daily_message"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.disable_daily_message"),
                 getValue: () => Config.DisableDailyMessage,
                 setValue: value => Config.DisableDailyMessage = value
             );
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Disable update warning",
-                tooltip: () => "Disable warning letter when new version are available.\nBy disabling this warning, you should already know and understand how to update the mod safely without losing your own data.\nYou will still be notified when newer version available on the phone lock screen.",
+                name: () => Helper.Translation.Get("config.name.disable_update_warning"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.disable_update_warning"),
                 getValue: () => Config.DisableUpdateWarning,
                 setValue: value => Config.DisableUpdateWarning = value
             );
@@ -130,118 +136,118 @@ namespace Smartphone
             configMenu.AddPageLink(
                 mod: ModManifest,
                 pageId: "ai-settings",
-                text: () => "AI Settings",
-                tooltip: () => "API key, model choice, and limits setting."
+                text: () => Helper.Translation.Get("config.page.ai_settings"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.ai_settings")
             );
 
             configMenu.AddPageLink(
                 mod: ModManifest,
                 pageId: "storage-limits",
-                text: () => "Storage and Limits",
-                tooltip: () => "How many messages, posts, and photos are kept on your computer."
+                text: () => Helper.Translation.Get("config.page.storage_limits"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.storage_limits")
             );
 
             configMenu.AddPageLink(
                 mod: ModManifest,
                 pageId: "display",
-                text: () => "Display",
-                tooltip: () => "Image tag visibility options."
+                text: () => Helper.Translation.Get("config.page.display"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.display")
             );
 
             configMenu.AddPageLink(
                 mod: ModManifest,
                 pageId: "notifications",
-                text: () => "HUD Notifications",
-                tooltip: () => "Toggle popup notifications for each app."
+                text: () => Helper.Translation.Get("config.page.notifications"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.notifications")
             );
 
             configMenu.AddPageLink(
                 mod: ModManifest,
                 pageId: "misc",
-                text: () => "Miscellaneous",
-                tooltip: () => "Various other settings."
+                text: () => Helper.Translation.Get("config.page.misc"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.misc")
             );
 
             // AI Settings page
-            configMenu.AddPage(mod: ModManifest, pageId: "ai-settings", pageTitle: () => "AI Settings");
+            configMenu.AddPage(mod: ModManifest, pageId: "ai-settings", pageTitle: () => Helper.Translation.Get("config.page.ai_settings"));
             configMenu.AddParagraph(
                 mod: ModManifest,
-                text: () => "These settings are only effective when an API key is provided. You can use your own OpenAI or Gemini key. Advanced custom endpoint settings are available in config.json only."
+                text: () => Helper.Translation.Get("config.paragraph.ai_settings")
             );
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "Key",
-                tooltip: () => "Use your own OpenAI or Gemini key to remove shared usage limits.\nOpenAI key: https://platform.openai.com/account/api-keys\nGemini key: https://aistudio.google.com/app/apikey\nRestart the game after changing this value.",
+                name: () => Helper.Translation.Get("config.name.key"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.key"),
                 getValue: () => Config.Key,
                 setValue: value => Config.Key = value
             );
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "Model",
-                tooltip: () => "Chooses the model.\nOf course if you using OpenAI key, you should choose OpenAI model and vice versa for Gemini key.",
+                name: () => Helper.Translation.Get("config.name.model"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.model"),
                 getValue: () => EnsureAllowedValue(Config.Model, ModConfig.OpenAIModel_54mini, aiModelValues),
                 setValue: value => Config.Model = value,
                 allowedValues: aiModelValues,
                 formatAllowedValue: value => value switch
                 {
-                    ModConfig.OpenAIModel_54mini => "gpt-5.4-mini (recommended)",
-                    ModConfig.OpenAIModel_54nano => "gpt-5.4-nano",
-                    ModConfig.OpenAIModel_51 => "gpt-5.1",
-                    ModConfig.OpenAIModel_5mini => "gpt-5-mini (2nd recommended)",
-                    ModConfig.OpenAIModel_5nano => "gpt-5-nano (cheapest)",
-                    ModConfig.GeminiModel_35Flash => "gemini-3.5-flash",
-                    ModConfig.GeminiModel_31FlashLite => "gemini-3.1-flash-lite",
-                    ModConfig.GeminiModel_3FlashPreview => "gemini-3-flash-preview",
+                    ModConfig.OpenAIModel_54mini => Helper.Translation.Get("config.value.model.gpt54mini"),
+                    ModConfig.OpenAIModel_54nano => Helper.Translation.Get("config.value.model.gpt54nano"),
+                    ModConfig.OpenAIModel_51 => Helper.Translation.Get("config.value.model.gpt51"),
+                    ModConfig.OpenAIModel_5mini => Helper.Translation.Get("config.value.model.gpt5mini"),
+                    ModConfig.OpenAIModel_5nano => Helper.Translation.Get("config.value.model.gpt5nano"),
+                    ModConfig.GeminiModel_35Flash => Helper.Translation.Get("config.value.model.gemini35flash"),
+                    ModConfig.GeminiModel_31FlashLite => Helper.Translation.Get("config.value.model.gemini31flashlite"),
+                    ModConfig.GeminiModel_3FlashPreview => Helper.Translation.Get("config.value.model.gemini3flashpreview"),
                     _ => value
                 }
             );
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "StardewSocial activity",
-                tooltip: () => "Controls how often StardewSocial posts and engagement are generated.",
+                name: () => Helper.Translation.Get("config.name.social_activity"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.social_activity"),
                 getValue: () => EnsureAllowedValue(Config.PostPerDay, ModConfig.PostPerDayMedium, postPerDayValues),
                 setValue: value => Config.PostPerDay = value,
                 allowedValues: postPerDayValues,
                 formatAllowedValue: value => value switch
                 {
-                    ModConfig.PostPerDayHigh => "High (more updates)",
-                    ModConfig.PostPerDayMedium => "Medium (recommended)",
-                    ModConfig.PostPerDayLow => "Low (default, fewer updates)",
+                    ModConfig.PostPerDayHigh => Helper.Translation.Get("config.value.social_activity.high"),
+                    ModConfig.PostPerDayMedium => Helper.Translation.Get("config.value.social_activity.medium"),
+                    ModConfig.PostPerDayLow => Helper.Translation.Get("config.value.social_activity.low"),
                     _ => value
                 }
             );
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "NPC characteristic detail",
-                tooltip: () => "NPC characteristic give the AI a background for each NPC during the chat and the post generation.\nHigher detail improves quality but uses more tokens per NPC.",
+                name: () => Helper.Translation.Get("config.name.npc_characteristic"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.npc_characteristic"),
                 getValue: () => EnsureAllowedValue(Config.CharacteristicMode, ModConfig.CharacteristicModeShort, characteristicValues),
                 setValue: value => Config.CharacteristicMode = value,
                 allowedValues: characteristicValues,
                 formatAllowedValue: value => value switch
                 {
-                    ModConfig.CharacteristicModeMinimal => "Minimal (lowest cost)",
-                    ModConfig.CharacteristicModeShort => "Short (recommended)",
-                    ModConfig.CharacteristicModeLong => "Long (highest detail)",
+                    ModConfig.CharacteristicModeMinimal => Helper.Translation.Get("config.value.characteristic.minimal"),
+                    ModConfig.CharacteristicModeShort => Helper.Translation.Get("config.value.characteristic.short"),
+                    ModConfig.CharacteristicModeLong => Helper.Translation.Get("config.value.characteristic.long"),
                     _ => value
                 }
             );
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "High quality comment",
-                tooltip: () => "If enabled, AI will be provided with the minimal characteristic detail for each NPC.\nThis may improve the quality of comments but will use more tokens.",
+                name: () => Helper.Translation.Get("config.name.high_quality_comment"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.high_quality_comment"),
                 getValue: () => Config.BetterQualityComment,
                 setValue: value => Config.BetterQualityComment = value
             );
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "Summary max words",
-                tooltip: () => "Conversation are summarized daily so the AI knows what the previous conversation is about.\nHigher limit means AI will `remember` more details but will use more tokens.\nMemory saved at \"Userdata\\SaveFolder\\summary\".",
+                name: () => Helper.Translation.Get("config.name.summary_max_words"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.summary_max_words"),
                 getValue: () => Config.MaxSummaryWordCount,
                 setValue: value => Config.MaxSummaryWordCount = Math.Clamp(value, 0, 5000),
                 min: 0,
@@ -249,12 +255,12 @@ namespace Smartphone
             );
 
             // storage and limits page
-            configMenu.AddPage(mod: ModManifest, pageId: "storage-limits", pageTitle: () => "Storage and Limits");
+            configMenu.AddPage(mod: ModManifest, pageId: "storage-limits", pageTitle: () => Helper.Translation.Get("config.page.storage_limits"));
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "StardewSocial posts to keep",
-                tooltip: () => "Older posts are removed first when this limit is exceeded.",
+                name: () => Helper.Translation.Get("config.name.posts_to_keep"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.posts_to_keep"),
                 getValue: () => Config.MaxStardewConnectPosts,
                 setValue: value => Config.MaxStardewConnectPosts = Math.Clamp(value, 10, 500),
                 min: 10,
@@ -263,8 +269,8 @@ namespace Smartphone
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "Player photos to keep",
-                tooltip: () => "Older player photos are deleted first.",
+                name: () => Helper.Translation.Get("config.name.player_photos_to_keep"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.player_photos_to_keep"),
                 getValue: () => Config.PlayerMaxPhoto,
                 setValue: value => Config.PlayerMaxPhoto = Math.Clamp(value, 1, 500),
                 min: 1,
@@ -273,8 +279,8 @@ namespace Smartphone
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "NPC photos to keep",
-                tooltip: () => "Older NPC photos are deleted first.",
+                name: () => Helper.Translation.Get("config.name.npc_photos_to_keep"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.npc_photos_to_keep"),
                 getValue: () => Config.NpcMaxPhoto,
                 setValue: value => Config.NpcMaxPhoto = Math.Clamp(value, 1, 500),
                 min: 1,
@@ -283,8 +289,8 @@ namespace Smartphone
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "Messages per NPC",
-                tooltip: () => "Older text messages are removed first when this limit is exceeded.",
+                name: () => Helper.Translation.Get("config.name.messages_per_npc"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.messages_per_npc"),
                 getValue: () => Config.MaxMessage,
                 setValue: value => Config.MaxMessage = Math.Clamp(value, 50, 5000),
                 min: 50,
@@ -292,43 +298,43 @@ namespace Smartphone
             );
 
             // display page
-            configMenu.AddPage(mod: ModManifest, pageId: "display", pageTitle: () => "Display");
+            configMenu.AddPage(mod: ModManifest, pageId: "display", pageTitle: () => Helper.Translation.Get("config.page.display"));
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Show AI credit button",
-                tooltip: () => "You have a limited number of usage of the AI features each day when no key is provided.\nThis option shows how many usages you have left. Check it at Messages -> NPC -> AI Credit.",
+                name: () => Helper.Translation.Get("config.name.show_ai_credit"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.show_ai_credit"),
                 getValue: () => Config.ShowAiCredit,
                 setValue: value => Config.ShowAiCredit = value
             );
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Show StardewSocial image tags",
-                tooltip: () => "Shows saved image tag text above attached images in StardewSocial posts.",
+                name: () => Helper.Translation.Get("config.name.show_social_image_tags"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.show_social_image_tags"),
                 getValue: () => Config.ShowSocialImageTags,
                 setValue: value => Config.ShowSocialImageTags = value
             );
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Show unread comment count",
-                tooltip: () => "Shows unread comment count on posts.",
+                name: () => Helper.Translation.Get("config.name.show_unread_comment"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.show_unread_comment"),
                 getValue: () => Config.ShowUnreadComment,
                 setValue: value => Config.ShowUnreadComment = value
             );
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Show message image tags",
-                tooltip: () => "Shows attached image tags when hovering photo bubbles in the Text app.",
+                name: () => Helper.Translation.Get("config.name.show_message_image_tags"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.show_message_image_tags"),
                 getValue: () => Config.ShowMessageImageTags,
                 setValue: value => Config.ShowMessageImageTags = value
             );
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "Camera flash radius",
-                tooltip: () => "Radius of the temporary world light when camera FLASH mode is enabled.",
+                name: () => Helper.Translation.Get("config.name.camera_flash_radius"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.camera_flash_radius"),
                 getValue: () => Math.Clamp(Config.PlayerCaptureWorldFlashRadius, 1f, 10f),
                 setValue: value =>
                 {
@@ -343,29 +349,29 @@ namespace Smartphone
 
             configMenu.AddParagraph(
                 mod: ModManifest,
-                text: () => "Phone size and icon."
+                text: () => Helper.Translation.Get("config.paragraph.phone_size")
             );
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Use small phone size",
-                tooltip: () => "Not the ideal size, however in case you have a small screen.\nYou can also adjust the game UI scale which will also affect the phone size.",
+                name: () => Helper.Translation.Get("config.name.small_phone_size"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.small_phone_size"),
                 getValue: () => Config.UseSmallPhoneSize,
                 setValue: value => Config.UseSmallPhoneSize = value
             );
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Show phone icon",
-                tooltip: () => "Show the phone icon on the screen. You can adjust its position with the options below.",
+                name: () => Helper.Translation.Get("config.name.show_phone_icon"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.show_phone_icon"),
                 getValue: () => Config.ShowPhoneIcon,
                 setValue: value => Config.ShowPhoneIcon = value
             );
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "Phone icon X",
-                tooltip: () => "Horizontal offset in pixels for the phone icon.\nNegative = move left, positive = move right.",
+                name: () => Helper.Translation.Get("config.name.phone_icon_x"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.phone_icon_x"),
                 getValue: () => Config.HudPhoneIconOffsetX,
                 setValue: value => Config.HudPhoneIconOffsetX = Math.Clamp(value, -2000, 2000),
                 min: -2000,
@@ -375,8 +381,8 @@ namespace Smartphone
 
             configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => "Phone icon Y",
-                tooltip: () => "Vertical offset in pixels for the phone icon.\nNegative = move up, positive = move down.",
+                name: () => Helper.Translation.Get("config.name.phone_icon_y"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.phone_icon_y"),
                 getValue: () => Config.HudPhoneIconOffsetY,
                 setValue: value => Config.HudPhoneIconOffsetY = Math.Clamp(value, -2000, 2000),
                 min: -2000,
@@ -385,39 +391,54 @@ namespace Smartphone
             );
 
             // notification page
-            configMenu.AddPage(mod: ModManifest, pageId: "notifications", pageTitle: () => "HUD Notifications");
+            configMenu.AddPage(mod: ModManifest, pageId: "notifications", pageTitle: () => Helper.Translation.Get("config.page.notifications"));
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Notification app popups",
-                tooltip: () => "Show HUD popups for Notification app updates.",
+                name: () => Helper.Translation.Get("config.name.notification_popups"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.notification_popups"),
                 getValue: () => Config.notifyNotification,
                 setValue: value => Config.notifyNotification = value
             );
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "Message popups",
-                tooltip: () => "Show HUD popups for new NPC text messages.",
+                name: () => Helper.Translation.Get("config.name.message_popups"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.message_popups"),
                 getValue: () => Config.notifyMessage,
                 setValue: value => Config.notifyMessage = value
             );
 
             configMenu.AddBoolOption(
                 mod: ModManifest,
-                name: () => "StardewSocial popups",
-                tooltip: () => "Show HUD popups for new StardewSocial activity.",
+                name: () => Helper.Translation.Get("config.name.social_popups"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.social_popups"),
                 getValue: () => Config.notifyStardewSocial,
                 setValue: value => Config.notifyStardewSocial = value
             );
 
             // Misc page
-            configMenu.AddPage(mod: ModManifest, pageId: "misc", pageTitle: () => "Misc");
+            configMenu.AddPage(mod: ModManifest, pageId: "misc", pageTitle: () => Helper.Translation.Get("config.page.misc_title"));
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "Ignored NPCs",
-                tooltip: () => "These NPC do not have mobile phone, hence they cannot be texted or post on StardewSocial.\nMust use NPC internal name not displayed name, separated by ','",
+                name: () => Helper.Translation.Get("config.name.new_message_chance"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.new_message_chance"),
+                getValue: () => EnsureAllowedValue(Config.NewMessageChance, ModConfig.NewMessageChanceDefault, newMessageChanceValues),
+                setValue: value => Config.NewMessageChance = value,
+                allowedValues: newMessageChanceValues,
+                formatAllowedValue: value => value switch
+                {
+                    ModConfig.NewMessageChanceDefault => Helper.Translation.Get("config.value.new_message_chance.default"),
+                    ModConfig.NewMessageChanceLow => Helper.Translation.Get("config.value.new_message_chance.low"),
+                    _ => value
+                }
+            );
+
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => Helper.Translation.Get("config.name.ignored_npcs"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.ignored_npcs"),
                 getValue: () => string.IsNullOrWhiteSpace(Config.IgnoredNpc) ? string.Empty : Config.IgnoredNpc,
                 setValue: value =>
                 {

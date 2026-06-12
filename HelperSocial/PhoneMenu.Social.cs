@@ -1143,7 +1143,7 @@ namespace Smartphone
                 DrawPhoneText(
                     b,
                     Game1.smallFont,
-                    "No post yet.",
+                    ModEntry.SHelper.Translation.Get("ui.social.no_post_yet").ToString(),
                     new Vector2(xPositionOnScreen + ScaleUiValue(60), yPositionOnScreen + ScaleUiValue(245)),
                     Color.Black);
             }
@@ -1202,7 +1202,7 @@ namespace Smartphone
             DrawPhoneText(
                 b,
                 Game1.smallFont,
-                "Create ...",
+                ModEntry.SHelper.Translation.Get("ui.social.create").ToString(),
                 new Vector2(buttonX + SocialFeedCreateTextXPadding, buttonY + SocialFeedCreateTextYPadding),
                 Color.Black);
 
@@ -1314,7 +1314,7 @@ namespace Smartphone
                 DrawPhoneText(
                     b,
                     Game1.smallFont,
-                    "No notification.",
+                    ModEntry.SHelper.Translation.Get("ui.social.no_notification").ToString(),
                     new Vector2(cardX + ScaleUiValue(14), cursorY + ScaleUiValue(10)),
                     Color.Black);
             }
@@ -1793,9 +1793,9 @@ namespace Smartphone
 
             string[] infoLines =
             {
-                $"Name: {actorDisplayName}",
-                $"Age: {ageLabel}",
-                $"Birthday: {birthdayLabel}"
+                ModEntry.SHelper.Translation.Get("ui.social.name", new { value = actorDisplayName }).ToString(),
+                ModEntry.SHelper.Translation.Get("ui.social.age", new { value = ageLabel }).ToString(),
+                ModEntry.SHelper.Translation.Get("ui.social.birthday", new { value = birthdayLabel }).ToString()
             };
 
             int infoLineHeight = Math.Max(SocialProfileInfoLinePadding, infoBounds.Height / 3);
@@ -1827,12 +1827,12 @@ namespace Smartphone
             int statsTopY = statsBounds.Y + SocialProfileStatsTopYOffset;
             int statsLineHeight = Math.Max(SocialProfileStatsLinePadding, GetSocialScaledLineHeight(0.85f));
 
-            DrawPhoneText(b, Game1.smallFont, $"Total posts: {stats.TotalPosts}", new Vector2(statsTextX, statsTopY), Color.Black, localScale: 0.9f);
+            DrawPhoneText(b, Game1.smallFont, ModEntry.SHelper.Translation.Get("ui.social.total_posts", new { count = stats.TotalPosts }).ToString(), new Vector2(statsTextX, statsTopY), Color.Black, localScale: 0.9f);
 
             int metricIconX = statsTextX + SocialProfileMetricIconXGap;
 
             int receivedLineY = statsTopY + statsLineHeight;
-            DrawPhoneText(b, Game1.smallFont, "Received", new Vector2(statsTextX, receivedLineY), Color.Black, localScale: 0.9f);
+            DrawPhoneText(b, Game1.smallFont, ModEntry.SHelper.Translation.Get("ui.social.received").ToString(), new Vector2(statsTextX, receivedLineY), Color.Black, localScale: 0.9f);
 
             Rectangle receivedHeartBounds = new Rectangle(
                 metricIconX + SocialProfileMetricHeartXOffset,
@@ -1861,7 +1861,7 @@ namespace Smartphone
                 Color.Black, localScale: 0.9f);
 
             int sentLineY = receivedLineY + statsLineHeight;
-            DrawPhoneText(b, Game1.smallFont, "Sent", new Vector2(statsTextX, sentLineY), Color.Black, localScale: 0.9f);
+            DrawPhoneText(b, Game1.smallFont, ModEntry.SHelper.Translation.Get("ui.social.sent").ToString(), new Vector2(statsTextX, sentLineY), Color.Black, localScale: 0.9f);
 
             Rectangle sentHeartBounds = new Rectangle(
                 metricIconX + SocialProfileMetricHeartXOffset,
@@ -1910,8 +1910,8 @@ namespace Smartphone
             Rectangle fromBounds = new Rectangle(interactionBounds.X + innerPadding, interactionBounds.Y + innerPadding, columnWidth, interactionBounds.Height - innerPadding * 2);
             Rectangle toBounds = new Rectangle(fromBounds.Right + columnGap, fromBounds.Y, columnWidth, fromBounds.Height);
 
-            DrawSocialInteractionColumn(b, fromBounds, "Top Interact From", topFrom);
-            DrawSocialInteractionColumn(b, toBounds, "Top Interact To", topTo);
+            DrawSocialInteractionColumn(b, fromBounds, ModEntry.SHelper.Translation.Get("ui.social.top_interaction_from").ToString(), topFrom);
+            DrawSocialInteractionColumn(b, toBounds, ModEntry.SHelper.Translation.Get("ui.social.top_interaction_to").ToString(), topTo);
 
             cursorY += interactionBounds.Height + SocialProfileSectionSpacing;
 
@@ -1920,7 +1920,7 @@ namespace Smartphone
             DrawPhoneText(
                 b,
                 Game1.smallFont,
-                "Posts (Newest to Oldest)",
+                ModEntry.SHelper.Translation.Get("ui.social.posts_newest_oldest").ToString(),
                 new Vector2(postsHeaderBounds.X + ScaleUiValue(14), postsHeaderBounds.Y + ScaleUiValue(9)),
                 Color.Black);
 
@@ -1931,7 +1931,7 @@ namespace Smartphone
                 DrawPhoneText(
                     b,
                     Game1.smallFont,
-                    "No post yet.",
+                    ModEntry.SHelper.Translation.Get("ui.social.no_post_yet").ToString(),
                     new Vector2(cardX + ScaleUiValue(14), cursorY + ScaleUiValue(10)),
                     Color.Black);
             }

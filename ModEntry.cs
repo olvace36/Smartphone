@@ -1,4 +1,4 @@
-﻿
+
 using System;
 using System.Diagnostics.Metrics;
 using System.IO;
@@ -229,6 +229,91 @@ namespace Smartphone
             return ModEntry.UnregisterChatQuickActionButtonInternal(ownerModId, actionId);
         }
 
+        public bool IsSmallPhoneSize()
+        {
+            return ModEntry.Config?.UseSmallPhoneSize == true;
+        }
+
+        public float GetPhoneUiScale()
+        {
+            return ModEntry.GetActivePhoneUiScale();
+        }
+
+        public int GetPhoneFrameWidth()
+        {
+            return ModEntry.GetScaledPhoneFrameWidth();
+        }
+
+        public int GetPhoneFrameHeight()
+        {
+            return ModEntry.GetScaledPhoneFrameHeight();
+        }
+
+        public (int offsetX, int offsetY) GetPhoneContentOffset()
+        {
+            return (ModEntry.GetScaledPhoneContentOffsetX(), ModEntry.GetScaledPhoneContentOffsetY());
+        }
+
+        public Texture2D? GetPhoneFrameTexture()
+        {
+            var texture = Textures.PhoneEmpty;
+            return (texture != null && !texture.IsDisposed) ? texture : null;
+        }
+
+        public Texture2D? GetPhoneBackgroundTexture()
+        {
+            var texture = Textures.PhoneBackground;
+            return (texture != null && !texture.IsDisposed) ? texture : null;
+        }
+
+        public (int x, int y) GetPhonePosition()
+        {
+            return (ModEntry.currentMenuX, ModEntry.currentMenuY);
+        }
+
+        public bool HandlePhoneAppBottomNavClick(int x, int y, int phoneX, int phoneY, Action? onBack = null)
+        {
+            float uiScale = ModEntry.GetActivePhoneUiScale();
+            int scale(int val) => ModEntry.ScalePhoneUiValue(val, uiScale);
+
+            var backBounds = new Rectangle(phoneX + scale(132), phoneY + scale(925), scale(64), scale(64));
+            var lockBounds = new Rectangle(phoneX + scale(405), phoneY + scale(925), scale(64), scale(64));
+            var homeBounds = new Rectangle(phoneX + scale(265), phoneY + scale(925), scale(64), scale(64));
+
+            if (backBounds.Contains(x, y))
+            {
+                Game1.playSound("cancel");
+                if (onBack != null)
+                {
+                    onBack();
+                }
+                else
+                {
+                    Game1.activeClickableMenu?.exitThisMenuNoSound();
+                    ModEntry.OpenPhoneFromHudTrigger();
+                }
+                return true;
+            }
+
+            if (lockBounds.Contains(x, y))
+            {
+                Game1.playSound("cancel");
+                Game1.activeClickableMenu?.exitThisMenuNoSound();
+                return true;
+            }
+
+            if (homeBounds.Contains(x, y))
+            {
+                Game1.playSound("bigSelect");
+                Game1.activeClickableMenu?.exitThisMenuNoSound();
+                PhoneMenu.currentApp = null;
+                ModEntry.OpenPhoneFromHudTrigger();
+                return true;
+            }
+
+            return false;
+        }
+
     }
 
     public partial class ModEntry : Mod
@@ -409,7 +494,9 @@ namespace Smartphone
         public static void CheckSendNewMessage()
         {
             int timePassed = Game1.timeOfDay - lastTimeReceiveMessage;
-            int baseChance = (timePassed - 100) / 50;
+            int baseChance = Config.NewMessageChance == ModConfig.NewMessageChanceLow
+                ? (timePassed - 100) / 100
+                : (timePassed - 100) / 50;
             baseChance = Math.Min(baseChance, 15);
 
             if (Game1.random.NextDouble() < baseChance / 100.0)
@@ -594,7 +681,7 @@ namespace Smartphone
             {
                 RecentEvents.Add(new RecentEvent
                 {
-                    Description = $"Player and {Game1.player.dancePartner.TryGetVillager().Name} danced together at the Flower Dance",
+                    Description = SHelper.Translation.Get("event.flower_dance", new { npcName = Game1.player.dancePartner.TryGetVillager().Name }),
                     DaysRemaining = 7
                 });
                 isTodayEventAdded = true;
@@ -604,7 +691,7 @@ namespace Smartphone
                 string festivalId = Game1.CurrentEvent.FestivalName;
                 RecentEvents.Add(new RecentEvent
                 {
-                    Description = $"Player joined {festivalId} event with everyone in the town.",
+                    Description = SHelper.Translation.Get("event.festival", new { festivalId = festivalId }),
                     DaysRemaining = 5
                 });
                 isTodayEventAdded = true;

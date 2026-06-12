@@ -42,9 +42,12 @@ namespace Smartphone
         public const string CharacteristicModeShort = "short";
         public const string CharacteristicModeLong = "long";
 
+        public const string NewMessageChanceDefault = "Default";
+        public const string NewMessageChanceLow = "Low";
 
         public SButton ModKey { get; set; } = SButton.H;
         public string NpcMessageRequirement { get; set; } = NpcRequirementMeet;
+        public string NewMessageChance { get; set; } = NewMessageChanceDefault;
         public string PostPerDay { get; set; } = PostPerDayLow;
         public string Language { get; set; } = "English";
 
