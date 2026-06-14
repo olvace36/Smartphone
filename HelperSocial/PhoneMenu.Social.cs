@@ -457,6 +457,7 @@ namespace Smartphone
         public void ResetSocialImageLoadCache()
         {
             socialFailedImagePaths.Clear();
+            socialImageCache.Clear();
         }
 
         private void OpenSocialApp()

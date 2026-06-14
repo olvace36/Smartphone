@@ -2101,6 +2101,7 @@ namespace Smartphone
                     StardewConnectManager.SetSharedPlayerAvatarFileName(playerName, localAvatarFileName, saveData: true, notifyPhoneMenu: true);
                 }
 
+                InvalidateSocialImageLoadCaches();
                 return;
             }
 
@@ -2111,6 +2112,7 @@ namespace Smartphone
                     DeletePlayerAvatarForPlayer(playerName);
                     StardewConnectManager.SetSharedPlayerAvatarFileName(playerName, string.Empty, saveData: true, notifyPhoneMenu: true);
                     BroadcastAvatarDelta(playerName, clearAvatar: true);
+                    InvalidateSocialImageLoadCaches();
                     return;
                 }
 
@@ -2124,6 +2126,7 @@ namespace Smartphone
 
                 StardewConnectManager.SetSharedPlayerAvatarFileName(playerName, syncedFileName, saveData: true, notifyPhoneMenu: true);
                 BroadcastAvatarDelta(playerName, clearAvatar: false);
+                InvalidateSocialImageLoadCaches();
                 return;
             }
 
