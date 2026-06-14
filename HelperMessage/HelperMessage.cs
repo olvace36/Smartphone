@@ -307,7 +307,7 @@ namespace Smartphone
                     b,
                     Game1.dialogueFont,
                     selectedNpcDisplayName,
-                    new Vector2(PhoneX(65), PhoneY(65)),
+                    new Vector2(PhoneX(105), PhoneY(65)),
                     Color.Black);
 
                 backButton.draw(b, Color.Tan, 1f);
@@ -829,7 +829,7 @@ namespace Smartphone
             textProfileDescriptionFieldBounds = Rectangle.Empty;
             textProfileSeasonButtonBounds = Rectangle.Empty;
 
-            int titleX = PhoneX(65);
+            int titleX = PhoneX(105);
             int titleY = PhoneY(65);
             DrawPhoneText(b, Game1.dialogueFont, ModEntry.SHelper.Translation.Get("ui.message.profile"), new Vector2(titleX, titleY), Color.Black);
 

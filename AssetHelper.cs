@@ -92,6 +92,8 @@ public class AssetHelper
         public const string AppSocial = "app_social.png";
         public const string AppSetting = "app_setting.png";
         public const string AppNotification = "app_notification.png";
+        public const string AppAppStore = "app_appstore.png";
+        public const string AppCalendar = "app_calendar.png";
     }
 
 }

@@ -143,6 +143,8 @@ namespace Smartphone
 
             ConfigMenu(api, this.ModManifest, Helper);
 
+            AppStoreManager.Initialize();
+
             iUnlimitedEventExpansionApi = SHelper.ModRegistry.GetApi<IUnlimitedEventExpansionApi>("d5a1lamdtd.UnlimitedEventExpansion");
 
             if (iUnlimitedEventExpansionApi == null)

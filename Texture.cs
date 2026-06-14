@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 
@@ -17,6 +17,8 @@ namespace Smartphone
         public static Texture2D AppSocial;
         public static Texture2D AppSetting;
         public static Texture2D AppNotification;
+        public static Texture2D AppAppStore;
+        public static Texture2D AppCalendar;
 
         public static void LoadTextures()
         {
@@ -55,6 +57,10 @@ namespace Smartphone
             AppPhoto = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppPhoto));
             AppSetting = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppSetting));
             AppNotification = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppNotification));
+            AppAppStore = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppAppStore));
+            AppCalendar = TryLoadTextureOrFallback(
+                Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppCalendar),
+                Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppAppStore));
             AppSocial = TryLoadTextureOrFallback(
                 Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppSocial),
                 Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppNotification));

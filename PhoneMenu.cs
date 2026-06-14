@@ -145,6 +145,8 @@ namespace Smartphone
         private Texture2D textureAppSocial = Textures.AppSocial;
         private Texture2D textureAppSetting = Textures.AppSetting;
         private Texture2D textureAppNotification = Textures.AppNotification;
+        private Texture2D textureAppAppStore = Textures.AppAppStore;
+        private Texture2D textureAppCalendar = Textures.AppCalendar;
 
         public List<ClickableComponent> messageableNpcList;
         private int scrollOffset = 0;
@@ -269,6 +271,7 @@ namespace Smartphone
         private const string BuiltinAppNotificationId = "builtin:notification";
         private const string BuiltinAppTextId = "builtin:text";
         private const string BuiltinAppCameraId = "builtin:camera";
+        private const string BuiltinAppStoreId = "builtin:appstore";
         private const string BuiltinAppPhotoId = "builtin:photo";
         private const string BuiltinAppSocialId = "builtin:social";
         private const string BuiltinAppSettingId = "builtin:setting";
@@ -283,7 +286,7 @@ namespace Smartphone
         private const string SettingMenuOptionTheme = "theme";
         private const string SettingMenuOptionPhoneSetting = "phoneSetting";
         private const string ThemeReadmeFileName = "readme.txt";
-        private const int SettingsTitleXOffsetBase = 65;
+        private const int SettingsTitleXOffsetBase = 105;
         private const int SettingsTitleYOffsetBase = 67;
         private const int SettingsMainOptionsStartYBase = 260;
         private const int SettingsListStartYBase = 150;
@@ -1008,6 +1011,16 @@ namespace Smartphone
             {
                 DrawSettingMenu(b);
             }
+            else if (currentApp == "appStore")
+            {
+                b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
+                DrawPhoneScreenBackground(b, xOffset: 0);
+                DrawPhoneFrame(b);
+                backButton.draw(b, Color.Tan, 1f);
+                lockButton.draw(b, Color.Tan, 1f);
+                homeButton.draw(b, Color.Tan, 1f);
+                DrawAppStore(b);
+            }
             else if (currentApp == "appNotification")
             {
                 b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
@@ -1407,10 +1420,18 @@ namespace Smartphone
                     HandleSocialBackNavigation();
                     return;
                 }
-                else if (new List<string> { "appCamera", "appPhoto", "appNotification", ExternalGroupAppState }.Contains(currentApp))
+                else if (new List<string> { "appCamera", "appPhoto", "appNotification", "appStore", ExternalGroupAppState }.Contains(currentApp))
                 {
                     if (currentApp == ExternalGroupAppState)
                         ClearCurrentExternalGroup();
+                    else if (currentApp == "appStore")
+                    {
+                        if (TryHandleAppStoreBackButton())
+                            return;
+
+                        AppStoreManager.DisposeTextures();
+                        ResetAppStoreState();
+                    }
 
 
                     currentApp = null;
@@ -1627,6 +1648,10 @@ namespace Smartphone
                     }
                 }
             }
+            else if (currentApp == "appStore")
+            {
+                ReceiveLeftClickAppStore(x, y);
+            }
         }
 
 
@@ -1661,6 +1686,10 @@ namespace Smartphone
                     scrollOffset -= direction / 120;
                     scrollOffset = Math.Max(0, Math.Min(scrollOffset, phoneThemeList.Count - maxVisibleNPCs));
                 }
+            }
+            else if (currentApp == "appStore")
+            {
+                ReceiveScrollWheelActionAppStore(direction);
             }
             else if (currentApp == "appNotification")
             {
@@ -1699,6 +1728,14 @@ namespace Smartphone
 
                     if (currentApp == ExternalGroupAppState)
                         ClearCurrentExternalGroup();
+                    else if (currentApp == "appStore")
+                    {
+                        if (TryHandleAppStoreBackButton())
+                            return;
+
+                        AppStoreManager.DisposeTextures();
+                        ResetAppStoreState();
+                    }
 
                     currentApp = null;
                     return;
@@ -2140,6 +2177,13 @@ namespace Smartphone
             else if (currentApp == SocialAppState)
             {
                 ApplySocialTouchScrollDelta(pixelDelta);
+            }
+            else if (currentApp == "appStore")
+            {
+                if (appStoreCurrentState == AppStoreState.Detail)
+                {
+                    appStoreDetailScrollOffset = Math.Max(0, Math.Min(appStoreDetailScrollOffset + pixelDelta, appStoreMaxDetailScroll));
+                }
             }
         }
 
@@ -2893,6 +2937,7 @@ namespace Smartphone
             textureAppSocial = Textures.AppSocial;
             textureAppSetting = Textures.AppSetting;
             textureAppNotification = Textures.AppNotification;
+            textureAppAppStore = Textures.AppAppStore;
         }
 
         private Color GetCurrentHomeTextColor()
@@ -3569,7 +3614,7 @@ namespace Smartphone
             b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
         }
 
-        private Rectangle GetPhoneContentBounds(int xOffset = 0)
+        public Rectangle GetPhoneContentBounds(int xOffset = 0)
         {
             return new Rectangle(
                 xPositionOnScreen + ModEntry.GetScaledPhoneContentOffsetX(phoneUiScale) + xOffset,
@@ -3951,6 +3996,12 @@ namespace Smartphone
                 },
                 new HomeAppEntry
                 {
+                    Id = BuiltinAppStoreId,
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.appstore.name"),
+                    IconTexture = textureAppAppStore
+                },
+                new HomeAppEntry
+                {
                     Id = BuiltinAppTextId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.messages.name"),
                     IconTexture = textureAppText,
@@ -3985,8 +4036,7 @@ namespace Smartphone
                 {
                     Id = BuiltinAppCalendarId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.calendar.name"),
-                    IconTexture = furnitureTexture,
-                    SourceRect = new Rectangle(417, 698, 15, 16)
+                    IconTexture = textureAppCalendar
                 }
             };
 
@@ -4176,6 +4226,9 @@ namespace Smartphone
                 case BuiltinAppNotificationId:
                     OpenNotification();
                     currentApp = "appNotification";
+                    return true;
+                case BuiltinAppStoreId:
+                    currentApp = "appStore";
                     return true;
 
                 case BuiltinAppTextId:
@@ -5004,6 +5057,12 @@ namespace Smartphone
 
         public void ClosePhoneMenu()
         {
+            AppStoreManager.DisposeTextures();
+            if (currentApp == "appStore")
+            {
+                ResetAppStoreState();
+            }
+
             SetPhoneTextInputFocus(false);
             ResetChatQuickActionsState();
             CloseChatPhotoPicker(clearSelection: true);

@@ -23,13 +23,14 @@ namespace Smartphone
         private const int SocialPostTextMaxWidthBase = 450;
         private const int SocialCommentPreviewCount = 2;
         private const int SocialCreateSelectionMaxCount = 3;
-        private const int SocialFeedCreateButtonXBase = 60;
-        private const int SocialFeedCreateButtonYBase = 65;
+        private const int SocialFeedCreateButtonXBase = 100;
+        private const int SocialFeedCreateButtonYBase = 62;
         private const int SocialFeedCreateButtonWidthBase = 150;
         private const int SocialFeedCreateButtonHeightBase = 50;
         private const int SocialFeedProfileXGapBase = 16;
-        private const int SocialFeedProfileYOffsetBase = 4;
+        private const int SocialFeedProfileYOffsetBase = 1;
         private const int SocialFeedNotificationXGapBase = 10;
+        private const int SocialFeedNotificationYOffsetBase = 2;
         private const int SocialFeedCreateTextXPaddingBase = 14;
         private const int SocialFeedCreateTextYPaddingBase = 12;
         private const float SocialFeedProfileIconScale = 0.75f;
@@ -121,6 +122,7 @@ namespace Smartphone
         private int SocialFeedProfileXGap => ScaleUiValue(SocialFeedProfileXGapBase);
         private int SocialFeedProfileYOffset => ScaleUiValue(SocialFeedProfileYOffsetBase);
         private int SocialFeedNotificationXGap => ScaleUiValue(SocialFeedNotificationXGapBase);
+        private int SocialFeedNotificationYOffset => ScaleUiValue(SocialFeedNotificationYOffsetBase);
         private int SocialFeedCreateTextXPadding => ScaleUiValue(SocialFeedCreateTextXPaddingBase);
         private int SocialFeedCreateTextYPadding => ScaleUiValue(SocialFeedCreateTextYPaddingBase);
         private int SocialCreatePanelX => ScaleUiValue(SocialCreatePanelXBase);
@@ -1220,7 +1222,7 @@ namespace Smartphone
 
             socialFeedOpenNotificationBounds = new Rectangle(
                 socialFeedOpenProfileBounds.Right + SocialFeedNotificationXGap,
-                socialFeedOpenProfileBounds.Y,
+                socialFeedOpenProfileBounds.Y + SocialFeedNotificationYOffset,
                 SocialNotificationButtonSize,
                 SocialNotificationButtonSize);
 
