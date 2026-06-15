@@ -161,6 +161,88 @@ Notes:
 - Both methods return false when the game world is not ready.
 
 
+*** CUSTOM ONSCREEN APP UI API ***
+
+If you register a custom app using `RegisterPhoneApp` or `RegisterPhoneAppGroupItem`, you can assign an `onClick` callback to open your own `IClickableMenu` that renders *inside* the phone screen.
+The Smartphone API provides several helper methods to seamlessly integrate your custom app UI with the phone's appearance and navigation.
+
+Example basic overview of creating an onscreen app:
+
+1) Open your menu:
+
+	smartphoneApi.RegisterPhoneApp(..., onClick: () => Game1.activeClickableMenu = new MyCustomAppScreen(smartphoneApi), ...);
+
+2) Construct your menu using phone layout dimensions:
+
+	// In your MyCustomAppScreen constructor:
+	this.xPositionOnScreen = smartphoneApi.GetPhonePosition().x;
+	this.yPositionOnScreen = smartphoneApi.GetPhonePosition().y;
+	this.width = smartphoneApi.GetPhoneFrameWidth();
+	this.height = smartphoneApi.GetPhoneFrameHeight();
+
+	// Get content offset for rendering inside the bezel
+	var offset = smartphoneApi.GetPhoneContentOffset();
+	Rectangle contentBounds = new Rectangle(
+		this.xPositionOnScreen + offset.offsetX,
+		this.yPositionOnScreen + offset.offsetY,
+		(int)((smartphoneApi.GetPhoneBackgroundTexture()?.Width ?? 1) * smartphoneApi.GetPhoneUiScale()),
+		(int)((smartphoneApi.GetPhoneBackgroundTexture()?.Height ?? 1) * smartphoneApi.GetPhoneUiScale())
+	);
+
+3) Support phone navigation (Home, Lock, Back buttons) in `receiveLeftClick`:
+
+	if (smartphoneApi.HandlePhoneAppBottomNavClick(x, y, this.xPositionOnScreen, this.yPositionOnScreen, onBack: () => /* navigate back */))
+	{
+		return;
+	}
+
+4) Implement drag-to-move and swipe-to-scroll (pseudo-logic):
+	- Track state variables for `isDragging`, `isScrolling`, `scrollOffset`.
+	- In `leftClickHeld(x, y)`:
+		- If clicking on `contentBounds`, set `isScrolling = true` and update `scrollOffset` based on mouse Y delta.
+		- If clicking on phone frame (outside `contentBounds`), set `isDragging = true` and update `this.xPositionOnScreen` and `this.yPositionOnScreen`.
+	- Use `Game1.graphics.GraphicsDevice.ScissorRectangle = contentBounds;` before drawing your app's content to clip overflow during scrolling.
+
+5) Draw your app:
+
+	public override void draw(SpriteBatch b)
+	{
+		// Draw standard Stardew dark overlay
+		b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * 0.6f);
+
+		// Draw phone background
+		Texture2D bg = smartphoneApi.GetPhoneBackgroundTexture();
+		if (bg != null) b.Draw(bg, contentBounds, Color.White);
+
+		// Apply scissor mask for scrollable content
+		b.End();
+		b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState() { ScissorTestEnable = true });
+		var prevScissor = Game1.graphics.GraphicsDevice.ScissorRectangle;
+		Game1.graphics.GraphicsDevice.ScissorRectangle = contentBounds;
+
+		// ---> Draw your custom app content here, adjusting Y positions by `this.scrollOffset` <---
+
+		// Restore mask and draw phone frame overlay
+		b.End();
+		Game1.graphics.GraphicsDevice.ScissorRectangle = prevScissor;
+		b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+		
+		Texture2D frame = smartphoneApi.GetPhoneFrameTexture();
+		if (frame != null) b.Draw(frame, GetFrameBounds(), Color.White);
+
+		drawMouse(b);
+	}
+
+Method summary:
+- GetPhonePosition()
+- GetPhoneFrameWidth() / GetPhoneFrameHeight()
+- GetPhoneContentOffset()
+- GetPhoneUiScale()
+- GetPhoneFrameTexture() / GetPhoneBackgroundTexture()
+- IsSmallPhoneSize()
+- HandlePhoneAppBottomNavClick(x, y, phoneX, phoneY, onBack)
+
+
 *** TEXT CHAT QUICK ACTION BUTTON API ***
 
 You can register custom quick-action buttons in the Text app chat menu (the menu opened by the ^ button).

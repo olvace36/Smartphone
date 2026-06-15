@@ -2341,6 +2341,7 @@ namespace Smartphone
                     .Split("||", StringSplitOptions.RemoveEmptyEntries)
                     .Select(path => path.Trim())
                     .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Select(path => path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? Path.ChangeExtension(path, ".jpg") : path)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
                 return photoPaths.Count > 0;
@@ -2353,6 +2354,7 @@ namespace Smartphone
                     .Split("||", StringSplitOptions.RemoveEmptyEntries)
                     .Select(path => path.Trim())
                     .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Select(path => path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? Path.ChangeExtension(path, ".jpg") : path)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
                 return photoPaths.Count > 0;
@@ -3090,7 +3092,8 @@ namespace Smartphone
 
             if (Directory.Exists(playerCaptureFolder))
             {
-                chatPhotoCandidates.AddRange(Directory.GetFiles(playerCaptureFolder, "*.png")
+                chatPhotoCandidates.AddRange(Directory.GetFiles(playerCaptureFolder)
+                    .Where(p => p.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || p.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
                     .Where(path => !string.IsNullOrWhiteSpace(path))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderByDescending(path => File.GetCreationTime(path)));

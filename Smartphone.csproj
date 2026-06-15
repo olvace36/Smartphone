@@ -1,10 +1,11 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>net6.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>annotations</Nullable>
 		<EnableHarmony>true</EnableHarmony>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 		<GeneratedSecretsFile>$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\Generated\EmbeddedAiSecrets.g.cs</GeneratedSecretsFile>
 		<GeneratedSecretsFileFullPath>$(MSBuildProjectDirectory)\$(GeneratedSecretsFile)</GeneratedSecretsFileFullPath>
 	</PropertyGroup>
@@ -19,6 +20,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="SixLabors.ImageSharp" Version="2.1.13" />
 		<PackageReference Include="TextCopy" Version="6.2.1" />
 		<PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.4.0" />
 

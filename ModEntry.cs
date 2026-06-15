@@ -419,31 +419,43 @@ namespace Smartphone
         private static string ResolveSaveFolderNameFromContext()
         {
             string constantsSaveFolder = NormalizeSaveFolderName(Constants.SaveFolderName);
+
             if (!string.IsNullOrWhiteSpace(constantsSaveFolder))
-                return constantsSaveFolder;
+            {
+                int underscoreIndex = constantsSaveFolder.IndexOf('_');
+
+                // If an underscore is found, return from the underscore onwards
+                if (underscoreIndex != -1)
+                {
+                    return constantsSaveFolder.Substring(underscoreIndex); // e.g., "_12345"
+                }
+            }
+
+            long uniqueId = 0;
 
             if (Context.IsWorldReady && Context.IsMultiplayer && Game1.MasterPlayer != null)
             {
-                string masterPlayerName = NormalizeSaveFolderName(Game1.MasterPlayer.Name);
-                long masterPlayerId = Game1.MasterPlayer.UniqueMultiplayerID;
-
-                if (!string.IsNullOrWhiteSpace(masterPlayerName) && masterPlayerId > 0)
-                    return $"{masterPlayerName}_{masterPlayerId}";
-
-                if (masterPlayerId > 0)
-                    return $"_{masterPlayerId}";
+                uniqueId = Game1.MasterPlayer.UniqueMultiplayerID;
+            }
+            else if (Context.IsWorldReady && Game1.player != null)
+            {
+                uniqueId = Game1.player.UniqueMultiplayerID;
             }
 
-            if (Context.IsWorldReady && Game1.player != null)
+            if (uniqueId > 0)
+                return $"_{uniqueId}";
+
+            if (!string.IsNullOrWhiteSpace(constantsSaveFolder))
             {
-                string playerName = NormalizeSaveFolderName(Game1.player.Name);
-                long playerId = Game1.player.UniqueMultiplayerID;
+                int lastUnderscore = constantsSaveFolder.LastIndexOf('_');
+                if (lastUnderscore >= 0 && lastUnderscore < constantsSaveFolder.Length - 1)
+                {
+                    string possibleId = constantsSaveFolder.Substring(lastUnderscore + 1);
+                    if (long.TryParse(possibleId, out _))
+                        return $"_{possibleId}";
+                }
 
-                if (!string.IsNullOrWhiteSpace(playerName) && playerId > 0)
-                    return $"{playerName}_{playerId}";
-
-                if (playerId > 0)
-                    return $"_{playerId}";
+                return constantsSaveFolder;
             }
 
             return "default";

@@ -47,6 +47,7 @@ namespace Smartphone
         private static Dictionary<string, Dictionary<string, AreaData>> OutdoorAreasByLocation = new(StringComparer.OrdinalIgnoreCase);
 
         public static Dictionary<string, string> ImageTags = new(StringComparer.OrdinalIgnoreCase);
+        public static bool IsImageTagsDirty { get; set; } = false;
 
         private static string ImageTagDataPath => $"./userdata/{GetCurrentSaveFolderName()}/imageTags";
 
@@ -77,6 +78,7 @@ namespace Smartphone
         public static void SaveImageTags()
         {
             SHelper.Data.WriteJsonFile(ImageTagDataPath, ImageTags);
+            IsImageTagsDirty = false;
         }
 
         public static void SetImageTags(string imageName, IEnumerable<string> tags)
@@ -97,7 +99,7 @@ namespace Smartphone
             }
 
             ImageTags[imageName] = string.Join(";", cleanedTags);
-            SaveImageTags();
+            IsImageTagsDirty = true;
         }
 
         public static void RemoveImageTags(string imageName)
@@ -106,7 +108,7 @@ namespace Smartphone
                 return;
 
             if (ImageTags.Remove(imageName))
-                SaveImageTags();
+                IsImageTagsDirty = true;
         }
 
         private static void CleanupMissingImageTagEntries()
@@ -120,7 +122,8 @@ namespace Smartphone
                 if (!Directory.Exists(folderPath))
                     continue;
 
-                foreach (string imagePath in Directory.GetFiles(folderPath, "*.png"))
+                var imagePaths = Directory.GetFiles(folderPath).Where(p => p.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || p.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase));
+                foreach (string imagePath in imagePaths)
                 {
                     string? imageName = Path.GetFileName(imagePath);
                     if (!string.IsNullOrWhiteSpace(imageName))
@@ -140,7 +143,7 @@ namespace Smartphone
             }
 
             if (hasChanges)
-                SaveImageTags();
+                IsImageTagsDirty = true;
         }
 
         private static IEnumerable<string> BuildImageTags(Rectangle captureBounds, NPC? npc = null)

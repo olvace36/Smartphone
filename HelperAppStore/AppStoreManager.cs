@@ -227,7 +227,7 @@ namespace Smartphone
                     break;
                 case "Latest":
                 default:
-                    Mods = filteredMods.OrderByDescending(m => DateTime.TryParse(m.Timestamp, out var dt) ? dt : DateTime.MinValue).ToList();
+                    Mods = filteredMods.OrderByDescending(m => DateTime.TryParse(m.PublishedAt, out var dt) ? dt : DateTime.MinValue).ToList();
                     break;
             }
         }

@@ -508,15 +508,14 @@ namespace Smartphone
                 ? "UnknownLocation"
                 : locationName;
 
-            string filename = $"{resolvedLocationName}-{Game1.currentSeason}-Y{Game1.year}-D{Game1.dayOfMonth:D2}_{Game1.random.Next(0, 99999)}.png";
+            string filename = $"{resolvedLocationName}-{Game1.currentSeason}-Y{Game1.year}-D{Game1.dayOfMonth:D2}_{Game1.random.Next(0, 99999)}.jpg";
             string path = Path.Combine(folderPath, filename);
 
             Texture2D? squareNormalizedTexture = TryNormalizeSquareCapture(capturedTexture, enforceSquareOutput);
             try
             {
                 using Texture2D opaqueTexture = CreateOpaqueTexture(squareNormalizedTexture ?? capturedTexture);
-                using FileStream fs = new FileStream(path, FileMode.Create);
-                opaqueTexture.SaveAsPng(fs, opaqueTexture.Width, opaqueTexture.Height);
+                SaveCompressedJpeg(opaqueTexture, path, 256000); // 250KB limit
             }
             finally
             {
@@ -528,6 +527,76 @@ namespace Smartphone
             if (isPlayerPhoto)
                 Game1.addHUDMessage(new HUDMessage("Photo saved!", HUDMessage.newQuest_type));
             return path;
+        }
+
+        private static void SaveCompressedJpeg(Texture2D originalTexture, string path, int maxSizeBytes)
+        {
+            int currentWidth = originalTexture.Width;
+            int currentHeight = originalTexture.Height;
+            Color[] currentColors = new Color[currentWidth * currentHeight];
+            originalTexture.GetData(currentColors);
+
+            int quality = 100;
+            byte[] currentData = EncodeJpegWithImageSharp(currentColors, currentWidth, currentHeight, quality);
+
+            while (currentData.Length > maxSizeBytes && quality > 70)
+            {
+                quality -= 10;
+                currentData = EncodeJpegWithImageSharp(currentColors, currentWidth, currentHeight, quality);
+            }
+
+            if (currentData.Length <= maxSizeBytes)
+            {
+                File.WriteAllBytes(path, currentData);
+                return;
+            }
+
+            while (currentData.Length > maxSizeBytes && currentWidth > 16 && currentHeight > 16)
+            {
+                float scale = (float)Math.Sqrt((double)maxSizeBytes / currentData.Length) * 0.9f;
+                int newWidth = Math.Max(1, (int)(currentWidth * scale));
+                int newHeight = Math.Max(1, (int)(currentHeight * scale));
+
+                Color[] newColors = new Color[newWidth * newHeight];
+                for (int y = 0; y < newHeight; y++)
+                {
+                    int oldY = y * currentHeight / newHeight;
+                    for (int x = 0; x < newWidth; x++)
+                    {
+                        int oldX = x * currentWidth / newWidth;
+                        newColors[y * newWidth + x] = currentColors[oldY * currentWidth + oldX];
+                    }
+                }
+
+                currentWidth = newWidth;
+                currentHeight = newHeight;
+                currentColors = newColors;
+
+                currentData = EncodeJpegWithImageSharp(currentColors, currentWidth, currentHeight, quality);
+            }
+
+            File.WriteAllBytes(path, currentData);
+        }
+
+        private static byte[] EncodeJpegWithImageSharp(Color[] colors, int width, int height, int quality)
+        {
+            using var image = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(width, height);
+            image.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    var rowSpan = accessor.GetRowSpan(y);
+                    for (int x = 0; x < width; x++)
+                    {
+                        var c = colors[y * width + x];
+                        rowSpan[x] = new SixLabors.ImageSharp.PixelFormats.Rgba32(c.R, c.G, c.B, c.A);
+                    }
+                }
+            });
+
+            using var ms = new MemoryStream();
+            image.Save(ms, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = quality });
+            return ms.ToArray();
         }
 
         private static Texture2D? TryNormalizeSquareCapture(Texture2D capturedTexture, bool enforceSquareOutput)
@@ -591,7 +660,9 @@ namespace Smartphone
                     return;
 
                 int safeLimit = Math.Clamp(maxPhotos, 1, 500);
-                string[] photoPaths = Directory.GetFiles(folderPath, "*.png");
+                string[] photoPaths = Directory.GetFiles(folderPath)
+                    .Where(p => p.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || p.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
                 if (photoPaths.Length <= safeLimit)
                     return;
 

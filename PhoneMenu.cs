@@ -2,8 +2,8 @@ using System.Collections.Specialized;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 using System.Text;
-using System.Xml.Linq;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -2036,7 +2036,7 @@ namespace Smartphone
             if (Constants.TargetPlatform != GamePlatform.Android) return;
 
             pendingKeyboardField = field;
-            
+
             try
             {
                 Type keyboardInputType = typeof(Microsoft.Xna.Framework.Input.Keyboard).Assembly.GetType("Microsoft.Xna.Framework.Input.KeyboardInput");
@@ -2065,7 +2065,7 @@ namespace Smartphone
                     string result = pendingKeyboardTask.Result;
                     EditableTextFieldKind field = pendingKeyboardField;
                     SetEditableTextFieldState(field, result, result.Length, result.Length, clearUndoHistory: false);
-                    
+
                     if (field == EditableTextFieldKind.Search)
                     {
                         UpdateNpcList();
@@ -2277,31 +2277,31 @@ namespace Smartphone
             switch (field)
             {
                 case EditableTextFieldKind.ProfileAge:
-                {
-                    string normalizedAge = (MessageManager.currentPlayerAge ?? string.Empty).Trim();
-                    if (!string.Equals(normalizedAge, MessageManager.currentPlayerAge, StringComparison.Ordinal))
-                        SetEditableTextFieldState(field, normalizedAge, normalizedAge.Length, normalizedAge.Length, clearUndoHistory: false);
+                    {
+                        string normalizedAge = (MessageManager.currentPlayerAge ?? string.Empty).Trim();
+                        if (!string.Equals(normalizedAge, MessageManager.currentPlayerAge, StringComparison.Ordinal))
+                            SetEditableTextFieldState(field, normalizedAge, normalizedAge.Length, normalizedAge.Length, clearUndoHistory: false);
 
-                    break;
-                }
+                        break;
+                    }
 
                 case EditableTextFieldKind.ProfileBirthday:
-                {
-                    string normalizedBirthday = NormalizeProfileBirthdayText(MessageManager.currentPlayerBirthDate);
-                    if (!string.Equals(normalizedBirthday, MessageManager.currentPlayerBirthDate, StringComparison.Ordinal))
-                        SetEditableTextFieldState(field, normalizedBirthday, normalizedBirthday.Length, normalizedBirthday.Length, clearUndoHistory: false);
+                    {
+                        string normalizedBirthday = NormalizeProfileBirthdayText(MessageManager.currentPlayerBirthDate);
+                        if (!string.Equals(normalizedBirthday, MessageManager.currentPlayerBirthDate, StringComparison.Ordinal))
+                            SetEditableTextFieldState(field, normalizedBirthday, normalizedBirthday.Length, normalizedBirthday.Length, clearUndoHistory: false);
 
-                    break;
-                }
+                        break;
+                    }
 
                 case EditableTextFieldKind.ProfileDescription:
-                {
-                    string normalizedDescription = NormalizeProfileDescriptionText(MessageManager.currentPlayerProfile);
-                    if (!string.Equals(normalizedDescription, MessageManager.currentPlayerProfile, StringComparison.Ordinal))
-                        SetEditableTextFieldState(field, normalizedDescription, normalizedDescription.Length, normalizedDescription.Length, clearUndoHistory: false);
+                    {
+                        string normalizedDescription = NormalizeProfileDescriptionText(MessageManager.currentPlayerProfile);
+                        if (!string.Equals(normalizedDescription, MessageManager.currentPlayerProfile, StringComparison.Ordinal))
+                            SetEditableTextFieldState(field, normalizedDescription, normalizedDescription.Length, normalizedDescription.Length, clearUndoHistory: false);
 
-                    break;
-                }
+                        break;
+                    }
             }
         }
 
@@ -4293,7 +4293,8 @@ namespace Smartphone
             string userCaptureFolderPath = GetCaptureFolderPath(PlayerPhotoFolderName);
 
             capturedImages = Directory.Exists(userCaptureFolderPath)
-                ? Directory.GetFiles(userCaptureFolderPath, "*.png")
+                ? Directory.GetFiles(userCaptureFolderPath)
+                    .Where(p => p.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || p.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
                     .OrderByDescending(f => File.GetCreationTime(f))
                     .ToList()
                 : new List<string>();

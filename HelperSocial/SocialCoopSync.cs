@@ -40,10 +40,10 @@ namespace Smartphone
 
         private static string PendingSocialSyncRequestId = string.Empty;
 
-        private const int PostsPerSyncChunk = 25;
-        private const int MaxSyncSendsPerTick = 10;
+        private const int PostsPerSyncChunk = 5;
+        private const int MaxSyncBytesPerTick = 400 * 1024;
 
-        private static readonly Queue<Action> PendingSyncSendQueue = new();
+        private static readonly Queue<(Action SendAction, int EstimatedBytes, string Label)> PendingSyncSendQueue = new();
 
         private sealed class PendingFullSyncAccumulator
         {
@@ -565,13 +565,13 @@ namespace Smartphone
                 "player_avatar");
         }
 
-        private static string BuildSharedNpcPhotoFileName(string prefix, string extension = ".png")
+        private static string BuildSharedNpcPhotoFileName(string prefix, string extension = ".jpg")
         {
             string safePrefix = SanitizeFileNameSegment(prefix);
             if (string.IsNullOrWhiteSpace(safePrefix))
                 safePrefix = "shared";
 
-            string safeExtension = string.IsNullOrWhiteSpace(extension) ? ".png" : extension;
+            string safeExtension = string.IsNullOrWhiteSpace(extension) ? ".jpg" : extension;
             if (!safeExtension.StartsWith('.'))
                 safeExtension = "." + safeExtension;
 
@@ -584,7 +584,7 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(safePlayerName))
                 safePlayerName = "player";
 
-            return safePlayerName + "_avatar.png";
+            return safePlayerName + "_avatar.jpg";
         }
 
         private static string SanitizeFileNameSegment(string input)
@@ -697,15 +697,50 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(text) && uploads.Count == 0)
                 return false;
 
-            var payload = new SocialCreatePostRequestMessage
+            string normalizedDesiredPostId = (desiredPostId ?? string.Empty).Trim();
+            string normalizedAuthorName = (authorName ?? string.Empty).Trim();
+
+            // Send the first image (if any) with the post text immediately via the queue
+            var firstPayload = new SocialCreatePostRequestMessage
             {
-                DesiredPostId = (desiredPostId ?? string.Empty).Trim(),
-                AuthorName = (authorName ?? string.Empty).Trim(),
+                DesiredPostId = normalizedDesiredPostId,
+                AuthorName = normalizedAuthorName,
                 PostText = text,
-                UploadedImages = uploads
+                UploadedImages = uploads.Count > 0
+                    ? new List<SocialUploadedImageMessage> { uploads[0] }
+                    : new List<SocialUploadedImageMessage>()
             };
 
-            return SendMessageToHost(payload, SocialMessageCreatePostRequest);
+            int firstEstimatedBytes = uploads.Count > 0
+                ? Encoding.UTF8.GetByteCount(uploads[0].Base64Image ?? string.Empty) + 2000
+                : 2000;
+
+            PendingSyncSendQueue.Enqueue((
+                () => SendMessageToHost(firstPayload, SocialMessageCreatePostRequest),
+                firstEstimatedBytes,
+                $"CreatePostRequest image 1/{uploads.Count} for '{normalizedAuthorName}'"));
+
+            // Queue remaining images as separate post requests with the same post ID
+            for (int i = 1; i < uploads.Count; i++)
+            {
+                var subsequentUpload = uploads[i];
+                var subsequentPayload = new SocialCreatePostRequestMessage
+                {
+                    DesiredPostId = normalizedDesiredPostId,
+                    AuthorName = normalizedAuthorName,
+                    PostText = string.Empty,
+                    UploadedImages = new List<SocialUploadedImageMessage> { subsequentUpload }
+                };
+
+                int estimatedBytes = Encoding.UTF8.GetByteCount(subsequentUpload.Base64Image ?? string.Empty) + 2000;
+                int capturedIndex = i + 1;
+                PendingSyncSendQueue.Enqueue((
+                    () => SendMessageToHost(subsequentPayload, SocialMessageCreatePostRequest),
+                    estimatedBytes,
+                    $"CreatePostRequest image {capturedIndex}/{uploads.Count} for '{normalizedAuthorName}'"));
+            }
+
+            return true;
         }
 
         internal static bool TryRequestHostAddPlayerComment(string postId, string authorName, string commentText, string desiredCommentId)
@@ -798,6 +833,7 @@ namespace Smartphone
             };
 
             var mergedTagParts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var photoPayloadsToQueue = new List<SocialPhotoUpsertMessage>();
             List<string> normalizedPhotoPaths = (playerPhotoPaths ?? Enumerable.Empty<string>())
                 .Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -821,8 +857,19 @@ namespace Smartphone
                     continue;
                 }
 
-                payload.SharedPhotos.Add(sharedPhotoPayload);
+                // Collect photos to queue separately for the actual image data
+                photoPayloadsToQueue.Add(sharedPhotoPayload);
                 sharedPhotoFileNames.Add(sharedFileName);
+
+                // Add metadata-only reference to SharedPhotos so receiver can build message entries
+                // (no Base64 data — the actual image is queued separately via the throttle)
+                payload.SharedPhotos.Add(new SocialPhotoUpsertMessage
+                {
+                    SaveFolderName = sharedPhotoPayload.SaveFolderName,
+                    FileName = sharedPhotoPayload.FileName,
+                    Base64Image = string.Empty,
+                    ImageTag = sharedPhotoPayload.ImageTag
+                });
 
                 foreach (string tag in SplitImageTagText(sharedPhotoPayload.ImageTag))
                     mergedTagParts.Add(tag);
@@ -830,10 +877,24 @@ namespace Smartphone
 
             sharedPhotoTagText = string.Join("; ", mergedTagParts);
 
-            if (string.IsNullOrWhiteSpace(payload.Text) && payload.SharedPhotos.Count == 0)
+            if (string.IsNullOrWhiteSpace(payload.Text) && photoPayloadsToQueue.Count == 0)
                 return false;
 
-            return SendMessageToPlayer(payload, SocialMessageDirectPlayerChat, receiverPlayerId);
+            // Send chat message with photo metadata (no Base64) immediately (small payload, safe)
+            SendMessageToPlayer(payload, SocialMessageDirectPlayerChat, receiverPlayerId);
+
+            // Queue each photo separately through the throttled queue
+            foreach (SocialPhotoUpsertMessage photoPayload in photoPayloadsToQueue)
+            {
+                var capturedPhoto = photoPayload;
+                int estimatedBytes = Encoding.UTF8.GetByteCount(capturedPhoto.Base64Image ?? string.Empty) + 500;
+                PendingSyncSendQueue.Enqueue((
+                    () => SendMessageToPlayer(capturedPhoto, SocialMessagePhotoUpsert, receiverPlayerId),
+                    estimatedBytes,
+                    $"DM photo: {capturedPhoto.FileName ?? "unknown"}"));
+            }
+
+            return true;
         }
 
         private static bool TryResolveOnlinePlayerId(string playerName, out long playerId)
@@ -893,14 +954,29 @@ namespace Smartphone
             if (!ShouldBroadcastAuthoritativeSocialChanges() || post == null)
                 return;
 
+            // Build photo payloads but do NOT include them in the delta message
+            List<SocialPhotoUpsertMessage> photoPayloads = BuildPostPhotoPayloads(post);
+
             var payload = new SocialPostDeltaMessage
             {
                 Post = post,
                 ProfileStats = profileStats ?? new Dictionary<string, StardewConnectProfileStats>(StringComparer.OrdinalIgnoreCase),
-                PhotoPayloads = BuildPostPhotoPayloads(post)
+                PhotoPayloads = new List<SocialPhotoUpsertMessage>() // send empty — photos go separately
             };
 
+            // The text delta is small (~1-5KB), safe to send immediately
             BroadcastToFarmhands(payload, SocialMessagePostDelta);
+
+            // Queue each photo separately through the throttled queue
+            foreach (SocialPhotoUpsertMessage photoPayload in photoPayloads)
+            {
+                var capturedPhoto = photoPayload;
+                int estimatedBytes = Encoding.UTF8.GetByteCount(capturedPhoto.Base64Image ?? string.Empty) + 500;
+                PendingSyncSendQueue.Enqueue((
+                    () => BroadcastToFarmhands(capturedPhoto, SocialMessagePhotoUpsert),
+                    estimatedBytes,
+                    $"PostDelta photo: {capturedPhoto.FileName ?? "unknown"}"));
+            }
         }
 
         internal static void BroadcastSyncedSocialComment(
@@ -1017,6 +1093,46 @@ namespace Smartphone
             }
         }
 
+        private static int EstimateNpcPhotoBytes(string fileName)
+        {
+            try
+            {
+                string normalizedFileName = Path.GetFileName(fileName ?? string.Empty) ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(normalizedFileName))
+                    return 50_000;
+
+                string absolutePath = GetNpcPhotoAbsolutePath(normalizedFileName);
+                if (string.IsNullOrWhiteSpace(absolutePath) || !File.Exists(absolutePath))
+                    return 50_000;
+
+                long fileSize = new FileInfo(absolutePath).Length;
+                // Base64 inflates by ~1.37x, plus JSON envelope overhead
+                return (int)Math.Min((long)(fileSize * 1.37) + 2000, int.MaxValue);
+            }
+            catch
+            {
+                return 50_000;
+            }
+        }
+
+        private static int EstimatePlayerAvatarBytes(string playerName)
+        {
+            try
+            {
+                string avatarFileName = BuildPlayerAvatarFileName(playerName);
+                string absolutePath = GetPlayerAvatarAbsolutePath(avatarFileName);
+                if (string.IsNullOrWhiteSpace(absolutePath) || !File.Exists(absolutePath))
+                    return 50_000;
+
+                long fileSize = new FileInfo(absolutePath).Length;
+                return (int)Math.Min((long)(fileSize * 1.37) + 2000, int.MaxValue);
+            }
+            catch
+            {
+                return 50_000;
+            }
+        }
+
         private static List<SocialUploadedImageMessage> BuildPlayerPhotoUploads(IEnumerable<string>? sourceFiles)
         {
             var uploads = new List<SocialUploadedImageMessage>();
@@ -1073,7 +1189,7 @@ namespace Smartphone
             string sourceFileName = Path.GetFileName(uploadedImage.SourceFileName ?? string.Empty) ?? string.Empty;
             string extension = Path.GetExtension(sourceFileName);
             if (string.IsNullOrWhiteSpace(extension))
-                extension = ".png";
+                extension = ".jpg";
 
             string prefix = string.IsNullOrWhiteSpace(actorName) ? fallbackPrefix : actorName;
             string targetFileName = BuildSharedNpcPhotoFileName(prefix, extension);
@@ -1289,7 +1405,7 @@ namespace Smartphone
             }
 
             if (changed)
-                SaveImageTags();
+                IsImageTagsDirty = true;
         }
 
         private static List<string> GetNpcPhotoFileNames()
@@ -1298,7 +1414,8 @@ namespace Smartphone
             if (!Directory.Exists(npcDirectory))
                 return new List<string>();
 
-            return Directory.GetFiles(npcDirectory, "*.png")
+            return Directory.GetFiles(npcDirectory)
+                .Where(p => p.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || p.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
                 .Select(path => Path.GetFileName(path) ?? string.Empty)
                 .Where(file => !string.IsNullOrWhiteSpace(file))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -1312,7 +1429,8 @@ namespace Smartphone
             if (!Directory.Exists(avatarDirectory))
                 return new List<string>();
 
-            return Directory.GetFiles(avatarDirectory, "*.png")
+            return Directory.GetFiles(avatarDirectory)
+                .Where(p => p.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || p.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
                 .Select(path => Path.GetFileName(path) ?? string.Empty)
                 .Where(file => !string.IsNullOrWhiteSpace(file))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -1472,13 +1590,20 @@ namespace Smartphone
             if (!IsFarmhandSocialPeer())
                 return;
 
+            string farmhandActiveSaveFolder = GetActiveSaveFolderName();
+            string farmhandNpcPhotoDir = GetNpcPhotoDirectoryAbsolutePath();
+            var existingNpcPhotos = GetNpcPhotoFileNames();
+            var existingAvatars = GetPlayerAvatarFileNames();
+
+            SMonitor.Log($"[SyncRequest] Farmhand sending sync request. ActiveSaveFolder='{farmhandActiveSaveFolder}', NpcPhotoDir='{farmhandNpcPhotoDir}', ExistingNpcPhotos={existingNpcPhotos.Count}, ExistingAvatars={existingAvatars.Count}", LogLevel.Trace);
+
             var payload = new SocialFullSyncRequestMessage
             {
                 RequestId = Guid.NewGuid().ToString("N"),
                 RequestingPlayerName = Game1.player?.Name ?? "Player",
-                RequestingSaveFolderName = GetActiveSaveFolderName(),
-                ExistingNpcPhotoNames = GetNpcPhotoFileNames(),
-                ExistingPlayerAvatarNames = GetPlayerAvatarFileNames()
+                RequestingSaveFolderName = farmhandActiveSaveFolder,
+                ExistingNpcPhotoNames = existingNpcPhotos,
+                ExistingPlayerAvatarNames = existingAvatars
             };
 
             PendingSocialSyncRequestId = payload.RequestId;
@@ -1503,21 +1628,49 @@ namespace Smartphone
                 return;
             }
 
-            int sent = 0;
-            while (sent < MaxSyncSendsPerTick && PendingSyncSendQueue.Count > 0)
+            int startCount = PendingSyncSendQueue.Count;
+            int bytesBudget = MaxSyncBytesPerTick;
+            int sentCount = 0;
+            int sentBytes = 0;
+
+            while (PendingSyncSendQueue.Count > 0)
             {
-                Action sendAction = PendingSyncSendQueue.Dequeue();
+                // Always send at least one item per tick so the queue doesn't stall.
+                // But if we've already sent something, check if the NEXT item fits in the remaining budget.
+                if (sentCount > 0)
+                {
+                    var nextItem = PendingSyncSendQueue.Peek();
+                    if (nextItem.EstimatedBytes > bytesBudget)
+                    {
+                        break;
+                    }
+                }
+
+                var (sendAction, estimatedBytes, label) = PendingSyncSendQueue.Dequeue();
+                
+                if (estimatedBytes >= MaxSyncBytesPerTick)
+                {
+                    SMonitor.Log($"[SyncQueue] Blocked item '{label}' because it exceeds the maximum safe network size ({estimatedBytes:N0} >= {MaxSyncBytesPerTick:N0} bytes). This prevents the player from being disconnected.", LogLevel.Warn);
+                    continue;
+                }
+
                 try
                 {
                     sendAction();
+                    SMonitor.Log($"[SyncQueue] Sent: {label} ({estimatedBytes:N0} bytes)", LogLevel.Trace);
                 }
                 catch (Exception ex)
                 {
-                    SMonitor.Log($"Unable to process queued sync send: {ex}", LogLevel.Trace);
+                    SMonitor.Log($"[SyncQueue] Failed to send '{label}': {ex}", LogLevel.Trace);
                 }
 
-                sent++;
+                int cost = Math.Max(estimatedBytes, 1);
+                bytesBudget -= cost;
+                sentBytes += cost;
+                sentCount++;
             }
+
+            SMonitor.Log($"[SyncQueue] Tick: sent {sentCount}/{startCount} items ({sentBytes:N0} bytes), {PendingSyncSendQueue.Count} remaining", LogLevel.Trace);
         }
 
         private void OnModMessageReceived(object? sender, ModMessageReceivedEventArgs e)
@@ -1691,6 +1844,8 @@ namespace Smartphone
                 request.ExistingNpcPhotoNames ?? new List<string>(),
                 StringComparer.OrdinalIgnoreCase);
 
+            SMonitor.Log($"[SyncRequest] Host handling sync request from '{request.RequestingPlayerName}'. HostSaveFolder='{hostSaveFolderName}', FarmhandReportedSaveFolder='{request.RequestingSaveFolderName}', HostNpcPhotos={hostNpcPhotoNames.Count}, FarmhandReportedNpcPhotos={farmhandNpcPhotos.Count}", LogLevel.Trace);
+
             Dictionary<string, string> sharedPlayerAvatars = StardewConnectManager.GetSharedPlayerAvatarSnapshot();
             HashSet<string> hostPlayerAvatarNames = sharedPlayerAvatars.Values
                 .Select(fileName => Path.GetFileName(fileName ?? string.Empty) ?? string.Empty)
@@ -1708,6 +1863,8 @@ namespace Smartphone
                 .Where(fileName => !hostNpcPhotoNames.Contains(fileName, StringComparer.OrdinalIgnoreCase))
                 .ToList();
 
+            SMonitor.Log($"[SyncRequest] Delta computed: MissingOnFarmhand={missingOnFarmhand.Count}, StaleOnFarmhand={staleOnFarmhand.Count}", LogLevel.Trace);
+
             List<string> stalePlayerAvatarsOnFarmhand = farmhandPlayerAvatarNames
                 .Where(fileName => !hostPlayerAvatarNames.Contains(fileName))
                 .ToList();
@@ -1722,6 +1879,14 @@ namespace Smartphone
             Dictionary<string, string> npcImageTags = BuildNpcImageTagSnapshot();
             string requestId = request.RequestId ?? string.Empty;
             long targetPlayerId = e.FromPlayerID;
+
+            // Notify host that sync is starting
+            try
+            {
+                Game1.chatBox?.addInfoMessage("Smartphone: Syncing data to farmhand...");
+                Game1.chatBox?.addInfoMessage("Another farmhand should ONLY join when this transfer completed.");
+            }
+            catch { }
 
             // Chunk posts to avoid exceeding network buffer limits
             int totalChunks = Math.Max(1, (int)Math.Ceiling(allPosts.Count / (double)PostsPerSyncChunk));
@@ -1758,18 +1923,38 @@ namespace Smartphone
                         : new List<string>()
                 };
 
-                SendMessageToPlayer(chunk, SocialMessageFullSyncSnapshot, targetPlayerId);
+                // Estimate the serialized size of this chunk
+                int estimatedChunkBytes;
+                try
+                {
+                    string serialized = JsonConvert.SerializeObject(chunk);
+                    estimatedChunkBytes = Encoding.UTF8.GetByteCount(serialized);
+                }
+                catch
+                {
+                    estimatedChunkBytes = 50_000; // conservative fallback
+                }
+
+                var capturedChunk = chunk;
+                int capturedChunkIndex = chunkIndex;
+                PendingSyncSendQueue.Enqueue((
+                    () => SendMessageToPlayer(capturedChunk, SocialMessageFullSyncSnapshot, targetPlayerId),
+                    estimatedChunkBytes,
+                    $"FullSync snapshot chunk {capturedChunkIndex}"));
             }
 
             // Queue photo sends instead of sending all at once to avoid flooding the network buffer
             foreach (string fileName in missingOnFarmhand)
             {
                 string capturedFileName = fileName;
-                PendingSyncSendQueue.Enqueue(() =>
-                {
-                    if (TryCreateNpcPhotoUpsertPayload(capturedFileName, out SocialPhotoUpsertMessage? payload) && payload != null)
-                        SendMessageToPlayer(payload, SocialMessagePhotoUpsert, targetPlayerId);
-                });
+                PendingSyncSendQueue.Enqueue((
+                    () =>
+                    {
+                        if (TryCreateNpcPhotoUpsertPayload(capturedFileName, out SocialPhotoUpsertMessage? payload) && payload != null)
+                            SendMessageToPlayer(payload, SocialMessagePhotoUpsert, targetPlayerId);
+                    },
+                    EstimateNpcPhotoBytes(capturedFileName),
+                    $"FullSync NPC photo: {capturedFileName}"));
             }
 
             foreach ((string playerName, string avatarFileName) in sharedPlayerAvatars)
@@ -1782,25 +1967,41 @@ namespace Smartphone
                 }
 
                 string capturedPlayerName = playerName;
-                PendingSyncSendQueue.Enqueue(() =>
-                {
-                    if (!TryCreatePlayerAvatarUpsertPayload(capturedPlayerName, out SocialPhotoUpsertMessage? avatarPayload)
-                        || avatarPayload == null)
+                PendingSyncSendQueue.Enqueue((
+                    () =>
                     {
-                        return;
-                    }
+                        if (!TryCreatePlayerAvatarUpsertPayload(capturedPlayerName, out SocialPhotoUpsertMessage? avatarPayload)
+                            || avatarPayload == null)
+                        {
+                            return;
+                        }
 
-                    var avatarDelta = new SocialAvatarDeltaMessage
-                    {
-                        SaveFolderName = hostSaveFolderName,
-                        PlayerName = capturedPlayerName,
-                        ClearAvatar = false,
-                        AvatarImage = avatarPayload
-                    };
+                        var avatarDelta = new SocialAvatarDeltaMessage
+                        {
+                            SaveFolderName = hostSaveFolderName,
+                            PlayerName = capturedPlayerName,
+                            ClearAvatar = false,
+                            AvatarImage = avatarPayload
+                        };
 
-                    SendMessageToPlayer(avatarDelta, SocialMessageAvatarDelta, targetPlayerId);
-                });
+                        SendMessageToPlayer(avatarDelta, SocialMessageAvatarDelta, targetPlayerId);
+                    },
+                    EstimatePlayerAvatarBytes(capturedPlayerName),
+                    $"FullSync avatar: {capturedPlayerName}"));
             }
+
+            // Queue a final notification so the host knows when sync is done
+            PendingSyncSendQueue.Enqueue((
+                () =>
+                {
+                    try
+                    {
+                        Game1.chatBox?.addInfoMessage("Smartphone: Syncing completed.");
+                    }
+                    catch { }
+                },
+                0,
+                "FullSync completed notification"));
         }
 
         private void HandleSocialFullSyncSnapshot(ModMessageReceivedEventArgs e)
@@ -1903,8 +2104,7 @@ namespace Smartphone
 
         private void HandleSocialPhotoUpsert(ModMessageReceivedEventArgs e)
         {
-            if (!IsFarmhandSocialPeer() || !IsMessageFromHost(e.FromPlayerID))
-                return;
+            // Allow any player to receive photos from any other player (used for DMs)
 
             SocialPhotoUpsertMessage? payload = e.ReadAs<SocialPhotoUpsertMessage>();
             if (payload == null)
@@ -1927,12 +2127,30 @@ namespace Smartphone
                 return;
 
             string desiredPostId = (request.DesiredPostId ?? string.Empty).Trim();
-            if (!string.IsNullOrWhiteSpace(desiredPostId) && StardewConnectManager.GetPost(desiredPostId) != null)
-                return;
-
             string authorName = (request.AuthorName ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(authorName))
                 authorName = "Player";
+
+            // If the post already exists, append any new uploaded images as attachments
+            // (this happens when the farmhand splits a multi-image post into separate requests)
+            if (!string.IsNullOrWhiteSpace(desiredPostId) && StardewConnectManager.GetPost(desiredPostId) != null)
+            {
+                foreach (SocialUploadedImageMessage uploadedImage in request.UploadedImages ?? new List<SocialUploadedImageMessage>())
+                {
+                    string savedFileName = SaveUploadedNpcPhoto(uploadedImage, authorName);
+                    if (string.IsNullOrWhiteSpace(savedFileName))
+                        continue;
+
+                    StardewConnectManager.AppendAttachmentToPost(desiredPostId, new StardewConnectPostAttachment
+                    {
+                        ImageFile = savedFileName,
+                        FromPlayerFolder = false,
+                        ImageTag = uploadedImage.ImageTag ?? string.Empty
+                    });
+                }
+
+                return;
+            }
 
             string postText = (request.PostText ?? string.Empty).Trim();
 
@@ -2145,7 +2363,13 @@ namespace Smartphone
                 payload.AvatarImage = upload;
             }
 
-            SendMessageToHost(payload, SocialMessageUpdateAvatarRequest);
+            // Queue through the throttled queue since avatar images can be large
+            int estimatedBytes = payload.ClearAvatar ? 500
+                : Encoding.UTF8.GetByteCount(payload.AvatarImage?.Base64Image ?? string.Empty) + 500;
+            PendingSyncSendQueue.Enqueue((
+                () => SendMessageToHost(payload, SocialMessageUpdateAvatarRequest),
+                estimatedBytes,
+                $"AvatarUpload to host: {playerName}"));
         }
 
         private static SocialUploadedImageMessage? BuildAvatarUploadFromAbsolutePath(string avatarPath)
@@ -2156,7 +2380,7 @@ namespace Smartphone
             try
             {
                 byte[] bytes = File.ReadAllBytes(avatarPath);
-                string sourceFileName = Path.GetFileName(avatarPath) ?? "avatar.png";
+                string sourceFileName = Path.GetFileName(avatarPath) ?? "avatar.jpg";
                 string imageTag = string.Empty;
 
                 if (ImageTags != null
@@ -2199,7 +2423,12 @@ namespace Smartphone
                 payload.AvatarImage = upsert;
             }
 
-            BroadcastToFarmhands(payload, SocialMessageAvatarDelta);
+            // Queue through the throttled queue since avatar images can be large
+            int estimatedBytes = clearAvatar ? 500 : EstimatePlayerAvatarBytes(playerName);
+            PendingSyncSendQueue.Enqueue((
+                () => BroadcastToFarmhands(payload, SocialMessageAvatarDelta),
+                estimatedBytes,
+                $"AvatarDelta broadcast: {playerName}"));
         }
 
         private void HandleSocialUpdateAvatarRequest(ModMessageReceivedEventArgs e)
@@ -2289,8 +2518,10 @@ namespace Smartphone
 
             foreach (SocialPhotoUpsertMessage sharedPhotoPayload in payload.SharedPhotos ?? new List<SocialPhotoUpsertMessage>())
             {
-                if (!TryApplyNpcPhotoUpsert(sharedPhotoPayload))
-                    continue;
+                // Try to apply the photo if image data is included (legacy path)
+                // If Base64 is empty, the image data arrives separately via social-photo-upsert
+                if (!string.IsNullOrWhiteSpace(sharedPhotoPayload.Base64Image))
+                    TryApplyNpcPhotoUpsert(sharedPhotoPayload);
 
                 string sharedPhotoFileName = Path.GetFileName(sharedPhotoPayload.FileName ?? string.Empty) ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(sharedPhotoFileName))

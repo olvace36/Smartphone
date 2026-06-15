@@ -907,6 +907,33 @@ namespace Smartphone
             return post.Id;
         }
 
+        public static void AppendAttachmentToPost(string postId, StardewConnectPostAttachment attachment)
+        {
+            if (string.IsNullOrWhiteSpace(postId) || attachment == null)
+                return;
+
+            StardewConnectPost? post = GetPost(postId);
+            if (post == null)
+                return;
+
+            post.Attachments ??= new List<StardewConnectPostAttachment>();
+            post.Attachments.Add(attachment);
+
+            // Update the legacy single-attachment field if this is the first attachment
+            if (post.Attachments.Count == 1)
+            {
+                post.AttachedImageFile = attachment.ImageFile ?? string.Empty;
+                post.AttachmentFromPlayerFolder = attachment.FromPlayerFolder;
+            }
+
+            PopulateMissingAttachmentTags(post);
+            RefreshPostTag(post);
+            NotifyPhoneMenuDataChanged();
+
+            if (ModEntry.ShouldBroadcastAuthoritativeSocialChanges())
+                ModEntry.BroadcastSyncedSocialPost(post, GetProfileStatsSnapshot());
+        }
+
 
         // Get random post IDs with various filters. If no matching posts are found, returns an empty list.
 
@@ -1603,6 +1630,9 @@ namespace Smartphone
                 return "";
 
             string fileName = Path.GetFileName(attachedImageFile.Trim());
+            if (fileName != null && fileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                fileName = Path.ChangeExtension(fileName, ".jpg");
+
             return fileName ?? "";
         }
 

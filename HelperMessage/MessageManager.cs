@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using StardewModdingAPI;
 using StardewValley;
@@ -419,6 +419,8 @@ namespace Smartphone
             currentPhoneSound = string.IsNullOrWhiteSpace(data.CurrentPhoneSound) ? "getNewSpecialItem" : data.CurrentPhoneSound;
             currentPhoneBackground = data.CurrentPhoneBackground ?? "";
             currentPlayerAvatar = data.CurrentPlayerAvatar ?? "";
+            if (currentPlayerAvatar.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                currentPlayerAvatar = System.IO.Path.ChangeExtension(currentPlayerAvatar, ".jpg");
             currentPlayerBirthDate = NormalizePlayerBirthDate(data.CurrentPlayerBirthDate);
             currentPlayerBirthSeason = NormalizePlayerBirthSeason(data.CurrentPlayerBirthSeason);
             currentPlayerAge = NormalizePlayerAge(data.CurrentPlayerAge);
