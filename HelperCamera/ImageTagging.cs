@@ -46,10 +46,28 @@ namespace Smartphone
         private static Dictionary<string, Dictionary<string, AreaData>> IndoorAreasByLocation = new(StringComparer.OrdinalIgnoreCase);
         private static Dictionary<string, Dictionary<string, AreaData>> OutdoorAreasByLocation = new(StringComparer.OrdinalIgnoreCase);
 
-        public static Dictionary<string, string> ImageTags = new(StringComparer.OrdinalIgnoreCase);
-        public static bool IsImageTagsDirty { get; set; } = false;
+        public static Dictionary<string, Smartphone.Data.ImageMetadata> ImageMetadataStore = new(StringComparer.OrdinalIgnoreCase);
+        public static bool IsImageMetadataDirty { get; set; } = false;
 
-        private static string ImageTagDataPath => $"./userdata/{GetCurrentSaveFolderName()}/imageTags";
+        public static Dictionary<string, string> ImageTags
+        {
+            get
+            {
+                var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var kvp in ImageMetadataStore)
+                {
+                    dict[kvp.Key] = kvp.Value.Tag;
+                }
+                return dict;
+            }
+        }
+        public static bool IsImageTagsDirty
+        {
+            get => IsImageMetadataDirty;
+            set => IsImageMetadataDirty = value;
+        }
+
+        private static string ImageMetadataDataPath => $"./userdata/{GetCurrentSaveFolderName()}/image_metadata.json";
 
         private static string GetCurrentSaveFolderName()
         {
@@ -61,27 +79,25 @@ namespace Smartphone
             string saveRoot = Path.Combine(SHelper.DirectoryPath, "userdata", GetCurrentSaveFolderName());
 
             // Scan active image folders used by this mod.
-            yield return Path.Combine(saveRoot, "player_photo");
-            yield return Path.Combine(saveRoot, "shared_photo");
-            yield return Path.Combine(saveRoot, "image");
+            yield return Path.Combine(saveRoot, "photo_player");
         }
 
         public static void LoadImageTags()
         {
-            var loaded = SHelper.Data.ReadJsonFile<Dictionary<string, string>>(ImageTagDataPath)
-                         ?? new Dictionary<string, string>();
-            ImageTags = new Dictionary<string, string>(loaded, StringComparer.OrdinalIgnoreCase);
+            var loaded = SHelper.Data.ReadJsonFile<Dictionary<string, Smartphone.Data.ImageMetadata>>(ImageMetadataDataPath)
+                         ?? new Dictionary<string, Smartphone.Data.ImageMetadata>();
+            ImageMetadataStore = new Dictionary<string, Smartphone.Data.ImageMetadata>(loaded, StringComparer.OrdinalIgnoreCase);
 
             CleanupMissingImageTagEntries();
         }
 
         public static void SaveImageTags()
         {
-            SHelper.Data.WriteJsonFile(ImageTagDataPath, ImageTags);
-            IsImageTagsDirty = false;
+            SHelper.Data.WriteJsonFile(ImageMetadataDataPath, ImageMetadataStore);
+            IsImageMetadataDirty = false;
         }
 
-        public static void SetImageTags(string imageName, IEnumerable<string> tags)
+        public static void SetImageTags(string imageName, IEnumerable<string> tags, string location = "", string timeString = "")
         {
             if (string.IsNullOrWhiteSpace(imageName))
                 return;
@@ -98,8 +114,18 @@ namespace Smartphone
                 return;
             }
 
-            ImageTags[imageName] = string.Join(";", cleanedTags);
-            IsImageTagsDirty = true;
+            ImageMetadataStore[imageName] = new Smartphone.Data.ImageMetadata
+            {
+                Location = location,
+                TimeString = timeString,
+                Tag = string.Join(";", cleanedTags)
+            };
+            SaveImageTags();
+        }
+
+        public static void SetImageTags(string imageName, IEnumerable<string> tags)
+        {
+            SetImageTags(imageName, tags, "", "");
         }
 
         public static void RemoveImageTags(string imageName)
@@ -107,13 +133,13 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(imageName))
                 return;
 
-            if (ImageTags.Remove(imageName))
-                IsImageTagsDirty = true;
+            if (ImageMetadataStore.Remove(imageName))
+                SaveImageTags();
         }
 
         private static void CleanupMissingImageTagEntries()
         {
-            if (ImageTags.Count == 0)
+            if (ImageMetadataStore.Count == 0)
                 return;
 
             var existingImageNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -133,17 +159,17 @@ namespace Smartphone
 
             bool hasChanges = false;
 
-            foreach (string imageName in ImageTags.Keys.ToList())
+            foreach (string imageName in ImageMetadataStore.Keys.ToList())
             {
                 if (!existingImageNames.Contains(imageName))
                 {
-                    ImageTags.Remove(imageName);
+                    ImageMetadataStore.Remove(imageName);
                     hasChanges = true;
                 }
             }
 
             if (hasChanges)
-                IsImageTagsDirty = true;
+                IsImageMetadataDirty = true;
         }
 
         private static IEnumerable<string> BuildImageTags(Rectangle captureBounds, NPC? npc = null)

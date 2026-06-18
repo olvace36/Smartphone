@@ -267,7 +267,7 @@ namespace Smartphone
             }
         }
 
-        private static string CaptureNpcPhoto(GameLocation targetLocation, Vector2 captureCenter, NPC npc = null, bool landscape = false, bool square = false, List<NPC>? visibleNpcAtTarget = null, float zoomLevel = 1f, int? captureTimeOfDay = null)
+        public static string CaptureNpcPhoto(GameLocation targetLocation, Vector2 captureCenter, NPC npc = null, bool landscape = false, bool square = false, List<NPC>? visibleNpcAtTarget = null, float zoomLevel = 1f, int? captureTimeOfDay = null, string saveLocation = null)
         {
             if (!Context.IsWorldReady || targetLocation == null || Game1.graphics?.GraphicsDevice == null || Game1.game1 == null)
                 return "";
@@ -320,7 +320,7 @@ namespace Smartphone
                 }
             }
 
-            return SaveCapturedPhoto(renderTarget, targetLocation.DisplayName, tags, false, square);
+            return SaveCapturedPhoto(renderTarget, targetLocation.DisplayName, tags, false, square, saveLocation);
         }
 
         private static void TryAddNpcCaptureFlashLight(GameLocation targetLocation, Vector2 captureCenterTile, float zoomLevel, int captureTimeOfDay)
@@ -495,21 +495,30 @@ namespace Smartphone
             return true;
         }
 
-        private static string SaveCapturedPhoto(Texture2D capturedTexture, string? locationName, IEnumerable<string> tags, bool isPlayerPhoto, bool enforceSquareOutput = false)
+        private static string SaveCapturedPhoto(Texture2D capturedTexture, string? locationName, IEnumerable<string> tags, bool isPlayerPhoto, bool enforceSquareOutput = false, string saveLocation = null)
         {
             string folderPath;
-            if (isPlayerPhoto)
-                folderPath = Path.Combine(SHelper.DirectoryPath, "userdata", GetCurrentSaveFolderName(), "player_photo");
+            string filename = $"{Guid.NewGuid():N}.jpg";
+            string path;
+
+            if (!string.IsNullOrWhiteSpace(saveLocation))
+            {
+                folderPath = Path.GetDirectoryName(saveLocation);
+                if (!string.IsNullOrWhiteSpace(folderPath))
+                    Directory.CreateDirectory(folderPath);
+                path = saveLocation;
+                filename = Path.GetFileName(saveLocation);
+            }
             else
-                folderPath = Path.Combine(SHelper.DirectoryPath, "userdata", GetCurrentSaveFolderName(), "shared_photo");
-            Directory.CreateDirectory(folderPath);
+            {
+                folderPath = Path.Combine(SHelper.DirectoryPath, "userdata", GetCurrentSaveFolderName(), "photo_player");
+                Directory.CreateDirectory(folderPath);
+                path = Path.Combine(folderPath, filename);
+            }
 
             string resolvedLocationName = string.IsNullOrWhiteSpace(locationName)
                 ? "UnknownLocation"
                 : locationName;
-
-            string filename = $"{resolvedLocationName}-{Game1.currentSeason}-Y{Game1.year}-D{Game1.dayOfMonth:D2}_{Game1.random.Next(0, 99999)}.jpg";
-            string path = Path.Combine(folderPath, filename);
 
             Texture2D? squareNormalizedTexture = TryNormalizeSquareCapture(capturedTexture, enforceSquareOutput);
             try
@@ -522,11 +531,25 @@ namespace Smartphone
                 squareNormalizedTexture?.Dispose();
             }
 
-            SetImageTags(filename, (tags ?? Enumerable.Empty<string>()).ToList());
-            EnforcePhotoRetention(folderPath, GetPhotoRetentionLimit(isPlayerPhoto), path);
-            if (isPlayerPhoto)
+            string timeString = $"{Game1.shortDayNameFromDayOfSeason(Game1.dayOfMonth)} {Game1.dayOfMonth} {Game1.currentSeason} Year {Game1.year}, {Game1.getTimeOfDayString(Game1.timeOfDay)}";
+            var tagList = (tags ?? Enumerable.Empty<string>()).ToList();
+
+            if (string.IsNullOrWhiteSpace(saveLocation))
+            {
+                SetImageTags(filename, tagList, resolvedLocationName, timeString);
+                EnforcePhotoRetention(folderPath, GetPhotoRetentionLimit(isPlayerPhoto), path);
+            }
+
+            if (isPlayerPhoto && string.IsNullOrWhiteSpace(saveLocation))
                 Game1.addHUDMessage(new HUDMessage("Photo saved!", HUDMessage.newQuest_type));
-            return path;
+
+            var metadata = new Smartphone.Data.ImageMetadata
+            {
+                Location = resolvedLocationName,
+                TimeString = timeString,
+                Tag = string.Join(";", tagList)
+            };
+            return Newtonsoft.Json.JsonConvert.SerializeObject(metadata);
         }
 
         private static void SaveCompressedJpeg(Texture2D originalTexture, string path, int maxSizeBytes)

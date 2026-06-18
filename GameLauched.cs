@@ -10,6 +10,7 @@ using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using SixLabors.ImageSharp.Processing;
 using Smartphone.Data;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
@@ -22,7 +23,6 @@ using StardewValley.GameData.Crops;
 using StardewValley.GameData.LocationContexts;
 using StardewValley.Locations;
 using StardewValley.Menus;
-using SixLabors.ImageSharp.Processing;
 using StardewValley.Minigames;
 using StardewValley.Monsters;
 using StardewValley.Network;
@@ -146,9 +146,6 @@ namespace Smartphone
 
             AppStoreManager.Initialize();
 
-            RunPngToJpgMigration();
-            RunSaveFolderMigration();
-
             iUnlimitedEventExpansionApi = SHelper.ModRegistry.GetApi<IUnlimitedEventExpansionApi>("d5a1lamdtd.UnlimitedEventExpansion");
 
             if (iUnlimitedEventExpansionApi == null)
@@ -159,141 +156,7 @@ namespace Smartphone
 
         }
 
-        private void RunPngToJpgMigration()
-        {
-            string userdataDir = Path.Combine(SHelper.DirectoryPath, "userdata");
-            if (!Directory.Exists(userdataDir))
-                return;
 
-            foreach (string saveFolder in Directory.GetDirectories(userdataDir))
-            {
-                string photoDir = Path.Combine(saveFolder, "shared_photo");
-                if (!Directory.Exists(photoDir))
-                    continue;
-
-                string saveFolderName = Path.GetFileName(saveFolder);
-                string tagFilePath = $"userdata/{saveFolderName}/imageTags.json";
-                Dictionary<string, string> localTags = null;
-                bool tagsDirty = false;
-
-                foreach (string pngFile in Directory.GetFiles(photoDir, "*.png"))
-                {
-                    try
-                    {
-                        string jpgFile = Path.ChangeExtension(pngFile, ".jpg");
-                        string pngFileName = Path.GetFileName(pngFile);
-                        string jpgFileName = Path.GetFileName(jpgFile);
-
-                        if (localTags == null)
-                        {
-                            localTags = SHelper.Data.ReadJsonFile<Dictionary<string, string>>(tagFilePath) ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                        }
-
-                        if (localTags.TryGetValue(pngFileName, out string tagValue))
-                        {
-                            localTags[jpgFileName] = tagValue;
-                            localTags.Remove(pngFileName);
-                            tagsDirty = true;
-                        }
-
-                        if (!File.Exists(jpgFile))
-                        {
-                            byte[] currentData = File.ReadAllBytes(pngFile);
-                            int maxSizeBytes = 256000; // 250KB limit
-
-                            using (var img = SixLabors.ImageSharp.Image.Load(pngFile))
-                            {
-                                int quality = 95;
-                                using var ms = new MemoryStream();
-                                img.Save(ms, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = quality });
-                                currentData = ms.ToArray();
-
-                                while (currentData.Length > maxSizeBytes && quality > 70)
-                                {
-                                    quality -= 10;
-                                    ms.SetLength(0);
-                                    img.Save(ms, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = quality });
-                                    currentData = ms.ToArray();
-                                }
-
-                                while (currentData.Length > maxSizeBytes && img.Width > 16 && img.Height > 16)
-                                {
-                                    float scale = (float)Math.Sqrt((double)maxSizeBytes / currentData.Length) * 0.9f;
-                                    int newWidth = Math.Max(1, (int)(img.Width * scale));
-                                    int newHeight = Math.Max(1, (int)(img.Height * scale));
-
-                                    img.Mutate(x => x.Resize(newWidth, newHeight));
-
-                                    ms.SetLength(0);
-                                    img.Save(ms, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = quality });
-                                    currentData = ms.ToArray();
-                                }
-                            }
-
-                            File.WriteAllBytes(jpgFile, currentData);
-                        }
-                        File.Delete(pngFile);
-                    }
-                    catch (Exception ex)
-                    {
-                        Monitor.Log($"Smartphone: Failed to migrate {Path.GetFileName(pngFile)} to JPG: {ex}", LogLevel.Error);
-                    }
-                }
-
-                if (tagsDirty && localTags != null)
-                {
-                    SHelper.Data.WriteJsonFile(tagFilePath, localTags);
-                }
-            }
-        }
-
-        private void RunSaveFolderMigration()
-        {
-            try
-            {
-                string userdataDir = Path.Combine(SHelper.DirectoryPath, "userdata");
-                if (!Directory.Exists(userdataDir))
-                    return;
-
-                foreach (string dirPath in Directory.GetDirectories(userdataDir))
-                {
-                    string dirName = Path.GetFileName(dirPath);
-                    
-                    if (dirName.StartsWith("_"))
-                        continue;
-
-                    int lastUnderscore = dirName.LastIndexOf('_');
-                    if (lastUnderscore >= 0 && lastUnderscore < dirName.Length - 1)
-                    {
-                        string possibleId = dirName.Substring(lastUnderscore + 1);
-                        if (long.TryParse(possibleId, out _))
-                        {
-                            string targetDirName = $"_{possibleId}";
-                            string targetDirPath = Path.Combine(userdataDir, targetDirName);
-
-                            try
-                            {
-                                if (Directory.Exists(targetDirPath))
-                                {
-                                    Directory.Delete(targetDirPath, true);
-                                }
-                                
-                                Directory.Move(dirPath, targetDirPath);
-                                SMonitor.Log($"Smartphone: Migrated save folder from '{dirName}' to '{targetDirName}'", LogLevel.Info);
-                            }
-                            catch (Exception ex)
-                            {
-                                SMonitor.Log($"Smartphone: Failed to migrate save folder '{dirName}' to '{targetDirName}': {ex}", LogLevel.Error);
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                SMonitor.Log($"Smartphone: Error during save folder migration: {ex}", LogLevel.Error);
-            }
-        }
 
         private void OnButtonPressed(object sender, ButtonPressedEventArgs e)
         {
@@ -502,8 +365,8 @@ namespace Smartphone
                 }
             }
 
-            if (ShouldHostRunSocialSimulation())
-                PrepareDailyRandomNpcSocialPosts();
+            // if (ShouldHostRunSocialSimulation())
+            //     PrepareDailyRandomNpcSocialPosts();
 
         }
 
@@ -637,6 +500,8 @@ namespace Smartphone
 
         private void OnTimeChange(object sender, TimeChangedEventArgs e)
         {
+            return;
+
             HandleAiUsageTimeChanged(e.NewTime);
             HandleAiModelSettingTimeChanged(e.NewTime);
 

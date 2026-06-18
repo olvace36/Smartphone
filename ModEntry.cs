@@ -65,6 +65,31 @@ namespace Smartphone
             return StardewConnectManager.SetPostLike(postId, npcName, liked);
         }
 
+        public string CaptureNpcPhoto(GameLocation targetLocation, Vector2 captureCenter, NPC npc = null, bool landscape = false, bool square = false, List<NPC>? visibleNpcAtTarget = null, float zoomLevel = 1f, int? captureTimeOfDay = null, string saveLocation = null)
+        {
+            return ModEntry.CaptureNpcPhoto(targetLocation, captureCenter, npc, landscape, square, visibleNpcAtTarget, zoomLevel, captureTimeOfDay, saveLocation);
+        }
+
+        public List<string> GetPlayerPhotoNames()
+        {
+            return ModEntry.GetPlayerPhotoNamesInternal();
+        }
+
+        public Texture2D GetPlayerPhotoTexture(string photoName)
+        {
+            return ModEntry.GetPlayerPhotoTextureInternal(photoName);
+        }
+
+        public string GetPlayerPhotoMetadata(string photoName)
+        {
+            return ModEntry.GetPlayerPhotoMetadataInternal(photoName);
+        }
+
+        public Dictionary<string, Texture2D> GetAllPlayerPhotoTextures()
+        {
+            return ModEntry.GetAllPlayerPhotoTexturesInternal();
+        }
+
         public string GetPlayerProfile()
         {
             return MessageManager.currentPlayerProfile;
@@ -229,6 +254,20 @@ namespace Smartphone
             return ModEntry.UnregisterChatQuickActionButtonInternal(ownerModId, actionId);
         }
 
+        public Texture2D? GetAppTexture(AppIconType appIconType)
+        {
+            switch (appIconType)
+            {
+                case AppIconType.Notification: return Textures.AppNotification;
+                case AppIconType.AppStore: return Textures.AppAppStore;
+                case AppIconType.Camera: return Textures.AppCamera;
+                case AppIconType.Photo: return Textures.AppPhoto;
+                case AppIconType.Setting: return Textures.AppSetting;
+                case AppIconType.Calendar: return Textures.AppCalendar;
+                default: return null;
+            }
+        }
+
         public bool IsSmallPhoneSize()
         {
             return ModEntry.Config?.UseSmallPhoneSize == true;
@@ -269,6 +308,17 @@ namespace Smartphone
         public (int x, int y) GetPhonePosition()
         {
             return (ModEntry.currentMenuX, ModEntry.currentMenuY);
+        }
+
+        public void SetPhonePosition(int x, int y)
+        {
+            ModEntry.currentMenuX = x;
+            ModEntry.currentMenuY = y;
+            if (ModEntry.phoneMenu != null)
+            {
+                ModEntry.phoneMenu.xPositionOnScreen = x;
+                ModEntry.phoneMenu.yPositionOnScreen = y;
+            }
         }
 
         public bool HandlePhoneAppBottomNavClick(int x, int y, int phoneX, int phoneY, Action? onBack = null)
@@ -485,6 +535,52 @@ namespace Smartphone
         }
 
 
+
+        public static List<string> GetPlayerPhotoNamesInternal()
+        {
+            return ImageMetadataStore.Keys.ToList();
+        }
+
+        public static Texture2D GetPlayerPhotoTextureInternal(string photoName)
+        {
+            string photoPath = Path.Combine(SHelper.DirectoryPath, "userdata", GetActiveSaveFolderName(), "photo_player", photoName);
+            if (File.Exists(photoPath))
+            {
+                using var stream = new FileStream(photoPath, FileMode.Open, FileAccess.Read);
+                return Texture2D.FromStream(Game1.graphics.GraphicsDevice, stream);
+            }
+            return null;
+        }
+
+        public static string GetPlayerPhotoMetadataInternal(string photoName)
+        {
+            if (ImageMetadataStore.TryGetValue(photoName, out var metadata))
+            {
+                return Newtonsoft.Json.JsonConvert.SerializeObject(metadata);
+            }
+            return null;
+        }
+
+        public static Dictionary<string, Texture2D> GetAllPlayerPhotoTexturesInternal()
+        {
+            var dict = new Dictionary<string, Texture2D>();
+            string folderPath = Path.Combine(SHelper.DirectoryPath, "userdata", GetActiveSaveFolderName(), "photo_player");
+            if (Directory.Exists(folderPath))
+            {
+                foreach (string photoPath in Directory.GetFiles(folderPath, "*.jpg"))
+                {
+                    string photoName = Path.GetFileName(photoPath);
+                    try
+                    {
+                        using var stream = new FileStream(photoPath, FileMode.Open, FileAccess.Read);
+                        var texture = Texture2D.FromStream(Game1.graphics.GraphicsDevice, stream);
+                        dict[photoName] = texture;
+                    }
+                    catch { }
+                }
+            }
+            return dict;
+        }
 
         // =========================================================================================
         // =========================================================================================

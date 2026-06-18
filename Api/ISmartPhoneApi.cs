@@ -2,9 +2,20 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using StardewValley;
 
 namespace Smartphone
 {
+    public enum AppIconType
+    {
+        Notification,
+        AppStore,
+        Camera,
+        Photo,
+        Setting,
+        Calendar
+    }
+
     public interface ISmartPhoneApi
     {
         /// ======================================
@@ -259,6 +270,39 @@ namespace Smartphone
 
 
         /// ======================================
+        /// API for capturing and accessing photos
+        /// ======================================
+
+        /// <summary>
+        /// Captures a photo for StardewSocial programmatically.
+        /// </summary>
+        string CaptureNpcPhoto(GameLocation targetLocation, Vector2 captureCenter, NPC npc = null, bool landscape = false, bool square = false, List<NPC>? visibleNpcAtTarget = null, float zoomLevel = 1f, int? captureTimeOfDay = null, string saveLocation = null);
+
+        /// <summary>
+        /// Gets the list of player photo names.
+        /// </summary>
+        List<string> GetPlayerPhotoNames();
+
+        /// <summary>
+        /// Gets a player photo texture by its name.
+        /// </summary>
+        Texture2D GetPlayerPhotoTexture(string photoName);
+
+        /// <summary>
+        /// Gets the serialized ImageMetadata JSON string for a specific player photo.
+        /// </summary>
+        string GetPlayerPhotoMetadata(string photoName);
+
+        /// <summary>
+        /// Gets all player photos as a dictionary of name and Texture2D.
+        /// </summary>
+        Dictionary<string, Texture2D> GetAllPlayerPhotoTextures();
+
+
+
+
+
+        /// ======================================
         /// API to get player profile
         /// ======================================
 
@@ -350,6 +394,15 @@ namespace Smartphone
         (int x, int y) GetPhonePosition();
 
         /// <summary>
+        /// Updates the current on-screen position (top-left corner) of the phone menu.
+        /// Call this in your custom app screen's drag/move handling so that the position is preserved
+        /// globally across transitions and when exiting the app.
+        /// </summary>
+        /// <param name="x">The new X coordinate of the phone frame.</param>
+        /// <param name="y">The new Y coordinate of the phone frame.</param>
+        void SetPhonePosition(int x, int y);
+
+        /// <summary>
         /// Handles clicks on the phone's built-in bottom navigation buttons.
         /// Call this in your custom app's receiveLeftClick method.
         /// </summary>
@@ -394,6 +447,13 @@ namespace Smartphone
         /// <param name="eventType">The event key that was used during registration.</param>
         /// <returns>True if an event type was removed; otherwise false.</returns>
         bool UnregisterUnlimitedEvent(string ownerModId, string eventType);
+
+        /// <summary>
+        /// Gets the texture of a built-in app icon.
+        /// </summary>
+        /// <param name="appIconType">The type of the app icon.</param>
+        /// <returns>The Texture2D of the requested app icon, or null.</returns>
+        Texture2D? GetAppTexture(AppIconType appIconType);
 
     }
 }

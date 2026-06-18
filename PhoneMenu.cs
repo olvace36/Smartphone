@@ -384,7 +384,7 @@ namespace Smartphone
         private readonly Dictionary<int, Texture2D> lockScreenWeatherIconSoftCache = new();
 
 
-        private const string PlayerPhotoFolderName = "player_photo";
+        private const string PlayerPhotoFolderName = "photo_player";
         private const string NpcPhotoFolderName = "shared_photo";
         private List<string> capturedImages;
         private int currentImageIndex = -1;
@@ -904,100 +904,7 @@ namespace Smartphone
             }
             else if (currentApp == "appPhoto")
             {
-                b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
-                DrawPhoneScreenBackground(b, xOffset: 0);
-                DrawPhoneFrame(b);
-                backButton.draw(b, Color.Tan, 1f);
-                lockButton.draw(b, Color.Tan, 1f);
-                homeButton.draw(b, Color.Tan, 1f);
-                photoAvatarButtonBounds = Rectangle.Empty;
-                //okButton.draw(b);
-
-                if (currentDisplayedImage != null)
-                {
-                    Rectangle photoContentBounds = GetPhoneContentBounds();
-                    b.Draw(currentDisplayedImage, photoContentBounds, Color.White);
-
-                    b.Draw(
-                        removeButton.texture,
-                        new Vector2(removeButton.bounds.X, removeButton.bounds.Y),
-                        removeButton.sourceRect,
-                        Color.White * 0.8f,
-                        0f,
-                        Vector2.Zero,
-                        removeButton.scale,
-                        SpriteEffects.None,
-                        1f
-                    );
-
-                    if (currentImageIndex >= 0 && currentImageIndex < capturedImages.Count)
-                    {
-                        string rawName = Path.GetFileNameWithoutExtension(capturedImages[currentImageIndex]);
-
-                        // Clean for display: remove random ID after "_", replace dashes with spaces
-                        int underscoreIndex = rawName.IndexOf('_');
-                        string displayName = underscoreIndex >= 0 ? rawName.Substring(0, underscoreIndex) : rawName;
-                        displayName = displayName.Replace("-", " ");
-
-                        Vector2 namePos = new Vector2(photoContentBounds.X, photoContentBounds.Bottom - ScaleUiValue(50));
-                        float photoNameViewportWidth = Math.Max(1f, photoContentBounds.Width - ScaleUiValue(8));
-                        DrawLoopingPhotoName(b, displayName, namePos, photoNameViewportWidth);
-
-                        var rect = new Rectangle(218, 428, 7, 7);
-                        if (IsSameFilePath(MessageManager.currentPhoneBackground, capturedImages[currentImageIndex]))
-                            rect = new Rectangle(211, 428, 7, 7);
-
-                        heartButton = new ClickableTextureComponent(
-                        name: capturedImages[currentImageIndex],
-                        bounds: new Rectangle(
-                            xPositionOnScreen + ScaleUiValue(500),
-                            yPositionOnScreen + ScaleUiValue(136),
-                            ScaleUiValue(35),
-                            ScaleUiValue(35)),
-                        label: null,
-                        hoverText: "",
-                        texture: Game1.mouseCursors,
-                            sourceRect: rect,
-                            scale: ScaleUiValue(5f)
-                        );
-                        heartButton.draw(b);
-
-                        if (currentDisplayedImageIsSquare)
-                        {
-                            bool avatarSelected = IsSameFilePath(MessageManager.currentPlayerAvatar, capturedImages[currentImageIndex]);
-                            photoAvatarButtonBounds = new Rectangle(
-                                xPositionOnScreen + ScaleUiValue(390),
-                                yPositionOnScreen + ScaleUiValue(126),
-                                ScaleUiValue(102),
-                                ScaleUiValue(42));
-
-                            IClickableMenu.drawTextureBox(
-                                b,
-                                Game1.menuTexture,
-                                new Rectangle(0, 256, 60, 60),
-                                photoAvatarButtonBounds.X,
-                                photoAvatarButtonBounds.Y,
-                                photoAvatarButtonBounds.Width,
-                                photoAvatarButtonBounds.Height,
-                                avatarSelected ? new Color(200, 240, 200, 230) : new Color(255, 255, 255, 230),
-                                1f,
-                                false);
-
-                            DrawPhoneText(
-                                b,
-                                Game1.smallFont,
-                                ModEntry.SHelper.Translation.Get("ui.photo.avatar"),
-                                new Vector2(photoAvatarButtonBounds.X + ScaleUiValue(12), photoAvatarButtonBounds.Y + ScaleUiValue(10)),
-                                Color.Black);
-                        }
-                    }
-                }
-
-
-
-                // Draw buttons
-                photoNextButton.draw(b);
-                photoPreviousButton.draw(b);
+                DrawPhotoApp(b);
             }
             else if (currentApp == TextAppState)
             {
@@ -1453,63 +1360,14 @@ namespace Smartphone
 
             }
 
-            if (HandleTextRemoveButtonClick(x, y))
+            if (currentApp == "appPhoto")
             {
+                ReceiveLeftClickPhotoApp(x, y);
                 return;
             }
-            else if (removeButton.containsPoint(x, y) && currentApp == "appPhoto")
+
+            if (HandleTextRemoveButtonClick(x, y))
             {
-                if (currentImageIndex >= 0 && currentImageIndex < capturedImages.Count)
-                {
-                    string fileToDelete = capturedImages[currentImageIndex];
-                    string imageName = Path.GetFileName(fileToDelete);
-                    bool deletedBackgroundImage = IsSameFilePath(MessageManager.currentPhoneBackground, fileToDelete);
-                    bool deletedAvatarImage = IsSameFilePath(MessageManager.currentPlayerAvatar, fileToDelete);
-
-                    // Remove file from disk
-                    try
-                    {
-                        File.Delete(fileToDelete);
-                    }
-                    catch (Exception ex)
-                    {
-                        ModEntry.SMonitor.Log($"Failed to delete image: {ex.Message}", LogLevel.Warn);
-                    }
-
-                    // Remove from list
-                    capturedImages.RemoveAt(currentImageIndex);
-                    ModEntry.RemoveImageTags(imageName);
-
-                    // Choose next image
-                    if (capturedImages.Count == 0)
-                    {
-                        currentDisplayedImage = null;
-                        currentDisplayedImageIsSquare = false;
-                        currentImageIndex = -1;
-                    }
-                    else if (currentImageIndex > 0)
-                    {
-                        currentImageIndex--; // Go to previous (left)
-                        LoadImageAtIndex(currentImageIndex);
-                    }
-                    else
-                    {
-                        // Stay at index 0 if no left
-                        LoadImageAtIndex(currentImageIndex);
-                    }
-
-                    if (deletedBackgroundImage)
-                        ResetPhoneBackgroundToDefault();
-
-                    if (deletedAvatarImage)
-                    {
-                        MessageManager.currentPlayerAvatar = "";
-                        ModEntry.PublishLocalPlayerAvatarSelection("");
-                    }
-
-                    Game1.playSound("trashcan");
-                }
-
                 return;
             }
             else if (removeButton.containsPoint(x, y) && currentApp == "appNotification")
@@ -1525,58 +1383,7 @@ namespace Smartphone
 
 
 
-            if (photoNextButton.containsPoint(x, y) && currentApp == "appPhoto")
-            {
-                if (currentImageIndex > 0)
-                {
-                    currentImageIndex--;
-                    LoadImageAtIndex(currentImageIndex);
-                    Game1.playSound("shwip");
-                    return;
-                }
-            }
-            else if (photoPreviousButton.containsPoint(x, y) && currentApp == "appPhoto")
-            {
-                if (currentImageIndex < capturedImages.Count - 1)
-                {
-                    currentImageIndex++;
-                    LoadImageAtIndex(currentImageIndex);
-                    Game1.playSound("shwip");
-                    return;
-                }
-            }
-            else if (heartButton != null
-                && currentDisplayedImage != null
-                && currentImageIndex >= 0
-                && currentImageIndex < capturedImages.Count
-                && heartButton.containsPoint(x, y)
-                && currentApp == "appPhoto")
-            {
-                if (IsSameFilePath(MessageManager.currentPhoneBackground, heartButton.name))
-                    ResetPhoneBackgroundToDefault();
-                else
-                    ApplyPhoneBackground(heartButton.name);
 
-                return;
-            }
-            else if (currentApp == "appPhoto"
-                && currentDisplayedImage != null
-                && currentDisplayedImageIsSquare
-                && currentImageIndex >= 0
-                && currentImageIndex < capturedImages.Count
-                && photoAvatarButtonBounds.Contains(x, y))
-            {
-                string currentImagePath = capturedImages[currentImageIndex];
-                if (IsSameFilePath(MessageManager.currentPlayerAvatar, currentImagePath))
-                    MessageManager.currentPlayerAvatar = "";
-                else
-                    MessageManager.currentPlayerAvatar = currentImagePath;
-
-                ModEntry.PublishLocalPlayerAvatarSelection(MessageManager.currentPlayerAvatar);
-
-                Game1.playSound("smallSelect");
-                return;
-            }
 
             if (currentApp == "appSetting")
             {
@@ -4286,34 +4093,7 @@ namespace Smartphone
             currentApp = "appCamera";
         }
 
-        private void OpenPhotoApp()
-        {
-            ApplyPhoneBackground(MessageManager.currentPhoneBackground);
 
-            string userCaptureFolderPath = GetCaptureFolderPath(PlayerPhotoFolderName);
-
-            capturedImages = Directory.Exists(userCaptureFolderPath)
-                ? Directory.GetFiles(userCaptureFolderPath)
-                    .Where(p => p.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || p.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(f => File.GetCreationTime(f))
-                    .ToList()
-                : new List<string>();
-
-            currentApp = "appPhoto";
-
-            if (capturedImages.Count > 0)
-            {
-                currentImageIndex = 0;
-                LoadImageAtIndex(currentImageIndex);
-            }
-            else
-            {
-                currentDisplayedImage?.Dispose();
-                currentDisplayedImage = null;
-                currentDisplayedImageIsSquare = false;
-                currentImageIndex = -1;
-            }
-        }
 
         private static string GetCurrentSaveFolderName()
         {
