@@ -17,7 +17,6 @@ Smartphone-AppMessenger
 - player can send message and photo to other player. when messages or photo is send it get saved right away into /Smartphone-AppMessenger/userdata/savefoldername/player_conversation, which is different from npc conversation that only get saved when day end. attached images will be copy from /Smartphone-Framework/userdata/savefolder/photo_player to /Smartphone-AppMessenger/userdata/savefoldername/photo_shared and sync to the other receiver. the /player_conversation.json will reference this local image path. tag are not copied to nor sync. player dont need tag
 - IMPORTANT: any data or image transfer must go though a buffer logic similar to what currently have to prevent overflow which will kick farmhand out
 - since P2P message and photo transfer is write to disk right away, an OnConnect sync is not needed for AppMessenger
-- player on Messenger will no longer have avatar. it is for SS only
 
 Smartphone-AppStardewSocial
 - under Smartphone-AppStardewSocial folder. this is a new repo for the app, totally seperated from the framework

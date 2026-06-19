@@ -1474,6 +1474,7 @@ namespace Smartphone
                 EditableTextFieldKind.ProfileAge => HandleTextProfileInputKey(key, isRepeat: true),
                 EditableTextFieldKind.ProfileBirthday => HandleTextProfileInputKey(key, isRepeat: true),
                 EditableTextFieldKind.ProfileDescription => HandleTextProfileInputKey(key, isRepeat: true),
+                EditableTextFieldKind.PhotoAlbumName => HandlePhotoAlbumNameKeyPress(key),
                 _ => false
             };
         }
@@ -1641,6 +1642,16 @@ namespace Smartphone
                     ref MessageManager.currentPlayerProfile,
                     ref textProfileDescriptionCursorIndex,
                     ref textProfileDescriptionSelectionAnchorIndex,
+                    key,
+                    allowEnter,
+                    allowPaste,
+                    out textChanged,
+                    out submitted),
+                EditableTextFieldKind.PhotoAlbumName => TryApplyEditableTextKey(
+                    EditableTextFieldKind.PhotoAlbumName,
+                    ref photoNewAlbumName,
+                    ref photoNewAlbumNameCursorIndex,
+                    ref photoNewAlbumNameSelectionAnchorIndex,
                     key,
                     allowEnter,
                     allowPaste,

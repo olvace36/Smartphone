@@ -105,10 +105,11 @@ namespace Smartphone
             SocialComment,
             ProfileAge,
             ProfileBirthday,
-            ProfileDescription
+            ProfileDescription,
+            PhotoAlbumName
         }
 
-        private enum RootLandingState
+        internal enum RootLandingState
         {
             Initializing,
             LockScreen,
@@ -118,7 +119,7 @@ namespace Smartphone
         private bool isDragging = false;
         private int dragOffsetX;
         private int dragOffsetY;
-        private RootLandingState rootLandingState = RootLandingState.Home;
+        internal RootLandingState rootLandingState = RootLandingState.Home;
         private bool lockScreenUnlockAnimating = false;
         private double lockScreenUnlockElapsedSeconds = 0d;
         private Rectangle lockScreenTapBounds = Rectangle.Empty;
@@ -733,7 +734,10 @@ namespace Smartphone
             cameraFlashButtonBounds = Rectangle.Empty;
             cameraRotateButtonBounds = Rectangle.Empty;
             cameraSquareButtonBounds = Rectangle.Empty;
-            SetPhoneTextInputFocus(false);
+            if (GetActiveEditableTextField() == EditableTextFieldKind.None)
+                SetPhoneTextInputFocus(false);
+            else
+                SetPhoneTextInputFocus(true);
 
 
             if (currentApp == null)
@@ -1042,6 +1046,10 @@ namespace Smartphone
                 {
                     // Handled
                 }
+                else if (currentApp == "appPhoto")
+                {
+                    ReleaseLeftClickPhotoApp(x, y);
+                }
                 else if (HandleTextNpcListOrChatClick(x, y))
                 {
                     // Handled
@@ -1149,6 +1157,12 @@ namespace Smartphone
                 if (Math.Abs(notificationScrollOffset - notificationScrollTarget) <= 0.5f)
                     notificationScrollOffset = notificationScrollTarget;
             }
+            else if (currentApp == "appPhoto")
+            {
+                float lerpAmount = (float)(time.ElapsedGameTime.TotalSeconds * PhotoScrollLerpSpeed);
+                lerpAmount = Math.Clamp(lerpAmount, 0f, 1f);
+                UpdatePhotoScroll(lerpAmount);
+            }
 
 
         }
@@ -1165,7 +1179,8 @@ namespace Smartphone
 
             if (!isDragging && !isScrolling)
             {
-                if (currentApp != null && currentApp != "appCamera" && currentApp != "appPhoto" && GetPhoneContentBounds().Contains(x, y))
+                bool photoAllowsScroll = currentApp == "appPhoto" && photoDetailIndex < 0;
+                if (currentApp != null && currentApp != "appCamera" && (currentApp != "appPhoto" || photoAllowsScroll) && GetPhoneContentBounds().Contains(x, y))
                 {
                     isScrolling = true;
                     lastScrollMouseY = y;
@@ -1327,7 +1342,15 @@ namespace Smartphone
                     HandleSocialBackNavigation();
                     return;
                 }
-                else if (new List<string> { "appCamera", "appPhoto", "appNotification", "appStore", ExternalGroupAppState }.Contains(currentApp))
+                else if (currentApp == "appPhoto")
+                {
+                    if (HandlePhotoAppBackButton())
+                        return;
+                    ClosePhotoApp();
+                    currentApp = null;
+                    return;
+                }
+                else if (new List<string> { "appCamera", "appNotification", "appStore", ExternalGroupAppState }.Contains(currentApp))
                 {
                     if (currentApp == ExternalGroupAppState)
                         ClearCurrentExternalGroup();
@@ -1498,6 +1521,10 @@ namespace Smartphone
             {
                 ReceiveScrollWheelActionAppStore(direction);
             }
+            else if (currentApp == "appPhoto" && photoDetailIndex < 0)
+            {
+                HandlePhotoScrollWheel(direction);
+            }
             else if (currentApp == "appNotification")
             {
                 float wheelSteps = direction / 120f;
@@ -1533,6 +1560,15 @@ namespace Smartphone
                         return;
                     }
 
+                    if (currentApp == "appPhoto")
+                    {
+                        if (HandlePhotoAppBackButton())
+                            return;
+                        ClosePhotoApp();
+                        currentApp = null;
+                        return;
+                    }
+
                     if (currentApp == ExternalGroupAppState)
                         ClearCurrentExternalGroup();
                     else if (currentApp == "appStore")
@@ -1557,10 +1593,18 @@ namespace Smartphone
                 if (HandleSocialTyping(key))
                     return;
             }
+            else if (currentApp == "appPhoto")
+            {
+                if (HandlePhotoAlbumNameKeyPress(key))
+                    return;
+            }
         }
 
         private EditableTextFieldKind GetActiveEditableTextField()
         {
+            if (currentApp == "appPhoto" && photoAlbumCreationOpen)
+                return EditableTextFieldKind.PhotoAlbumName;
+
             if (currentApp == TextAppState && chatPhotoPickerOpen)
                 return EditableTextFieldKind.None;
 
@@ -1623,6 +1667,7 @@ namespace Smartphone
                 EditableTextFieldKind.ProfileAge => IsTextAppOpen() && textProfileMenuOpen,
                 EditableTextFieldKind.ProfileBirthday => IsTextAppOpen() && textProfileMenuOpen,
                 EditableTextFieldKind.ProfileDescription => IsTextAppOpen() && textProfileMenuOpen,
+                EditableTextFieldKind.PhotoAlbumName => currentApp == "appPhoto" && photoAlbumCreationOpen,
                 _ => false
             };
         }
@@ -1723,6 +1768,15 @@ namespace Smartphone
                         insertionText);
                     return true;
 
+                case EditableTextFieldKind.PhotoAlbumName:
+                    ApplyEditableTextInsertion(
+                        field,
+                        ref photoNewAlbumName,
+                        ref photoNewAlbumNameCursorIndex,
+                        ref photoNewAlbumNameSelectionAnchorIndex,
+                        insertionText);
+                    return true;
+
                 default:
                     return false;
             }
@@ -1808,6 +1862,7 @@ namespace Smartphone
                 EditableTextFieldKind.ProfileAge => textProfileAgeUndoHistory,
                 EditableTextFieldKind.ProfileBirthday => textProfileBirthdayUndoHistory,
                 EditableTextFieldKind.ProfileDescription => textProfileDescriptionUndoHistory,
+                EditableTextFieldKind.PhotoAlbumName => photoAlbumNameUndoHistory,
                 _ => currentMessageUndoHistory
             };
         }
@@ -1934,6 +1989,15 @@ namespace Smartphone
                 }
             }
 
+            if (currentApp == "appPhoto" && photoAlbumCreationOpen)
+            {
+                if (photoAlbumInputAreaBounds.Contains(x, y))
+                {
+                    TriggerAndroidKeyboard(EditableTextFieldKind.PhotoAlbumName, photoNewAlbumName);
+                    return true;
+                }
+            }
+
             return false;
         }
 
@@ -1992,6 +2056,10 @@ namespace Smartphone
                     appStoreDetailScrollOffset = Math.Max(0, Math.Min(appStoreDetailScrollOffset + pixelDelta, appStoreMaxDetailScroll));
                 }
             }
+            else if (currentApp == "appPhoto" && photoDetailIndex < 0)
+            {
+                ApplyPhotoTouchScrollDelta(pixelDelta);
+            }
         }
 
         private void ClearTextUndoHistory(EditableTextFieldKind field)
@@ -2047,6 +2115,12 @@ namespace Smartphone
                     MessageManager.currentPlayerProfile = safeText;
                     textProfileDescriptionCursorIndex = safeCursorIndex;
                     textProfileDescriptionSelectionAnchorIndex = safeSelectionAnchorIndex;
+                    break;
+
+                case EditableTextFieldKind.PhotoAlbumName:
+                    photoNewAlbumName = safeText;
+                    photoNewAlbumNameCursorIndex = safeCursorIndex;
+                    photoNewAlbumNameSelectionAnchorIndex = safeSelectionAnchorIndex;
                     break;
             }
 
@@ -4842,6 +4916,10 @@ namespace Smartphone
             if (currentApp == "appStore")
             {
                 ResetAppStoreState();
+            }
+            if (currentApp == "appPhoto")
+            {
+                ClosePhotoApp();
             }
 
             SetPhoneTextInputFocus(false);

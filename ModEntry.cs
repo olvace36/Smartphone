@@ -268,6 +268,11 @@ namespace Smartphone
             }
         }
 
+        public void RetrievePhotos(int limit, bool getTexture, bool getMetadata, Action<string> onComplete)
+        {
+            ModEntry.RetrievePhotosInternal(limit, getTexture, getMetadata, onComplete);
+        }
+
         public bool IsSmallPhoneSize()
         {
             return ModEntry.Config?.UseSmallPhoneSize == true;
@@ -565,9 +570,15 @@ namespace Smartphone
         {
             var dict = new Dictionary<string, Texture2D>();
             string folderPath = Path.Combine(SHelper.DirectoryPath, "userdata", GetActiveSaveFolderName(), "photo_player");
+
             if (Directory.Exists(folderPath))
             {
-                foreach (string photoPath in Directory.GetFiles(folderPath, "*.jpg"))
+                var sortedFiles = Directory.GetFiles(folderPath, "*.jpg")
+                                           .Select(f => new FileInfo(f))
+                                           .OrderByDescending(fi => fi.LastWriteTime)
+                                           .Select(fi => fi.FullName);
+
+                foreach (string photoPath in sortedFiles)
                 {
                     string photoName = Path.GetFileName(photoPath);
                     try
@@ -804,6 +815,25 @@ namespace Smartphone
                 });
                 isTodayEventAdded = true;
             }
+        }
+
+        public static void RetrievePhotosInternal(int limit, bool getTexture, bool getMetadata, Action<string> onComplete)
+        {
+            if (limit <= 0)
+            {
+                onComplete?.Invoke("[]");
+                return;
+            }
+
+            EnsurePhoneMenuUsesCurrentScale();
+
+            // Set state on phone menu
+            phoneMenu.StartPhotoSelectionApiMode(limit, getTexture, getMetadata, onComplete);
+
+            // Open the phone menu and bypass lock screen, going directly to the photo app
+            phoneMenu.rootLandingState = PhoneMenu.RootLandingState.Home;
+            phoneMenu.OpenPhotoApp();
+            Game1.activeClickableMenu = phoneMenu;
         }
     }
 }
