@@ -271,8 +271,8 @@ namespace Smartphone
                 Vector2 typeButtonSize = MeasurePhoneText(Game1.smallFont, typeButtonText);
                 int typeButtonWidth = (int)typeButtonSize.X + ScaleUiValue(20);
                 int typeButtonHeight = (int)typeButtonSize.Y + ScaleUiValue(10);
-                int typeButtonX = xPositionOnScreen + SocialFeedCreateButtonX;
-                int typeButtonY = yPositionOnScreen + SocialFeedCreateButtonY;
+                int typeButtonX = PhoneX(width - 50 - typeButtonWidth);
+                int typeButtonY = pageY;
 
                 appStoreTypeButtonRect = new Rectangle(typeButtonX, typeButtonY, typeButtonWidth, typeButtonHeight);
                 IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), appStoreTypeButtonRect.X, appStoreTypeButtonRect.Y, appStoreTypeButtonRect.Width, appStoreTypeButtonRect.Height, new Color(255, 255, 255, 220), 1f, false);
@@ -441,8 +441,8 @@ namespace Smartphone
                 Vector2 goToModSize = MeasurePhoneText(Game1.smallFont, goToModText);
                 int buttonWidth = (int)goToModSize.X + ScaleUiValue(20);
                 int buttonHeight = (int)goToModSize.Y + ScaleUiValue(10);
-                int buttonX = xPositionOnScreen + SocialFeedCreateButtonX;
-                int buttonY = yPositionOnScreen + SocialFeedCreateButtonY;
+                int buttonX = PhoneX(width - 40 - buttonWidth);
+                int buttonY = PhoneY(height - 120);
 
                 appStoreGoToModButtonRect = new Rectangle(buttonX, buttonY, buttonWidth, buttonHeight);
                 IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), appStoreGoToModButtonRect.X, appStoreGoToModButtonRect.Y, appStoreGoToModButtonRect.Width, appStoreGoToModButtonRect.Height, new Color(255, 255, 255, 220), 1f, false);

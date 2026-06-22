@@ -29,40 +29,9 @@ namespace Smartphone
             this.monitor = monitor;
         }
 
-        public List<string> GetPhoneNpcList(string playerId = "")
-        {
-            return ModEntry.GetPhoneNpcListByPlayerId(playerId);
-        }
-
-        public void SendSmartphoneMessageFromNPC(string npcName, string message, string playerId = "")
-        {
-            ModEntry.RouteSmartphoneMessageFromNpc(npcName, message, playerId);
-        }
-
-        public void SendSmartphoneMessageFromPlayer(string npcName, string message, string playerId = "")
-        {
-            ModEntry.RouteSmartphoneMessageFromPlayer(npcName, message, playerId);
-        }
-
         public void SendSmartphoneNotification(string message, string notificationName = "", string playerId = "")
         {
-            ModEntry.RouteSmartphoneNotification(message, notificationName, playerId);
-        }
-
-
-        public string? CreateStardewConnectPostFromNpc(string npcName, string postText, string attachedImageFile = "")
-        {
-            return StardewConnectManager.AddNpcPost(npcName, postText, attachedImageFile);
-        }
-
-        public bool AddStardewConnectCommentFromNpc(string postId, string npcName, string commentText)
-        {
-            return StardewConnectManager.AddNpcComment(postId, npcName, commentText);
-        }
-
-        public bool SetStardewConnectPostLikedFromNpc(string postId, string npcName, bool liked)
-        {
-            return StardewConnectManager.SetPostLike(postId, npcName, liked);
+            NotificationManager.addNotification(message, notificationName);
         }
 
         public string CaptureNpcPhoto(GameLocation targetLocation, Vector2 captureCenter, NPC npc = null, bool landscape = false, bool square = false, List<NPC>? visibleNpcAtTarget = null, float zoomLevel = 1f, int? captureTimeOfDay = null, string saveLocation = null)
@@ -88,46 +57,6 @@ namespace Smartphone
         public Dictionary<string, Texture2D> GetAllPlayerPhotoTextures()
         {
             return ModEntry.GetAllPlayerPhotoTexturesInternal();
-        }
-
-        public string GetPlayerProfile()
-        {
-            return MessageManager.currentPlayerProfile;
-        }
-
-        public string GetPlayerBirthDate()
-        {
-            return MessageManager.currentPlayerBirthDate;
-        }
-
-        public string GetPlayerBirthSeason()
-        {
-            return MessageManager.currentPlayerBirthSeason;
-        }
-
-        public string GetPlayerAge()
-        {
-            return MessageManager.currentPlayerAge;
-        }
-
-        public bool RegisterUnlimitedEvent(
-            string ownerModId,
-            string eventType,
-            Action<string> triggerEvent,
-            int minimumHeartLevel = 0,
-            string toolDescription = "")
-        {
-            return ModEntry.RegisterUnlimitedEventInternal(
-                ownerModId,
-                eventType,
-                triggerEvent,
-                minimumHeartLevel,
-                toolDescription);
-        }
-
-        public bool UnregisterUnlimitedEvent(string ownerModId, string eventType)
-        {
-            return ModEntry.UnregisterUnlimitedEventInternal(ownerModId, eventType);
         }
 
         public bool RegisterPhoneApp(
@@ -392,6 +321,15 @@ namespace Smartphone
 
         public static JToken eventString;
 
+        public static string currentPhoneTheme = "Default";
+        public static string currentPhoneBackground = "";
+        public static string currentPhoneSound = "bigSelect";
+        public static string currentPhoneTextColor = "Black";
+        public static string currentPlayerProfile = "";
+        public static string currentPlayerBirthDate = "";
+        public static string currentPlayerBirthSeason = "";
+        public static string currentPlayerAge = "";
+
         public static bool takeScreenshot = false;
         public static int currentMenuX;
         public static int currentMenuY;
@@ -404,21 +342,6 @@ namespace Smartphone
         public static bool pendingPhoneOsInitialization = false;
         public static bool hasNewVersionAvailable = false;
 
-        public static Dictionary<string, GiftMemory> GiftMemories = new();
-        public static List<RecentEvent> RecentEvents = new();
-        public static bool isTodayEventAdded = false;
-        public static Dictionary<(string season, int day), List<NPC>> NpcBirthdaysByDate = new();
-        public static Dictionary<string, string> NpcCharacteristicsShort = new();
-        public static Dictionary<string, string> NpcCharacteristicsMinimal = new();
-        public static Dictionary<string, string> NpcCharacteristicsLong = new();
-
-        public static int lastTimeReceiveMessage = 300;
-
-        public static List<string> FarmCropNames = new();
-        public static List<string> FarmTreeNames = new();
-
-        public static Dictionary<string, List<string>> npcMessagesToday = new();
-        public static Dictionary<string, string> npcConversationSummary = new();
 
         private static readonly object SaveFolderNameLock = new();
         private static string activeSaveFolderName = string.Empty;
@@ -599,223 +522,7 @@ namespace Smartphone
 
 
 
-        public static List<NPC> GetNpcsWithBirthdayToday()
-        {
-            int today = Game1.dayOfMonth;
-            string season = Game1.currentSeason;
 
-            return NpcBirthdaysByDate.TryGetValue((season, today), out var list)
-                ? list
-                : new List<NPC>();
-        }
-
-
-        public static void CheckSendNewMessage()
-        {
-            int timePassed = Game1.timeOfDay - lastTimeReceiveMessage;
-            int baseChance = Config.NewMessageChance == ModConfig.NewMessageChanceLow
-                ? (timePassed - 100) / 100
-                : (timePassed - 100) / 50;
-            baseChance = Math.Min(baseChance, 15);
-
-            if (Game1.random.NextDouble() < baseChance / 100.0)
-            {
-                if (phoneMenu == null)
-                    phoneMenu = new PhoneMenu();
-
-                phoneMenu.UpdateNpcList(true);
-
-                List<string> npcCandidates = phoneMenu.messageableNpcList
-                    .Select(entry => entry.name)
-                    .Where(name => !MessageManager.IsPlayerConversationKey(name))
-                    .ToList();
-
-                if (npcCandidates.Count == 0)
-                    return;
-
-                double power = 1.4;
-                int maxValue = Math.Min(npcCandidates.Count, 20);
-                if (maxValue < 1)
-                    return;
-
-                double rand = Game1.random.NextDouble();
-                int result = (int)(Math.Pow(rand, power) * maxValue);
-
-                int counter = 0;
-
-                while (counter < 3)
-                {
-                    string npcName = npcCandidates[Math.Min(result + counter, maxValue - 1)];
-                    NPC npc = Game1.getCharacterFromName(npcName, mustBeVillager: false);
-
-                    if (npc == null)
-                    {
-                        counter++;
-                        continue;
-                    }
-
-                    long currentTime = (long)Game1.player.millisecondsPlayed / 1000;
-                    long lastTime = MessageManager.latestAdd.TryGetValue(npcName, out long time) ? time : 0;
-
-                    if (currentTime - lastTime > 180 && !npcMessagesToday.ContainsKey(npcName))
-                    {
-                        bool talkedToToday = Game1.player.friendshipData.TryGetValue(npcName, out Friendship friendship)
-                                             && friendship.TalkedToToday;
-
-                        if (!talkedToToday && !Config.DisableDailyMessage)
-                        {
-                            // Mark as talked to
-                            if (friendship != null)
-                                friendship.TalkedToToday = true;
-
-
-                            npc.checkForNewCurrentDialogue(Game1.player.getFriendshipHeartLevelForNPC(npcName));
-
-                            if (npc.CurrentDialogue != null)
-                            {
-                                Task.Run(async () =>
-                                {
-                                    await PhoneDialogueRuntime.DeliverDialogueSequenceAsync(
-                                        npcName,
-                                        npc.CurrentDialogue,
-                                        useRandomDelay: false,
-                                        minDelayMs: 0,
-                                        maxDelayMs: 1);
-
-                                    npc.CurrentDialogue?.Clear();
-                                });
-                            }
-                        }
-                        else
-                        {
-                            if (iUnlimitedEventExpansionApi != null && Game1.timeOfDay < 1900 && Game1.random.NextDouble() < 0.3 && Game1.player.getFriendshipHeartLevelForNPC(npcName) >= 3 && iUnlimitedEventExpansionApi.CanScheduleNewEvent()) // 30% chance to trigger invite event if conditions are met
-                            {
-                                Task.Run(async () =>
-                                {
-                                    if (!TryConsumeAiCallSlot())
-                                        return;
-
-                                    string messages = await SendMessageToAssistant(npcName, type: "invite");
-                                    if (!string.IsNullOrWhiteSpace(messages)
-                                        && !messages.StartsWith("SYSTEM:", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        MessageManager.AddMessage(npcName, $"{npcName}:" + messages);
-                                        lastTimeReceiveMessage = Game1.timeOfDay;
-                                    }
-                                });
-                            }
-                            else
-                            {
-                                Task.Run(async () =>
-                                {
-                                    if (!TryConsumeAiCallSlot())
-                                        return;
-
-                                    string messages = await SendMessageToAssistant(npcName, type: "text");
-                                    if (!string.IsNullOrWhiteSpace(messages)
-                                        && !messages.StartsWith("SYSTEM:", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        MessageManager.AddMessage(npcName, $"{npcName}:" + messages);
-                                        lastTimeReceiveMessage = Game1.timeOfDay;
-                                    }
-                                });
-                            }
-                        }
-
-                        break;
-                    }
-
-                    counter++;
-                }
-            }
-        }
-
-
-        public static void FirstDailyText(string npcName, string message)
-        {
-            NPC npc = Game1.getCharacterFromName(npcName);
-            bool talkedToToday = Game1.player.friendshipData.TryGetValue(npcName, out Friendship friendship) && friendship.TalkedToToday;
-            if (talkedToToday)
-            {
-                Task.Run(async () =>
-                {
-                    if (!TryConsumeAiCallSlot())
-                        return;
-
-                    string reply = await ModEntry.SendMessageToAssistant(npcName, text: message);
-                    if (!string.IsNullOrWhiteSpace(reply)
-                        && !reply.StartsWith("SYSTEM:", StringComparison.OrdinalIgnoreCase))
-                        MessageManager.AddMessage(npcName, $"{npcName}:" + reply);
-                    lastTimeReceiveMessage = Game1.timeOfDay;
-                });
-            }
-            else
-            {
-                if (friendship != null)
-                    friendship.TalkedToToday = true;
-
-                npc.checkForNewCurrentDialogue(Game1.player.getFriendshipHeartLevelForNPC(npcName));
-                if (npc.currentMarriageDialogue != null && npc.currentMarriageDialogue.Count > 0)
-                {
-                    if (npc.CurrentDialogue == null)
-                        npc.CurrentDialogue = new Stack<Dialogue>();
-
-                    for (int i = npc.currentMarriageDialogue.Count - 1; i >= 0; i--)
-                    {
-                        var dialogueRef = npc.currentMarriageDialogue[i];
-                        Dialogue actualDialogue = dialogueRef.GetDialogue(npc);
-
-                        if (actualDialogue != null)
-                        {
-                            npc.CurrentDialogue.Push(actualDialogue);
-                        }
-                    }
-
-                    npc.currentMarriageDialogue.Clear();
-                }
-
-                if (npc.CurrentDialogue != null && npc.CurrentDialogue.Count > 0)
-                {
-                    Task.Run(async () =>
-                    {
-                        await PhoneDialogueRuntime.DeliverDialogueSequenceAsync(
-                            npcName,
-                            npc.CurrentDialogue,
-                            useRandomDelay: true,
-                            minDelayMs: 3000,
-                            maxDelayMs: 5000);
-
-                        npc.CurrentDialogue?.Clear();
-                    });
-                }
-            }
-
-        }
-
-
-
-        public static void CheckCurrentEvent()
-        {
-            if (Game1.currentSeason == "spring" && Game1.dayOfMonth == 24 && Game1.player.dancePartner.TryGetVillager() != null && !isTodayEventAdded)
-            {
-                RecentEvents.Add(new RecentEvent
-                {
-                    Description = SHelper.Translation.Get("event.flower_dance", new { npcName = Game1.player.dancePartner.TryGetVillager().Name }),
-                    DaysRemaining = 7
-                });
-                isTodayEventAdded = true;
-            }
-            else if (Game1.CurrentEvent != null && Game1.CurrentEvent.isFestival && !isTodayEventAdded && !(Game1.currentSeason == "spring" && Game1.dayOfMonth == 24))
-            {
-                string festivalId = Game1.CurrentEvent.FestivalName;
-                RecentEvents.Add(new RecentEvent
-                {
-                    Description = SHelper.Translation.Get("event.festival", new { festivalId = festivalId }),
-                    DaysRemaining = 5
-                });
-                isTodayEventAdded = true;
-            }
-        }
 
         public static void RetrievePhotosInternal(int limit, bool getTexture, bool getMetadata, Action<string> onComplete, bool squareOnly = false)
         {

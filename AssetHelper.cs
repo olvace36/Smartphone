@@ -86,10 +86,8 @@ public class AssetHelper
         public const string PhoneEmpty = "phone_empty.png";
         public const string Background = "background.png";
 
-        public const string AppText = "app_text.png";
         public const string AppCamera = "app_camera.png";
         public const string AppPhoto = "app_photo.png";
-        public const string AppSocial = "app_social.png";
         public const string AppSetting = "app_setting.png";
         public const string AppNotification = "app_notification.png";
         public const string AppAppStore = "app_appstore.png";

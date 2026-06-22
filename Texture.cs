@@ -52,18 +52,12 @@ namespace Smartphone
             PhoneEmpty = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.PhoneEmpty));
             Background = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.Background));
 
-            AppText = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppText));
             AppCamera = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppCamera));
             AppPhoto = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppPhoto));
             AppSetting = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppSetting));
             AppNotification = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppNotification));
             AppAppStore = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppAppStore));
-            AppCalendar = TryLoadTextureOrFallback(
-                Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppCalendar),
-                Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppAppStore));
-            AppSocial = TryLoadTextureOrFallback(
-                Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppSocial),
-                Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppNotification));
+            AppCalendar =  ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppCalendar));
         }
 
         private static Texture2D TryLoadTextureOrFallback(string primaryAssetPath, string fallbackAssetPath)

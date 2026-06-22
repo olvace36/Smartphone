@@ -74,7 +74,7 @@ namespace Smartphone
         public override void Entry(IModHelper helper)
         {
             Config = Helper.ReadConfig<ModConfig>();
-            RefreshIgnoredNpcList();
+
 
             ModEntry.Instance = this;
 
@@ -88,22 +88,12 @@ namespace Smartphone
             helper.Events.GameLoop.GameLaunched += OnGameLauched;
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
             helper.Events.GameLoop.Saving += OnSaving;
-            helper.Events.GameLoop.DayEnding += OnDayEnding;
             helper.Events.GameLoop.TimeChanged += OnTimeChange;
             helper.Events.GameLoop.DayStarted += OnDayStarted;
             helper.Events.GameLoop.ReturnedToTitle += OnReturnedToTitle;
-            helper.Events.GameLoop.OneSecondUpdateTicked += OnOneSecondUpdateTicked;
-            helper.Events.Player.Warped += OnWarped;
-            helper.Events.Display.MenuChanged += OnMenuChanged;
             helper.Events.Display.WindowResized += OnWindowResized;
             helper.Events.Display.Rendered += OnRendered;
             helper.Events.Display.RenderedHud += OnRenderedHud;
-            helper.Events.Multiplayer.ModMessageReceived += OnModMessageReceived;
-
-
-            var harmony = new Harmony(this.ModManifest.UniqueID);
-            harmony.PatchAll();
-
 
             // dev tool: prepare for grid overlay
             solidPixel = new Texture2D(Game1.graphics.GraphicsDevice, 1, 1);
@@ -113,23 +103,6 @@ namespace Smartphone
         }
 
 
-
-        [HarmonyPatch(typeof(NPC), nameof(NPC.receiveGift))]
-        [HarmonyPatch(new[] { typeof(StardewValley.Object), typeof(Farmer), typeof(bool), typeof(float), typeof(bool) })]
-        public static class NPCReceiveGiftPatch
-        {
-            public static void Postfix(NPC __instance, StardewValley.Object o)
-            {
-                if (__instance != null && o != null)
-                {
-                    GiftMemories[__instance.Name] = new GiftMemory
-                    {
-                        GiftName = o.DisplayName,
-                        DaysRemaining = 3
-                    };
-                }
-            }
-        }
 
 
 
@@ -145,14 +118,6 @@ namespace Smartphone
             ConfigMenu(api, this.ModManifest, Helper);
 
             AppStoreManager.Initialize();
-
-            iUnlimitedEventExpansionApi = SHelper.ModRegistry.GetApi<IUnlimitedEventExpansionApi>("d5a1lamdtd.UnlimitedEventExpansion");
-
-            if (iUnlimitedEventExpansionApi == null)
-            {
-                Monitor.Log("UnlimitedEventExpansion is either not installed or failed to load.", LogLevel.Info);
-                return;
-            }
 
         }
 
@@ -201,15 +166,8 @@ namespace Smartphone
 
         private void OnSaving(object sender, SavingEventArgs e)
         {
-            MessageManager.SaveData();
-            NotificationManager.SaveNoticationData();
-            StardewConnectManager.SaveData();
-            SaveImageTags();
-            Helper.Data.WriteJsonFile(GetSaveDataPath("GiftMemoryData"), GiftMemories);
-
             if (phoneMenu != null)
                 phoneMenu.ClosePhoneMenu();
-            Helper.Data.WriteJsonFile(GetSaveDataPath("recent_event_memory"), RecentEvents);
         }
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
@@ -218,65 +176,7 @@ namespace Smartphone
             RefreshInitStateForCurrentSave();
             hasNewVersionAvailable = false;
 
-            npcConversationSummary = Helper.Data.ReadJsonFile<Dictionary<string, string>>(GetSaveDataPath("npcConversationSummary"))
-                   ?? new Dictionary<string, string>();
-
-            IndoorAreasByLocation = SHelper.Data.ReadJsonFile<Dictionary<string, Dictionary<string, AreaData>>>("assets/area_indoor.json")
-                        ?? new Dictionary<string, Dictionary<string, AreaData>>();
-
-            OutdoorAreasByLocation = SHelper.Data.ReadJsonFile<Dictionary<string, Dictionary<string, AreaData>>>("assets/area_outdoor.json")
-                        ?? new Dictionary<string, Dictionary<string, AreaData>>();
-
-            areaTags = new Dictionary<string, Dictionary<string, AreaData>>(IndoorAreasByLocation);
-            foreach (var kvp in OutdoorAreasByLocation)
-            {
-                areaTags[kvp.Key] = kvp.Value;
-            }
-
             LoadImageTags();
-            UpdatePostInteractionLimit();
-            PhoneDialogueRuntime.ClearDailyState();
-            MessageManager.LoadData();
-            StardewConnectManager.LoadData();
-
-            string npc_characteristic_minimal = Helper.ModContent.GetInternalAssetName("assets/npc_characteristics_minimal.json").BaseName;
-            string npc_characteristic_short = Helper.ModContent.GetInternalAssetName("assets/npc_characteristics_short.json").BaseName;
-            string npc_characteristic_long = Helper.ModContent.GetInternalAssetName("assets/npc_characteristics_long.json").BaseName;
-
-            NpcCharacteristicsMinimal = Helper.ModContent.Load<Dictionary<string, string>>(npc_characteristic_minimal)
-                .ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => TruncateCharacteristicValue(kvp.Value, 400));
-
-            NpcCharacteristicsShort = Helper.ModContent.Load<Dictionary<string, string>>(npc_characteristic_short)
-                .ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => TruncateCharacteristicValue(kvp.Value, 800));
-
-            NpcCharacteristicsLong = Helper.ModContent.Load<Dictionary<string, string>>(npc_characteristic_long)
-                .ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => TruncateCharacteristicValue(kvp.Value, 1500));
-
-
-            foreach (var npc in Utility.getAllVillagers()
-            .OfType<NPC>()
-                .Where(npc => npc.CanSocialize && !npc.IsInvisible && !socialNpcBlacklist.Contains(npc.Name, StringComparer.OrdinalIgnoreCase))
-                .ToList())
-            {
-                if (!string.IsNullOrEmpty(npc.Birthday_Season) && npc.Birthday_Day > 0)
-                {
-                    var key = (npc.Birthday_Season, npc.Birthday_Day);
-                    if (!NpcBirthdaysByDate.ContainsKey(key))
-                        NpcBirthdaysByDate[key] = new List<NPC>();
-
-                    NpcBirthdaysByDate[key].Add(npc);
-                }
-            }
-
-            // send conversationSummary to iModApi
-            if (iUnlimitedEventExpansionApi != null)
-                iUnlimitedEventExpansionApi.SendNpcConversationSummary(npcConversationSummary);
 
             string targetModId = this.ModManifest.UniqueID;
             var modInfo = this.Helper.ModRegistry.Get(targetModId);
@@ -308,104 +208,22 @@ namespace Smartphone
                 });
             }
 
-            InitializeSocialCoopOnSaveLoaded();
-        }
 
-        private static string TruncateCharacteristicValue(string? value, int maxLength)
-        {
-            if (string.IsNullOrEmpty(value) || maxLength <= 0)
-                return string.Empty;
-
-            return value.Length <= maxLength
-                ? value
-                : value.Substring(0, maxLength);
         }
 
 
 
         private void OnDayStarted(object sender, DayStartedEventArgs e)
         {
-            // Reset daily variables
-            ClearPendingRandomNpcSocialPost();
-            ResetDailyAiUsageLimit();
-            isTodayEventAdded = false;
-            lastTimeReceiveMessage = 600;
-            npcMessagesToday.Clear();
-            PhoneDialogueRuntime.ClearDailyState();
-            FarmCropNames.Clear();
-            FarmTreeNames.Clear();
-            ResetTriggeredUnlimitedEventTag();
-
-            UpdateSocialPostLimit();
-            MessageManager.LoadData();
-            ApplySavedPhoneTheme();
             NotificationManager.LoadNoticationData();
-            if (!IsFarmhandSocialPeer())
-                StardewConnectManager.LoadData();
-            HandlePhoneUsageInactivityOnDayStarted();
-            HandleAiModelSettingTimeChanged(600);
-            GiftMemories = Helper.Data.ReadJsonFile<Dictionary<string, GiftMemory>>(GetSaveDataPath("GiftMemoryData"))
-                ?? new Dictionary<string, GiftMemory>();
-            RecentEvents = Helper.Data.ReadJsonFile<List<RecentEvent>>(GetSaveDataPath("recent_event_memory"))
-                ?? new List<RecentEvent>();
-
-
-            foreach (var terrainFeature in Game1.getFarm().terrainFeatures.Values)
-            {
-                if (terrainFeature is HoeDirt hoeDirt && hoeDirt.crop != null)
-                {
-                    string harvestIndex = hoeDirt.crop.indexOfHarvest.Value;
-                    string cropName = new StardewValley.Object(harvestIndex, 1).DisplayName;
-                    FarmCropNames.Add(cropName);
-                }
-                else if (terrainFeature is FruitTree fruitTree)
-                {
-                    string treeName = fruitTree.GetDisplayName();
-                    FarmTreeNames.Add(treeName);
-                }
-            }
-
-            // if (ShouldHostRunSocialSimulation())
-            //     PrepareDailyRandomNpcSocialPosts();
-
         }
 
-        private void HandlePhoneUsageInactivityOnDayStarted()
-        {
-            IsAiDisabledForPhoneInactivityToday = false;
 
-            if (!IsAiUsageLimitEnabled())
-                return;
-
-            int currentDayNumber = MessageManager.GetCurrentPhoneUsageDayNumber();
-
-            int lastOpenedDay = Math.Max(0, MessageManager.lastPhoneOpenedDay);
-
-            if (currentDayNumber <= 0 || lastOpenedDay <= 0)
-                return;
-
-            if (lastOpenedDay > currentDayNumber)
-                lastOpenedDay = currentDayNumber;
-
-            int daysSinceLastOpen = lastOpenedDay <= 0
-                ? currentDayNumber
-                : currentDayNumber - lastOpenedDay;
-
-            if (daysSinceLastOpen >= 3)
-            {
-                IsAiDisabledForPhoneInactivityToday = true;
-                NotificationManager.addNotification(ModEntry.SHelper.Translation.Get("notification.inactivity_ai_disabled"));
-                return;
-            }
-
-            if (daysSinceLastOpen >= 2)
-                NotificationManager.addNotification(ModEntry.SHelper.Translation.Get("notification.check_phone"));
-        }
 
         private void ApplySavedPhoneTheme()
         {
-            string resolvedThemeName = AssetHelper.ResolvePhoneThemeName(MessageManager.currentPhoneTheme);
-            MessageManager.currentPhoneTheme = resolvedThemeName;
+            string resolvedThemeName = AssetHelper.ResolvePhoneThemeName(ModEntry.currentPhoneTheme);
+            ModEntry.currentPhoneTheme = resolvedThemeName;
 
             AssetHelper.SetCurrentPhoneTheme(resolvedThemeName);
             Textures.LoadTextures();
@@ -414,80 +232,10 @@ namespace Smartphone
                 phoneMenu.ReloadThemeTextures();
         }
 
-        private void OnDayEnding(object sender, DayEndingEventArgs e)
-        {
-            PhoneMenu.ClearPendingQueuedChatReplies();
-            ClearQueuedAiActions();
-
-            // gift memory
-            var keysToRemove = new List<string>();
-
-            foreach (var entry in GiftMemories)
-            {
-                entry.Value.DaysRemaining--;
-                if (entry.Value.DaysRemaining <= 0)
-                    keysToRemove.Add(entry.Key);
-            }
-
-            foreach (var key in keysToRemove)
-                GiftMemories.Remove(key);
-
-
-            // event memory
-            foreach (var evt in RecentEvents)
-                evt.DaysRemaining--;
-
-            RecentEvents = RecentEvents
-                .Where(evt => evt.DaysRemaining > 0)
-                .ToList();
-
-
-            // chat summary
-            var conversationsToSummarize = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var kvp in npcMessagesToday)
-            {
-                string npcName = kvp.Key;
-                List<string> messages = kvp.Value
-                    .Skip(Math.Max(0, kvp.Value.Count - 30))
-                    .ToList();
-
-                if (messages.Count == 0)
-                    continue;
-
-                conversationsToSummarize[npcName] = string.Join("\n", messages);
-            }
-
-            if (conversationsToSummarize.Count == 0)
-                return;
-
-            Task.Run(async () =>
-            {
-                try
-                {
-                    Dictionary<string, string> batchSummaries = await SummaryConversationsBatch(conversationsToSummarize, bypassAiLimit: true);
-                    if (batchSummaries.Count == 0)
-                        return;
-
-                    foreach (var kvp in batchSummaries)
-                        npcConversationSummary[kvp.Key] = kvp.Value;
-
-                    Helper.Data.WriteJsonFile(GetSaveDataPath("npcConversationSummary"), npcConversationSummary);
-
-                    // send conversationSummary to iModApi
-                    if (iUnlimitedEventExpansionApi != null)
-                        iUnlimitedEventExpansionApi.SendNpcConversationSummary(npcConversationSummary);
-                }
-                catch (Exception ex)
-                {
-                    SMonitor.Log($"Unable to update NPC conversation summaries in batch: {ex}", LogLevel.Trace);
-                }
-            });
-        }
-
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
         {
             ClearActiveSaveFolderName();
-            ClearPendingSyncState();
+
             pendingInitNotification = false;
             pendingPhoneOsInitialization = false;
             hasNewVersionAvailable = false;
@@ -500,28 +248,8 @@ namespace Smartphone
 
         private void OnTimeChange(object sender, TimeChangedEventArgs e)
         {
-            return;
-
-            HandleAiUsageTimeChanged(e.NewTime);
-            HandleAiModelSettingTimeChanged(e.NewTime);
-
-            if (ShouldHostRunSocialSimulation() && Config.EnableAI)
-            {
-                HandleScheduledSocialPostsOnTimeChanged(e.NewTime);
-
-                if (GetSocialCommentEngagementIntervalFromConfig().Contains(e.NewTime))
-                    QueueRandomNpcCommentEngagement();
-
-                if (GetSocialLikeEngagementIntervalFromConfig().Contains(e.NewTime))
-                    QueueRandomNpcLikeEngagement();
-            }
-
-            if (Game1.timeOfDay < 2200 && Config.EnableAI)
-                CheckSendNewMessage();
-
             if (pendingInitNotification && Context.IsPlayerFree)
             {
-                MessageManager.MarkPhoneOpenedToday();
                 Game1.drawLetterMessage(ModEntry.SHelper.Translation.Get("mail.first_time"));
 
                 NotificationManager.addNotification(ModEntry.SHelper.Translation.Get("notification.first_time"));
@@ -530,17 +258,6 @@ namespace Smartphone
             }
         }
 
-        private void OnWarped(object sender, WarpedEventArgs e)
-        {
-            if (!Context.IsWorldReady || e == null || !e.IsLocalPlayer)
-                return;
-        }
-
-        private void OnMenuChanged(object sender, MenuChangedEventArgs e)
-        {
-            if (!Context.IsWorldReady)
-                return;
-        }
 
         private void OnWindowResized(object sender, WindowResizedEventArgs e)
         {
@@ -743,13 +460,7 @@ namespace Smartphone
             if (NotificationManager.getUnreadNotication() > 0)
                 return true;
 
-            foreach (KeyValuePair<string, int> pair in MessageManager.unreadCounts)
-            {
-                if (pair.Value > 0)
-                    return true;
-            }
-
-            return StardewConnectManager.GetActiveSocialNotificationCount() > 0;
+            return false;
         }
 
         private static void DrawHudPhoneAlertBadge(SpriteBatch spriteBatch, Microsoft.Xna.Framework.Rectangle iconBounds)
@@ -822,7 +533,7 @@ namespace Smartphone
             int targetWidth = Math.Max(1, backgroundTexture?.Width ?? 520);
             int targetHeight = Math.Max(1, backgroundTexture?.Height ?? 810);
 
-            string imagePath = (MessageManager.currentPhoneBackground ?? string.Empty).Trim();
+            string imagePath = (ModEntry.currentPhoneBackground ?? string.Empty).Trim();
             bool pathChanged = !string.Equals(hudPhoneBackgroundImagePath, imagePath, StringComparison.OrdinalIgnoreCase);
             bool sizeChanged = hudPhoneBackgroundImageTargetWidth != targetWidth || hudPhoneBackgroundImageTargetHeight != targetHeight;
 
@@ -893,16 +604,6 @@ namespace Smartphone
             Texture2D fittedTexture = new Texture2D(Game1.graphics.GraphicsDevice, safeTargetWidth, safeTargetHeight);
             fittedTexture.SetData(targetData);
             return fittedTexture;
-        }
-
-        private void OnOneSecondUpdateTicked(object sender, OneSecondUpdateTickedEventArgs e)
-        {
-            if (!Context.IsWorldReady) return;
-
-            if (e.IsMultipleOf(6000))
-                CheckCurrentEvent();
-
-            ProcessPendingSyncSendQueue();
         }
 
 

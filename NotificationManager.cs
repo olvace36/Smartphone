@@ -1,4 +1,4 @@
-﻿using StardewModdingAPI;
+using StardewModdingAPI;
 using StardewValley;
 using StardewValley.GameData.Characters;
 
@@ -40,7 +40,7 @@ namespace Smartphone
                     Game1.addHUDMessage(new HUDMessage("New notification", HUDMessage.newQuest_type));
             }
 
-            DelayedAction.playSoundAfterDelay(MessageManager.currentPhoneSound, 0);
+            DelayedAction.playSoundAfterDelay(ModEntry.currentPhoneSound, 0);
             if (ModEntry.phoneMenu != null && PhoneMenu.currentApp != "appNotification")
                 addUnreadNotication();
         }

@@ -27,31 +27,6 @@ namespace Smartphone
             public Func<int>? GetBadgeCount { get; init; }
         }
 
-        private sealed class ChatMessageEntry
-        {
-            public bool IsSystem { get; init; }
-            public bool IsPlayer { get; init; }
-            public bool IsPhoto { get; init; }
-            public string Text { get; init; } = "";
-            public string PhotoGroupId { get; init; } = "";
-            public List<string> PhotoPaths { get; init; } = new();
-            public string PhotoTag { get; init; } = "";
-        }
-
-        private sealed class ChatPhotoHoverEntry
-        {
-            public Rectangle Bounds { get; init; }
-            public string TagText { get; init; } = "";
-        }
-
-        private sealed class ChatPhotoNavigationEntry
-        {
-            public string GroupId { get; init; } = "";
-            public int PhotoCount { get; init; }
-            public Rectangle PreviousBounds { get; init; }
-            public Rectangle NextBounds { get; init; }
-        }
-
         private sealed class TextEditSnapshot
         {
             public string Text { get; init; } = "";
@@ -127,13 +102,6 @@ namespace Smartphone
         private double lockScreenInitializationElapsedSeconds = 0d;
         private double lockScreenInitializationNextTickSeconds = 0d;
 
-        private static readonly Dictionary<string, List<string>> pendingMessages = new(StringComparer.OrdinalIgnoreCase);
-        private static readonly Dictionary<string, CancellationTokenSource> replyTimers = new(StringComparer.OrdinalIgnoreCase);
-        private static readonly Dictionary<string, DateTime> lastInputActivityUtc = new(StringComparer.OrdinalIgnoreCase);
-        private static readonly object replyQueueLock = new();
-        private static readonly TimeSpan ReplyInactivityDelay = TimeSpan.FromSeconds(10);
-        Texture2D furnitureTexture = Game1.content.Load<Texture2D>("TileSheets\\furniture");
-
 
 
         private Texture2D texturePhoneBackground = Textures.PhoneBackground;
@@ -149,15 +117,12 @@ namespace Smartphone
         private Texture2D textureAppAppStore = Textures.AppAppStore;
         private Texture2D textureAppCalendar = Textures.AppCalendar;
 
-        public List<ClickableComponent> messageableNpcList;
         private int scrollOffset = 0;
         private int maxVisibleNPCs = 7;
         int visibleSlots = 7;
         int spacing = 95;
 
         public static string selectedNpc = null;
-        private Rectangle textSearchInputBounds = Rectangle.Empty;
-        private Rectangle textChatInputBounds = Rectangle.Empty;
         private Task<string> pendingKeyboardTask = null;
         private EditableTextFieldKind pendingKeyboardField = EditableTextFieldKind.None;
         private bool isScrolling = false;
@@ -168,26 +133,11 @@ namespace Smartphone
         private int currentMessageCursorIndex = 0;
         private int currentMessageSelectionAnchorIndex = 0;
         private readonly List<TextEditSnapshot> currentMessageUndoHistory = new();
-        public static List<string> messageHistory = new();
         private float chatScrollOffset = 0f;
-        private float chatScrollTarget = 0f;
         public static List<string> notificationHistory = new();
         private float notificationScrollOffset = 0f;
         private float notificationScrollTarget = 0f;
         int maxBubbleWidth = 400;
-
-        private const int ChatImageMaxWidthBase = 260;
-        private const int ChatImageMaxHeightBase = 240;
-        private const float ChatImageScale = 0.5f;
-        private const int ChatPhotoPickerMaxCount = 5;
-        private const int ChatAttachmentButtonWidthBase = 52;
-        private const string PlayerPhotoPrefix = MessageManager.PlayerPhotoMessagePrefix;
-        private const string PlayerPhotoTagPrefix = MessageManager.PlayerPhotoTagMessagePrefix;
-        private const string NpcPhotoPrefix = MessageManager.NpcPhotoMessagePrefix;
-        private const string NpcPhotoTagPrefix = MessageManager.NpcPhotoTagMessagePrefix;
-
-        private const int ChatViewportYOffsetBase = 125;
-        private const int ChatViewportHeightBase = 715;
         private const float ChatScrollPixelsPerWheelNotch = 48f;
         private const float ChatScrollLerpSpeed = 16f;
         private const int ScrollDrawOverscanBase = 72;
@@ -205,11 +155,6 @@ namespace Smartphone
         private const int NotificationBubbleInnerPaddingBase = 10;
         private const int NotificationBubbleSpacingBase = 20;
 
-        private int ChatImageMaxWidth => Math.Max(1, ScaleUiValue(ChatImageMaxWidthBase));
-        private int ChatImageMaxHeight => Math.Max(1, ScaleUiValue(ChatImageMaxHeightBase));
-        private int ChatAttachmentButtonWidth => Math.Max(1, ScaleUiValue(ChatAttachmentButtonWidthBase));
-        private int ChatViewportYOffset => ScaleUiValue(ChatViewportYOffsetBase);
-        private int ChatViewportHeight => Math.Max(1, ScaleUiValue(ChatViewportHeightBase));
         private int ScrollDrawOverscan => Math.Max(1, ScaleUiValue(ScrollDrawOverscanBase));
         private int NotificationViewportYOffset => ScaleUiValue(NotificationViewportYOffsetBase);
         private int NotificationViewportHeight => Math.Max(1, ScaleUiValue(NotificationViewportHeightBase));
@@ -222,15 +167,7 @@ namespace Smartphone
         private int NotificationBubbleSpacing => Math.Max(1, ScaleUiValue(NotificationBubbleSpacingBase));
 
         private readonly Dictionary<string, List<string>> textWrapCache = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, Texture2D> chatImageCache = new(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> chatFailedImagePaths = new(StringComparer.OrdinalIgnoreCase);
-        private readonly List<ChatPhotoHoverEntry> chatPhotoHoverEntries = new();
-        private readonly List<ChatPhotoNavigationEntry> chatPhotoNavigationEntries = new();
-        private readonly Dictionary<string, int> chatPhotoGroupIndices = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<int, Rectangle> chatDialogueChoiceBounds = new();
 
-        private Dictionary<string, ClickableTextureComponent> favourityNpcButton = new();
-        private readonly Dictionary<string, Rectangle> socialProfileNpcButtonBounds = new(StringComparer.OrdinalIgnoreCase);
         private List<string> phoneSoundList = new();
         private Dictionary<string, ClickableTextureComponent> phoneSoundButton = new();
         private List<string> phoneTextColorList = new();
@@ -245,7 +182,6 @@ namespace Smartphone
 
         // buttons
         private ClickableTextureComponent okButton;
-        private ClickableTextureComponent playerDescriptionButton;
         private ClickableTextureComponent backButton;
         private ClickableTextureComponent lockButton;
         private ClickableTextureComponent homeButton;
@@ -253,8 +189,6 @@ namespace Smartphone
         private ClickableTextureComponent captureButton;
         private ClickableTextureComponent photoNextButton;
         private ClickableTextureComponent photoPreviousButton;
-        private ClickableTextureComponent heartButton;
-        private Rectangle photoAvatarButtonBounds = Rectangle.Empty;
         private Rectangle cameraZoomOutButtonBounds = Rectangle.Empty;
         private Rectangle cameraZoomInButtonBounds = Rectangle.Empty;
         private Rectangle cameraFlashButtonBounds = Rectangle.Empty;
@@ -270,11 +204,9 @@ namespace Smartphone
         private string? appAtClickStart = null;
 
         private const string BuiltinAppNotificationId = "builtin:notification";
-        private const string BuiltinAppTextId = "builtin:text";
         private const string BuiltinAppCameraId = "builtin:camera";
         private const string BuiltinAppStoreId = "builtin:appstore";
         private const string BuiltinAppPhotoId = "builtin:photo";
-        private const string BuiltinAppSocialId = "builtin:social";
         private const string BuiltinAppSettingId = "builtin:setting";
         private const string BuiltinAppCalendarId = "builtin:calendar";
         private const string ExternalGroupAppState = "appExternalGroup";
@@ -384,13 +316,7 @@ namespace Smartphone
         private string currentExternalGroupName = "";
         private readonly Dictionary<int, Texture2D> lockScreenWeatherIconSoftCache = new();
 
-
-        private const string PlayerPhotoFolderName = "photo_player";
-        private const string NpcPhotoFolderName = "shared_photo";
         private List<string> capturedImages;
-        private int currentImageIndex = -1;
-        private Texture2D currentDisplayedImage = null;
-        private bool currentDisplayedImageIsSquare = false;
         private Texture2D phoneBackgroundImage = null;
 
 
@@ -398,35 +324,7 @@ namespace Smartphone
         private TextBox textBox;
         private readonly PhoneTextInputSubscriber textInputSubscriber;
 
-        private (string, string) currentSuggestion = ("", "");
-        private Rectangle messageSuggestionBounds = Rectangle.Empty;
-        private Rectangle firstMessageBounds = Rectangle.Empty;
-        private Rectangle chatPhotoButtonBounds = Rectangle.Empty;
-        private bool chatQuickActionsOpen = false;
-        private bool chatScheduleOptionsOpen = false;
-        private Rectangle chatQuickPhotoActionBounds = Rectangle.Empty;
-        private Rectangle chatQuickScheduleActionBounds = Rectangle.Empty;
-        private Rectangle chatAiCreditInfoBounds = Rectangle.Empty;
-        private readonly Dictionary<string, Rectangle> chatRegisteredQuickActionButtonBounds = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, Rectangle> chatScheduleEventButtonBounds = new(StringComparer.OrdinalIgnoreCase);
-        private Rectangle chatPhotoPickerPrevBounds = Rectangle.Empty;
-        private Rectangle chatPhotoPickerNextBounds = Rectangle.Empty;
-        private Rectangle chatPhotoPickerToggleBounds = Rectangle.Empty;
-        private Rectangle chatPhotoPickerCancelBounds = Rectangle.Empty;
-        private Rectangle chatPhotoPickerSendBounds = Rectangle.Empty;
-        private bool chatPhotoPickerOpen = false;
-        private readonly List<string> chatPhotoCandidates = new();
-        private readonly List<string> chatSelectedPhotos = new();
-        private int chatPhotoCandidateIndex = -1;
         private string currentSettingMenuState = SettingMenuMainState;
-        private bool textProfileMenuOpen = false;
-        private EditableTextFieldKind textProfileActiveField = EditableTextFieldKind.ProfileAge;
-
-        private Rectangle textProfileAvatarCameraButtonBounds = Rectangle.Empty;
-        private Rectangle textProfileAgeFieldBounds = Rectangle.Empty;
-        private Rectangle textProfileBirthdayFieldBounds = Rectangle.Empty;
-        private Rectangle textProfileDescriptionFieldBounds = Rectangle.Empty;
-        private Rectangle textProfileSeasonButtonBounds = Rectangle.Empty;
 
         private int textProfileAgeCursorIndex = 0;
         private int textProfileAgeSelectionAnchorIndex = 0;
@@ -567,8 +465,7 @@ namespace Smartphone
             spacing = Math.Max(1, ScaleUiValue(spacing));
             maxBubbleWidth = Math.Max(1, ScaleUiValue(maxBubbleWidth));
 
-            messageableNpcList = new List<ClickableComponent>();
-            UpdateNpcList(true);
+
 
 
             textBox = new TextBox(
@@ -627,12 +524,12 @@ namespace Smartphone
             phoneTextColorMap["Purple"] = Color.MediumPurple;
             phoneTextColorMap["White"] = Color.White;
 
-            AssetHelper.SetCurrentPhoneTheme(MessageManager.currentPhoneTheme);
-            MessageManager.currentPhoneTheme = AssetHelper.CurrentPhoneThemeName;
+            AssetHelper.SetCurrentPhoneTheme(ModEntry.currentPhoneTheme);
+            ModEntry.currentPhoneTheme = AssetHelper.CurrentPhoneThemeName;
             RefreshPhoneThemeList();
             ReloadThemeTextures();
 
-            ApplyPhoneBackground(MessageManager.currentPhoneBackground);
+            ApplyPhoneBackground(ModEntry.currentPhoneBackground);
             EnsureFreeControllerCursor();
 
         }
@@ -910,14 +807,7 @@ namespace Smartphone
             {
                 DrawPhotoApp(b);
             }
-            else if (currentApp == TextAppState)
-            {
-                DrawTextApp(b);
-            }
-            else if (currentApp == SocialAppState)
-            {
-                DrawSocialApp(b);
-            }
+
             else if (currentApp == "appSetting")
             {
                 DrawSettingMenu(b);
@@ -1042,17 +932,9 @@ namespace Smartphone
 
             if (!hasTouchScrolled && currentApp == appAtClickStart)
             {
-                if (currentApp == SocialAppState && HandleSocialLeftClick(x, y))
-                {
-                    // Handled
-                }
-                else if (currentApp == "appPhoto")
+                if (currentApp == "appPhoto")
                 {
                     ReleaseLeftClickPhotoApp(x, y);
-                }
-                else if (HandleTextNpcListOrChatClick(x, y))
-                {
-                    // Handled
                 }
             }
 
@@ -1096,57 +978,7 @@ namespace Smartphone
             ModEntry.currentMenuX = xPositionOnScreen;
             ModEntry.currentMenuY = yPositionOnScreen;
 
-            if (currentApp == TextAppState && selectedNpc != null)
-            {
-                UpdateTextChatScroll(time);
-            }
-            else if (currentApp == SocialAppState)
-            {
-                float lerpAmount = (float)(time.ElapsedGameTime.TotalSeconds * SocialScrollLerpSpeed);
-                lerpAmount = Math.Clamp(lerpAmount, 0f, 1f);
-
-                if (socialCreateMenuOpen)
-                {
-                    // create menu has no scrollable viewport
-                }
-                else if (socialNotificationMenuOpen)
-                {
-                    ClampSocialNotificationScroll();
-                    socialNotificationScrollOffset = MathHelper.Lerp(socialNotificationScrollOffset, socialNotificationScrollTarget, lerpAmount);
-
-                    if (Math.Abs(socialNotificationScrollOffset - socialNotificationScrollTarget) <= 0.5f)
-                        socialNotificationScrollOffset = socialNotificationScrollTarget;
-                }
-                else if (socialProfileMenuOpen)
-                {
-                    ClampSocialProfileScroll();
-                    socialProfileScrollOffset = MathHelper.Lerp(socialProfileScrollOffset, socialProfileScrollTarget, lerpAmount);
-
-                    if (Math.Abs(socialProfileScrollOffset - socialProfileScrollTarget) <= 0.5f)
-                        socialProfileScrollOffset = socialProfileScrollTarget;
-                }
-                else if (string.IsNullOrWhiteSpace(selectedSocialPostId))
-                {
-                    ClampSocialFeedScroll(StardewConnectManager.GetPostsSnapshot());
-                    socialFeedScrollOffset = MathHelper.Lerp(socialFeedScrollOffset, socialFeedScrollTarget, lerpAmount);
-
-                    if (Math.Abs(socialFeedScrollOffset - socialFeedScrollTarget) <= 0.5f)
-                        socialFeedScrollOffset = socialFeedScrollTarget;
-                }
-                else
-                {
-                    StardewConnectPost? selectedPost = StardewConnectManager.GetPost(selectedSocialPostId);
-                    if (selectedPost != null)
-                    {
-                        ClampSocialDetailScroll(selectedPost);
-                        socialDetailScrollOffset = MathHelper.Lerp(socialDetailScrollOffset, socialDetailScrollTarget, lerpAmount);
-
-                        if (Math.Abs(socialDetailScrollOffset - socialDetailScrollTarget) <= 0.5f)
-                            socialDetailScrollOffset = socialDetailScrollTarget;
-                    }
-                }
-            }
-            else if (currentApp == "appNotification")
+            if (currentApp == "appNotification")
             {
                 float lerpAmount = (float)(time.ElapsedGameTime.TotalSeconds * ChatScrollLerpSpeed);
                 lerpAmount = Math.Clamp(lerpAmount, 0f, 1f);
@@ -1217,14 +1049,6 @@ namespace Smartphone
             isScrolling = false;
             appAtClickStart = currentApp;
 
-            if (HandleTextPhotoPickerModalClick(x, y))
-                return;
-
-            if (HandleTextSuggestionClick(x, y))
-                return;
-
-            if (HandleTextFirstMessageClick(x, y))
-                return;
 
             if (HandleAndroidKeyboardTap(x, y))
                 return;
@@ -1320,12 +1144,7 @@ namespace Smartphone
 
             if (IsBackButtonPressed(x, y))
             {
-                if (currentApp == TextAppState)
-                {
-                    if (HandleTextBackButtonClick())
-                        return;
-                }
-                else if (currentApp == "appSetting")
+                if (currentApp == "appSetting")
                 {
                     if (currentSettingMenuState != SettingMenuMainState)
                     {
@@ -1335,11 +1154,6 @@ namespace Smartphone
                     }
 
                     currentApp = null;
-                    return;
-                }
-                else if (currentApp == SocialAppState)
-                {
-                    HandleSocialBackNavigation();
                     return;
                 }
                 else if (currentApp == "appPhoto")
@@ -1389,10 +1203,7 @@ namespace Smartphone
                 return;
             }
 
-            if (HandleTextRemoveButtonClick(x, y))
-            {
-                return;
-            }
+
             else if (removeButton.containsPoint(x, y) && currentApp == "appNotification")
             {
                 NotificationManager.clearNotification();
@@ -1449,7 +1260,7 @@ namespace Smartphone
 
                         DelayedAction.playSoundAfterDelay(button.name, 0);
                         DelayedAction.playSoundAfterDelay(button.name, 1500);
-                        MessageManager.currentPhoneSound = button.name;
+                        ModEntry.currentPhoneSound = button.name;
                         return;
                     }
                 }
@@ -1460,7 +1271,7 @@ namespace Smartphone
                         if (!button.containsPoint(x, y))
                             continue;
 
-                        MessageManager.currentPhoneTextColor = button.name;
+                        ModEntry.currentPhoneTextColor = button.name;
                         Game1.playSound("smallSelect");
                         return;
                     }
@@ -1487,14 +1298,7 @@ namespace Smartphone
 
         public override void receiveScrollWheelAction(int direction)
         {
-            if (HandleTextScrollWheel(direction))
-                return;
-
-            if (currentApp == SocialAppState)
-            {
-                HandleSocialScroll(direction);
-            }
-            else if (IsHomeLandingInteractive())
+            if (IsHomeLandingInteractive())
             {
                 if (TryChangeHomeAppPage(direction > 0 ? -1 : 1))
                     Game1.playSound("shwip");
@@ -1540,18 +1344,14 @@ namespace Smartphone
 
         public override void receiveKeyPress(Keys key)
         {
-            if (HandleTextKeyPress(key))
+            if (currentApp == "appPhoto" && HandlePhotoAlbumNameKeyPress(key))
                 return;
 
             if (key == Keys.Escape)
             {
                 if (currentApp != null)
                 {
-                    if (currentApp == SocialAppState)
-                    {
-                        HandleSocialBackNavigation();
-                        return;
-                    }
+
 
                     if (currentApp == "appSetting" && currentSettingMenuState != SettingMenuMainState)
                     {
@@ -1588,11 +1388,7 @@ namespace Smartphone
                 exitThisMenu();
                 return;
             }
-            else if (currentApp == SocialAppState)
-            {
-                if (HandleSocialTyping(key))
-                    return;
-            }
+
             else if (currentApp == "appPhoto")
             {
                 if (HandlePhotoAlbumNameKeyPress(key))
@@ -1604,31 +1400,6 @@ namespace Smartphone
         {
             if (currentApp == "appPhoto" && photoAlbumCreationOpen)
                 return EditableTextFieldKind.PhotoAlbumName;
-
-            if (currentApp == TextAppState && chatPhotoPickerOpen)
-                return EditableTextFieldKind.None;
-
-            if (currentApp == TextAppState)
-            {
-                if (textProfileMenuOpen)
-                    return textProfileActiveField;
-
-                if (selectedNpc == null)
-                    return EditableTextFieldKind.Search;
-
-                return IsTextChatInputEnabledForSelectedNpc()
-                    ? EditableTextFieldKind.Chat
-                    : EditableTextFieldKind.None;
-            }
-
-            if (currentApp == SocialAppState)
-            {
-                if (socialCreateMenuOpen)
-                    return EditableTextFieldKind.SocialPost;
-
-                if (!string.IsNullOrWhiteSpace(selectedSocialPostId))
-                    return EditableTextFieldKind.SocialComment;
-            }
 
             return EditableTextFieldKind.None;
         }
@@ -1654,19 +1425,6 @@ namespace Smartphone
         {
             return field switch
             {
-                EditableTextFieldKind.Search => IsTextAppOpen() && selectedNpc == null && !chatPhotoPickerOpen,
-                EditableTextFieldKind.Chat => IsTextAppOpen()
-                    && !string.IsNullOrWhiteSpace(selectedNpc)
-                    && !chatPhotoPickerOpen
-                    && IsTextChatInputEnabledForSelectedNpc()
-                    && !PhoneDialogueRuntime.HasPendingChoice(selectedNpc),
-                EditableTextFieldKind.SocialPost => currentApp == SocialAppState && socialCreateMenuOpen,
-                EditableTextFieldKind.SocialComment => currentApp == SocialAppState
-                    && !string.IsNullOrWhiteSpace(selectedSocialPostId)
-                    && !socialCreateMenuOpen,
-                EditableTextFieldKind.ProfileAge => IsTextAppOpen() && textProfileMenuOpen,
-                EditableTextFieldKind.ProfileBirthday => IsTextAppOpen() && textProfileMenuOpen,
-                EditableTextFieldKind.ProfileDescription => IsTextAppOpen() && textProfileMenuOpen,
                 EditableTextFieldKind.PhotoAlbumName => currentApp == "appPhoto" && photoAlbumCreationOpen,
                 _ => false
             };
@@ -1678,24 +1436,14 @@ namespace Smartphone
             if (!IsEditableTextFieldAcceptingComposedInput(field))
                 return false;
 
-            string normalizedText = NormalizePastedText(inputText ?? "");
+            string normalizedText = (inputText ?? "").Trim();
             if (normalizedText.Length == 0)
                 return false;
 
             if (!TryApplyEditableTextInsertionToField(field, normalizedText))
                 return false;
 
-            if (field == EditableTextFieldKind.Search)
-            {
-                scrollOffset = 0;
-                UpdateNpcList();
-            }
-            else if (field == EditableTextFieldKind.Chat)
-            {
-                RegisterTextInputActivity(selectedNpc);
-                ResetChatQuickActionsState();
-            }
-            else if (field == EditableTextFieldKind.ProfileAge
+            if (field == EditableTextFieldKind.ProfileAge
                 || field == EditableTextFieldKind.ProfileBirthday
                 || field == EditableTextFieldKind.ProfileDescription)
             {
@@ -1713,38 +1461,12 @@ namespace Smartphone
 
             switch (field)
             {
-                case EditableTextFieldKind.Search:
-                case EditableTextFieldKind.Chat:
-                    ApplyEditableTextInsertion(
-                        field,
-                        ref currentMessage,
-                        ref currentMessageCursorIndex,
-                        ref currentMessageSelectionAnchorIndex,
-                        insertionText);
-                    return true;
 
-                case EditableTextFieldKind.SocialPost:
-                    ApplyEditableTextInsertion(
-                        field,
-                        ref socialPostDraft,
-                        ref socialPostDraftCursorIndex,
-                        ref socialPostDraftSelectionAnchorIndex,
-                        insertionText);
-                    return true;
-
-                case EditableTextFieldKind.SocialComment:
-                    ApplyEditableTextInsertion(
-                        field,
-                        ref socialCommentDraft,
-                        ref socialCommentDraftCursorIndex,
-                        ref socialCommentDraftSelectionAnchorIndex,
-                        insertionText);
-                    return true;
 
                 case EditableTextFieldKind.ProfileAge:
                     ApplyEditableTextInsertion(
                         field,
-                        ref MessageManager.currentPlayerAge,
+                        ref ModEntry.currentPlayerAge,
                         ref textProfileAgeCursorIndex,
                         ref textProfileAgeSelectionAnchorIndex,
                         insertionText);
@@ -1753,7 +1475,7 @@ namespace Smartphone
                 case EditableTextFieldKind.ProfileBirthday:
                     ApplyEditableTextInsertion(
                         field,
-                        ref MessageManager.currentPlayerBirthDate,
+                        ref ModEntry.currentPlayerBirthDate,
                         ref textProfileBirthdayCursorIndex,
                         ref textProfileBirthdaySelectionAnchorIndex,
                         insertionText);
@@ -1762,7 +1484,7 @@ namespace Smartphone
                 case EditableTextFieldKind.ProfileDescription:
                     ApplyEditableTextInsertion(
                         field,
-                        ref MessageManager.currentPlayerProfile,
+                        ref ModEntry.currentPlayerProfile,
                         ref textProfileDescriptionCursorIndex,
                         ref textProfileDescriptionSelectionAnchorIndex,
                         insertionText);
@@ -1782,74 +1504,9 @@ namespace Smartphone
             }
         }
 
-        private void BeginTextInputRepeat(EditableTextFieldKind field, Keys key)
-        {
-            activeTextInputRepeatField = field;
-            activeTextInputRepeatKey = key;
-            textInputRepeatElapsedSeconds = 0d;
-            textInputRepeatTriggered = false;
-        }
-
-        private void ResetTextInputRepeatState()
-        {
-            activeTextInputRepeatField = EditableTextFieldKind.None;
-            activeTextInputRepeatKey = null;
-            textInputRepeatElapsedSeconds = 0d;
-            textInputRepeatTriggered = false;
-        }
-
-        private static bool IsRepeatableTextInputKey(Keys key)
-        {
-            return key is Keys.Back or Keys.Delete or Keys.Left or Keys.Right or Keys.Home or Keys.End;
-        }
 
         private void UpdateTextInputRepeat(GameTime time)
         {
-            if (!activeTextInputRepeatKey.HasValue || activeTextInputRepeatField == EditableTextFieldKind.None)
-                return;
-
-            EditableTextFieldKind currentField = GetActiveEditableTextField();
-            if (currentField != activeTextInputRepeatField)
-            {
-                ResetTextInputRepeatState();
-                return;
-            }
-
-            Keys repeatKey = activeTextInputRepeatKey.Value;
-            KeyboardState keyboardState = Keyboard.GetState();
-            if (!keyboardState.IsKeyDown(repeatKey))
-            {
-                ResetTextInputRepeatState();
-                return;
-            }
-
-            textInputRepeatElapsedSeconds += time.ElapsedGameTime.TotalSeconds;
-
-            if (!textInputRepeatTriggered)
-            {
-                if (textInputRepeatElapsedSeconds < TextInputRepeatInitialDelaySeconds)
-                    return;
-
-                textInputRepeatElapsedSeconds -= TextInputRepeatInitialDelaySeconds;
-                textInputRepeatTriggered = true;
-
-                if (!ApplyRepeatableTextInputKey(currentField, repeatKey))
-                {
-                    ResetTextInputRepeatState();
-                    return;
-                }
-            }
-
-            while (textInputRepeatElapsedSeconds >= TextInputRepeatIntervalSeconds)
-            {
-                textInputRepeatElapsedSeconds -= TextInputRepeatIntervalSeconds;
-
-                if (!ApplyRepeatableTextInputKey(currentField, repeatKey))
-                {
-                    ResetTextInputRepeatState();
-                    return;
-                }
-            }
         }
 
         private List<TextEditSnapshot> GetTextUndoHistory(EditableTextFieldKind field)
@@ -1857,8 +1514,6 @@ namespace Smartphone
             return field switch
             {
                 EditableTextFieldKind.Search or EditableTextFieldKind.Chat => currentMessageUndoHistory,
-                EditableTextFieldKind.SocialPost => socialPostDraftUndoHistory,
-                EditableTextFieldKind.SocialComment => socialCommentDraftUndoHistory,
                 EditableTextFieldKind.ProfileAge => textProfileAgeUndoHistory,
                 EditableTextFieldKind.ProfileBirthday => textProfileBirthdayUndoHistory,
                 EditableTextFieldKind.ProfileDescription => textProfileDescriptionUndoHistory,
@@ -1881,17 +1536,6 @@ namespace Smartphone
                 history.RemoveAt(0);
         }
 
-        private bool TryUndoTextInput(EditableTextFieldKind field)
-        {
-            List<TextEditSnapshot> history = GetTextUndoHistory(field);
-            if (history.Count == 0)
-                return true;
-
-            TextEditSnapshot snapshot = history[^1];
-            history.RemoveAt(history.Count - 1);
-            SetEditableTextFieldState(field, snapshot.Text, snapshot.CursorIndex, snapshot.SelectionAnchorIndex, clearUndoHistory: false);
-            return true;
-        }
 
         private void TriggerAndroidKeyboard(EditableTextFieldKind field, string currentText)
         {
@@ -1928,10 +1572,7 @@ namespace Smartphone
                     EditableTextFieldKind field = pendingKeyboardField;
                     SetEditableTextFieldState(field, result, result.Length, result.Length, clearUndoHistory: false);
 
-                    if (field == EditableTextFieldKind.Search)
-                    {
-                        UpdateNpcList();
-                    }
+
                 }
                 pendingKeyboardTask = null;
                 pendingKeyboardField = EditableTextFieldKind.None;
@@ -1943,51 +1584,7 @@ namespace Smartphone
             if (Constants.TargetPlatform != GamePlatform.Android)
                 return false;
 
-            if (textSearchInputBounds.Contains(x, y) && currentApp == TextAppState && selectedNpc == null && !textProfileMenuOpen)
-            {
-                TriggerAndroidKeyboard(EditableTextFieldKind.Search, currentMessage);
-                return true;
-            }
 
-            if (textChatInputBounds.Contains(x, y) && currentApp == TextAppState && selectedNpc != null && !chatPhotoPickerOpen)
-            {
-                TriggerAndroidKeyboard(EditableTextFieldKind.Chat, currentMessage);
-                return true;
-            }
-
-            if (currentApp == SocialAppState)
-            {
-                if (socialCreateMenuOpen && socialPostInputBounds.Contains(x, y))
-                {
-                    TriggerAndroidKeyboard(EditableTextFieldKind.SocialPost, socialPostDraft);
-                    return true;
-                }
-
-                if (!string.IsNullOrWhiteSpace(selectedSocialPostId) && socialCommentInputBounds.Contains(x, y))
-                {
-                    TriggerAndroidKeyboard(EditableTextFieldKind.SocialComment, socialCommentDraft);
-                    return true;
-                }
-            }
-
-            if (currentApp == TextAppState && textProfileMenuOpen)
-            {
-                if (textProfileAgeFieldBounds.Contains(x, y))
-                {
-                    TriggerAndroidKeyboard(EditableTextFieldKind.ProfileAge, MessageManager.currentPlayerAge);
-                    return true;
-                }
-                if (textProfileBirthdayFieldBounds.Contains(x, y))
-                {
-                    TriggerAndroidKeyboard(EditableTextFieldKind.ProfileBirthday, MessageManager.currentPlayerBirthDate);
-                    return true;
-                }
-                if (textProfileDescriptionFieldBounds.Contains(x, y))
-                {
-                    TriggerAndroidKeyboard(EditableTextFieldKind.ProfileDescription, MessageManager.currentPlayerProfile);
-                    return true;
-                }
-            }
 
             if (currentApp == "appPhoto" && photoAlbumCreationOpen)
             {
@@ -2003,29 +1600,7 @@ namespace Smartphone
 
         private void ApplyTouchScrollDelta(int pixelDelta)
         {
-            if (currentApp == TextAppState)
-            {
-                if (selectedNpc != null)
-                {
-                    chatScrollTarget = Math.Clamp(chatScrollTarget + pixelDelta, 0f, CalculateScrollToBottomOffset(messageHistory));
-                }
-                else if (!textProfileMenuOpen)
-                {
-                    // Accumulate delta for slots
-                    chatScrollOffset += pixelDelta;
-                    while (chatScrollOffset >= spacing)
-                    {
-                        chatScrollOffset -= spacing;
-                        scrollOffset = Math.Min(scrollOffset + 1, Math.Max(0, messageableNpcList.Count - maxVisibleNPCs));
-                    }
-                    while (chatScrollOffset <= -spacing)
-                    {
-                        chatScrollOffset += spacing;
-                        scrollOffset = Math.Max(0, scrollOffset - 1);
-                    }
-                }
-            }
-            else if (currentApp == "appSetting")
+            if (currentApp == "appSetting")
             {
                 // Simple accumulation for settings
                 chatScrollOffset += pixelDelta;
@@ -2045,10 +1620,7 @@ namespace Smartphone
                 float maxScroll = CalculateNotificationScrollToBottomOffset(notificationHistory);
                 notificationScrollTarget = Math.Clamp(notificationScrollTarget + pixelDelta, 0f, maxScroll);
             }
-            else if (currentApp == SocialAppState)
-            {
-                ApplySocialTouchScrollDelta(pixelDelta);
-            }
+
             else if (currentApp == "appStore")
             {
                 if (appStoreCurrentState == AppStoreState.Detail)
@@ -2087,32 +1659,22 @@ namespace Smartphone
                     currentMessageSelectionAnchorIndex = safeSelectionAnchorIndex;
                     break;
 
-                case EditableTextFieldKind.SocialPost:
-                    socialPostDraft = safeText;
-                    socialPostDraftCursorIndex = safeCursorIndex;
-                    socialPostDraftSelectionAnchorIndex = safeSelectionAnchorIndex;
-                    break;
 
-                case EditableTextFieldKind.SocialComment:
-                    socialCommentDraft = safeText;
-                    socialCommentDraftCursorIndex = safeCursorIndex;
-                    socialCommentDraftSelectionAnchorIndex = safeSelectionAnchorIndex;
-                    break;
 
                 case EditableTextFieldKind.ProfileAge:
-                    MessageManager.currentPlayerAge = safeText;
+                    ModEntry.currentPlayerAge = safeText;
                     textProfileAgeCursorIndex = safeCursorIndex;
                     textProfileAgeSelectionAnchorIndex = safeSelectionAnchorIndex;
                     break;
 
                 case EditableTextFieldKind.ProfileBirthday:
-                    MessageManager.currentPlayerBirthDate = safeText;
+                    ModEntry.currentPlayerBirthDate = safeText;
                     textProfileBirthdayCursorIndex = safeCursorIndex;
                     textProfileBirthdaySelectionAnchorIndex = safeSelectionAnchorIndex;
                     break;
 
                 case EditableTextFieldKind.ProfileDescription:
-                    MessageManager.currentPlayerProfile = safeText;
+                    ModEntry.currentPlayerProfile = safeText;
                     textProfileDescriptionCursorIndex = safeCursorIndex;
                     textProfileDescriptionSelectionAnchorIndex = safeSelectionAnchorIndex;
                     break;
@@ -2148,7 +1710,7 @@ namespace Smartphone
         private static string NormalizeProfileDescriptionText(string? text)
         {
             string safeText = text ?? string.Empty;
-            return safeText.Length <= ProfileDescriptionMaxLength || ModEntry.IsBringYourOwnAiProviderMode()
+            return safeText.Length <= ProfileDescriptionMaxLength
                 ? safeText
                 : safeText[..ProfileDescriptionMaxLength];
         }
@@ -2159,8 +1721,8 @@ namespace Smartphone
             {
                 case EditableTextFieldKind.ProfileAge:
                     {
-                        string normalizedAge = (MessageManager.currentPlayerAge ?? string.Empty).Trim();
-                        if (!string.Equals(normalizedAge, MessageManager.currentPlayerAge, StringComparison.Ordinal))
+                        string normalizedAge = (ModEntry.currentPlayerAge ?? string.Empty).Trim();
+                        if (!string.Equals(normalizedAge, ModEntry.currentPlayerAge, StringComparison.Ordinal))
                             SetEditableTextFieldState(field, normalizedAge, normalizedAge.Length, normalizedAge.Length, clearUndoHistory: false);
 
                         break;
@@ -2168,8 +1730,8 @@ namespace Smartphone
 
                 case EditableTextFieldKind.ProfileBirthday:
                     {
-                        string normalizedBirthday = NormalizeProfileBirthdayText(MessageManager.currentPlayerBirthDate);
-                        if (!string.Equals(normalizedBirthday, MessageManager.currentPlayerBirthDate, StringComparison.Ordinal))
+                        string normalizedBirthday = NormalizeProfileBirthdayText(ModEntry.currentPlayerBirthDate);
+                        if (!string.Equals(normalizedBirthday, ModEntry.currentPlayerBirthDate, StringComparison.Ordinal))
                             SetEditableTextFieldState(field, normalizedBirthday, normalizedBirthday.Length, normalizedBirthday.Length, clearUndoHistory: false);
 
                         break;
@@ -2177,18 +1739,13 @@ namespace Smartphone
 
                 case EditableTextFieldKind.ProfileDescription:
                     {
-                        string normalizedDescription = NormalizeProfileDescriptionText(MessageManager.currentPlayerProfile);
-                        if (!string.Equals(normalizedDescription, MessageManager.currentPlayerProfile, StringComparison.Ordinal))
+                        string normalizedDescription = NormalizeProfileDescriptionText(ModEntry.currentPlayerProfile);
+                        if (!string.Equals(normalizedDescription, ModEntry.currentPlayerProfile, StringComparison.Ordinal))
                             SetEditableTextFieldState(field, normalizedDescription, normalizedDescription.Length, normalizedDescription.Length, clearUndoHistory: false);
 
                         break;
                     }
             }
-        }
-
-        internal void ResetEditableTextFieldStateForChat()
-        {
-            ResetEditableTextFieldState(EditableTextFieldKind.Chat);
         }
 
         private static (int Start, int End) GetSelectionRange(int cursorIndex, int selectionAnchorIndex, int textLength)
@@ -2200,30 +1757,6 @@ namespace Smartphone
                 : (safeSelectionAnchorIndex, safeCursorIndex);
         }
 
-        private static bool HasSelection(int cursorIndex, int selectionAnchorIndex, int textLength)
-        {
-            (int start, int end) = GetSelectionRange(cursorIndex, selectionAnchorIndex, textLength);
-            return start != end;
-        }
-
-        private static int MeasureTextSubstringWidth(SpriteFont font, string text, int startIndex, int length)
-        {
-            if (length <= 0)
-                return 0;
-
-            string safeText = text ?? "";
-            int safeStartIndex = Math.Clamp(startIndex, 0, safeText.Length);
-            int safeLength = Math.Clamp(length, 0, safeText.Length - safeStartIndex);
-            if (safeLength <= 0)
-                return 0;
-
-            return (int)Math.Round(font.MeasureString(safeText.Substring(safeStartIndex, safeLength)).X);
-        }
-
-        private static int MeasureTextPrefixWidth(SpriteFont font, string text, int length)
-        {
-            return MeasureTextSubstringWidth(font, text, 0, length);
-        }
 
         private void ApplyEditableTextInsertion(
             EditableTextFieldKind field,
@@ -2251,105 +1784,6 @@ namespace Smartphone
             selectionAnchorIndex = cursorIndex;
         }
 
-        private bool ApplyEditableTextDelete(
-            EditableTextFieldKind field,
-            ref string text,
-            ref int cursorIndex,
-            ref int selectionAnchorIndex,
-            bool deleteForward)
-        {
-            string safeText = text ?? "";
-            int safeCursorIndex = Math.Clamp(cursorIndex, 0, safeText.Length);
-            int safeSelectionAnchorIndex = Math.Clamp(selectionAnchorIndex, 0, safeText.Length);
-            (int selectionStart, int selectionEnd) = GetSelectionRange(safeCursorIndex, safeSelectionAnchorIndex, safeText.Length);
-
-            if (selectionStart != selectionEnd)
-            {
-                PushTextUndoSnapshot(field, safeText, safeCursorIndex, safeSelectionAnchorIndex);
-                safeText = safeText.Remove(selectionStart, selectionEnd - selectionStart);
-                text = safeText;
-                cursorIndex = selectionStart;
-                selectionAnchorIndex = selectionStart;
-                return true;
-            }
-
-            if (!deleteForward)
-            {
-                if (safeCursorIndex <= 0)
-                    return false;
-
-                PushTextUndoSnapshot(field, safeText, safeCursorIndex, safeSelectionAnchorIndex);
-                safeText = safeText.Remove(safeCursorIndex - 1, 1);
-                text = safeText;
-                cursorIndex = safeCursorIndex - 1;
-                selectionAnchorIndex = cursorIndex;
-                return true;
-            }
-
-            if (safeCursorIndex >= safeText.Length)
-                return false;
-
-            PushTextUndoSnapshot(field, safeText, safeCursorIndex, safeSelectionAnchorIndex);
-            safeText = safeText.Remove(safeCursorIndex, 1);
-            text = safeText;
-            cursorIndex = safeCursorIndex;
-            selectionAnchorIndex = cursorIndex;
-            return true;
-        }
-
-        private static bool TryGetEditableTextSelection(string text, int cursorIndex, int selectionAnchorIndex, out int selectionStart, out int selectionEnd)
-        {
-            string safeText = text ?? "";
-            (selectionStart, selectionEnd) = GetSelectionRange(cursorIndex, selectionAnchorIndex, safeText.Length);
-            return selectionStart != selectionEnd;
-        }
-
-        private static int GetVisibleWindowStart(string text, SpriteFont font, int maxWidth, int cursorIndex)
-        {
-            string safeText = text ?? "";
-            int safeCursorIndex = Math.Clamp(cursorIndex, 0, safeText.Length);
-
-            if (safeText.Length == 0 || font.MeasureString(safeText).X <= maxWidth)
-                return 0;
-
-            int visibleStart = safeCursorIndex;
-            while (visibleStart > 0)
-            {
-                string candidate = safeText.Substring(visibleStart - 1, safeCursorIndex - (visibleStart - 1));
-                if (font.MeasureString(candidate).X > maxWidth)
-                    break;
-
-                visibleStart--;
-            }
-
-            return visibleStart;
-        }
-
-        private static int GetVisibleWindowEnd(string text, SpriteFont font, int maxWidth, int visibleStart, int cursorIndex)
-        {
-            string safeText = text ?? "";
-            int safeCursorIndex = Math.Clamp(cursorIndex, 0, safeText.Length);
-
-            if (safeText.Length == 0 || font.MeasureString(safeText).X <= maxWidth)
-                return safeText.Length;
-
-            int visibleEnd = safeCursorIndex;
-            while (visibleEnd < safeText.Length)
-            {
-                string candidate = safeText.Substring(visibleStart, visibleEnd - visibleStart + 1);
-                if (font.MeasureString(candidate).X > maxWidth)
-                    break;
-
-                visibleEnd++;
-            }
-
-            return visibleEnd;
-        }
-
-        private List<string> SplitTextIntoLines(string text, SpriteFont font, int maxWidth)
-        {
-            return GetWrappedLinesCached(text, font, maxWidth);
-        }
 
         private List<string> SplitNotificationIntoLines(string text, SpriteFont font, int maxWidth)
         {
@@ -2439,15 +1873,7 @@ namespace Smartphone
             return lines;
         }
 
-        public void OpenChat(string npcName)
-        {
-            selectedNpc = npcName;
-            ResetChatQuickActionsState();
-            CloseChatPhotoPicker(clearSelection: true);
-            ResetEditableTextFieldState(EditableTextFieldKind.Chat);
-            messageHistory = MessageManager.GetMessages(npcName);
-            SnapChatScrollToBottom();
-        }
+
 
         public void OpenNotification()
         {
@@ -2587,7 +2013,7 @@ namespace Smartphone
                     Color.Black);
 
                 Rectangle rect = new Rectangle(218, 428, 7, 7);
-                if (MessageManager.currentPhoneSound == soundString)
+                if (ModEntry.currentPhoneSound == soundString)
                     rect = new Rectangle(211, 428, 7, 7);
 
                 ClickableTextureComponent selectButton = new ClickableTextureComponent(
@@ -2657,7 +2083,7 @@ namespace Smartphone
                     previewColor);
 
                 Rectangle rect = new Rectangle(218, 428, 7, 7);
-                if (string.Equals(MessageManager.currentPhoneTextColor, colorName, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(ModEntry.currentPhoneTextColor, colorName, StringComparison.OrdinalIgnoreCase))
                     rect = new Rectangle(211, 428, 7, 7);
 
                 ClickableTextureComponent selectButton = new ClickableTextureComponent(
@@ -2715,7 +2141,7 @@ namespace Smartphone
                     Math.Max(1, ScaleUiValue(SettingsThemeHoverHeightBase)));
 
                 Rectangle rect = new Rectangle(218, 428, 7, 7);
-                if (string.Equals(MessageManager.currentPhoneTheme, themeName, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(ModEntry.currentPhoneTheme, themeName, StringComparison.OrdinalIgnoreCase))
                     rect = new Rectangle(211, 428, 7, 7);
 
                 ClickableTextureComponent selectButton = new ClickableTextureComponent(
@@ -2754,7 +2180,7 @@ namespace Smartphone
                 if (string.IsNullOrWhiteSpace(tooltipText))
                     return;
 
-                DrawSocialTagTooltip(b, tooltipText, mouseX, mouseY);
+                IClickableMenu.drawHoverText(b, tooltipText, Game1.smallFont);
                 return;
             }
         }
@@ -2800,7 +2226,7 @@ namespace Smartphone
         {
             AssetHelper.SetCurrentPhoneTheme(themeName);
             Textures.LoadTextures();
-            MessageManager.currentPhoneTheme = AssetHelper.CurrentPhoneThemeName;
+            ModEntry.currentPhoneTheme = AssetHelper.CurrentPhoneThemeName;
             ReloadThemeTextures();
         }
 
@@ -2823,7 +2249,7 @@ namespace Smartphone
 
         private Color GetCurrentHomeTextColor()
         {
-            if (TryGetHomeTextColor(MessageManager.currentPhoneTextColor, out Color color))
+            if (TryGetHomeTextColor(ModEntry.currentPhoneTextColor, out Color color))
                 return color;
 
             return Color.Black;
@@ -2851,7 +2277,7 @@ namespace Smartphone
 
         private void ResetPhoneBackgroundToDefault()
         {
-            MessageManager.currentPhoneBackground = "";
+            ModEntry.currentPhoneBackground = "";
             phoneBackgroundImage?.Dispose();
             phoneBackgroundImage = null;
         }
@@ -2879,7 +2305,7 @@ namespace Smartphone
                     phoneBackgroundImage = CropTexture(fullImage);
                 }
 
-                MessageManager.currentPhoneBackground = imagePath;
+                ModEntry.currentPhoneBackground = imagePath;
             }
             catch (Exception ex)
             {
@@ -2888,234 +2314,7 @@ namespace Smartphone
             }
         }
 
-        private int CalculateChatContentHeight(List<string> msgList)
-        {
-            if (msgList == null || msgList.Count == 0)
-                return 0;
 
-            SpriteFont font = Game1.smallFont;
-            int lineHeight = (int)font.MeasureString("A").Y + 4;
-            int totalHeight = 0;
-
-            foreach (ChatMessageEntry entry in BuildChatEntries(msgList))
-            {
-                int bubbleHeight = CalculateChatEntryHeight(entry, font, lineHeight);
-                totalHeight += bubbleHeight + 10;
-            }
-
-            totalHeight += CalculatePendingDialogueChoiceHeight();
-
-            return totalHeight;
-        }
-
-        private int CalculatePendingDialogueChoiceHeight()
-        {
-            if (string.IsNullOrWhiteSpace(selectedNpc))
-                return 0;
-
-            if (!PhoneDialogueRuntime.TryGetPendingChoice(selectedNpc, out PhoneDialogueChoiceState? pendingChoice)
-                || pendingChoice == null
-                || pendingChoice.Options.Count == 0)
-            {
-                return 0;
-            }
-
-            SpriteFont font = Game1.smallFont;
-            int lineHeight = (int)font.MeasureString("A").Y + 4;
-            int totalHeight = 0;
-
-            foreach (PhoneDialogueOption option in pendingChoice.Options)
-            {
-                if (string.IsNullOrWhiteSpace(option.DisplayText))
-                    continue;
-
-                List<string> wrappedLines = SplitTextIntoLines(option.DisplayText, font, maxBubbleWidth);
-                int bubbleHeight = Math.Max(1, wrappedLines.Count) * lineHeight + 10;
-                totalHeight += bubbleHeight + 10;
-            }
-
-            return totalHeight;
-        }
-
-        private float CalculateScrollToBottomOffset(List<string> msgList)
-        {
-            int contentHeight = CalculateChatContentHeight(msgList);
-            return Math.Max(0f, contentHeight - ChatViewportHeight);
-        }
-
-        private void ClampChatScroll()
-        {
-            ClampChatScroll(messageHistory);
-        }
-
-        private void ClampChatScroll(List<string> msgList)
-        {
-            float maxScroll = CalculateScrollToBottomOffset(msgList);
-            chatScrollTarget = Math.Clamp(chatScrollTarget, 0f, maxScroll);
-            chatScrollOffset = Math.Clamp(chatScrollOffset, 0f, maxScroll);
-        }
-
-        private void SnapChatScrollToBottom()
-        {
-            float bottomOffset = CalculateScrollToBottomOffset(messageHistory);
-            chatScrollOffset = bottomOffset;
-            chatScrollTarget = bottomOffset;
-        }
-
-
-        private void LoadImageAtIndex(int index)
-        {
-            if (index < 0 || index >= capturedImages.Count)
-            {
-                currentDisplayedImage?.Dispose();
-                currentDisplayedImage = null;
-                currentDisplayedImageIsSquare = false;
-                return;
-            }
-
-            using (FileStream stream = new FileStream(capturedImages[index], FileMode.Open))
-            using (Texture2D sourceImage = Texture2D.FromStream(Game1.graphics.GraphicsDevice, stream))
-            {
-                currentDisplayedImage?.Dispose();
-                currentDisplayedImage = CropTexture(sourceImage);
-                currentDisplayedImageIsSquare = sourceImage.Width == sourceImage.Height;
-            }
-        }
-
-        public void UpdateNpcList(bool bypassFilter = false)
-        {
-            messageableNpcList.Clear();
-            Dictionary<string, long> latestTimestamps = MessageManager.GetLatestAddDictionary();
-            string filter = (currentMessage ?? "").Trim();
-
-            var entries = new List<(string ConversationKey, string DisplayName, bool IsFavourite)>();
-
-            foreach (NPC npc in Utility.getAllVillagers())
-            {
-                if (npc == null
-                    || npc.IsInvisible
-                    || !npc.CanSocialize
-                    || !CanMessageNpc(npc)
-                    || ModEntry.socialNpcBlacklist.Contains(npc.Name, StringComparer.OrdinalIgnoreCase)
-                    || (!bypassFilter && !DoesNpcMatchTextFilter(npc, filter)))
-                {
-                    continue;
-                }
-
-                entries.Add((
-                    npc.Name,
-                    GetNpcDisplayNameOrFallback(npc),
-                    MessageManager.favouriteNpc.Contains(npc.Name)));
-            }
-
-            foreach (string playerName in GetConnectedOtherPlayerNames())
-            {
-                if (!bypassFilter && !DoesPlayerNameMatchTextFilter(playerName, filter))
-                    continue;
-
-                string conversationKey = MessageManager.BuildPlayerConversationKey(playerName);
-                if (string.IsNullOrWhiteSpace(conversationKey))
-                    continue;
-
-                entries.Add((
-                    conversationKey,
-                    playerName,
-                    MessageManager.favouriteNpc.Contains(conversationKey)));
-            }
-
-            var seenConversationKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in entries
-                .Where(entry => seenConversationKeys.Add(entry.ConversationKey))
-                .OrderByDescending(entry => entry.IsFavourite)
-                .ThenByDescending(entry => latestTimestamps.TryGetValue(entry.ConversationKey, out long ts) ? ts : 0)
-                .ThenBy(entry => entry.DisplayName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(entry => entry.ConversationKey, StringComparer.OrdinalIgnoreCase))
-            {
-                messageableNpcList.Add(new ClickableComponent(new Rectangle(0, 0, 0, 0), entry.ConversationKey));
-            }
-        }
-
-        private static IEnumerable<string> GetConnectedOtherPlayerNames()
-        {
-            if (!Context.IsWorldReady)
-                yield break;
-
-            string localPlayerName = (Game1.player?.Name ?? string.Empty).Trim();
-            var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (Farmer farmer in Game1.getOnlineFarmers())
-            {
-                if (farmer == null || string.IsNullOrWhiteSpace(farmer.Name))
-                    continue;
-
-                string candidateName = farmer.Name.Trim();
-                if (string.IsNullOrWhiteSpace(candidateName)
-                    || string.Equals(candidateName, localPlayerName, StringComparison.OrdinalIgnoreCase)
-                    || !seenNames.Add(candidateName))
-                {
-                    continue;
-                }
-
-                yield return candidateName;
-            }
-        }
-
-        private static bool CanMessageNpc(NPC npc)
-        {
-            if (npc == null)
-                return false;
-
-            string requirement = ModEntry.Config?.NpcMessageRequirement ?? ModConfig.NpcRequirementFriend;
-
-            if (string.Equals(requirement, ModConfig.NpcRequirementMeet, StringComparison.OrdinalIgnoreCase))
-                return Game1.player.friendshipData.ContainsKey(npc.Name);
-
-            return Game1.player.getFriendshipHeartLevelForNPC(npc.Name) >= 1;
-        }
-
-        private static string GetNpcDisplayNameOrFallback(NPC? npc)
-        {
-            if (npc == null)
-                return "";
-
-            if (!string.IsNullOrWhiteSpace(npc.displayName))
-                return npc.displayName;
-
-            return npc.Name ?? "";
-        }
-
-        private static string GetNpcDisplayName(string npcName)
-        {
-            string normalizedName = (npcName ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(normalizedName))
-                return "";
-
-            NPC? npc = Game1.getCharacterFromName(normalizedName, mustBeVillager: false);
-            string displayName = GetNpcDisplayNameOrFallback(npc);
-            return string.IsNullOrWhiteSpace(displayName)
-                ? normalizedName
-                : displayName;
-        }
-
-        private static bool DoesNpcMatchTextFilter(NPC npc, string filter)
-        {
-            if (string.IsNullOrWhiteSpace(filter))
-                return true;
-
-            string internalName = npc?.Name ?? "";
-            string displayName = GetNpcDisplayNameOrFallback(npc);
-
-            return internalName.Contains(filter, StringComparison.OrdinalIgnoreCase)
-                || displayName.Contains(filter, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static bool DoesPlayerNameMatchTextFilter(string playerName, string filter)
-        {
-            if (string.IsNullOrWhiteSpace(filter))
-                return true;
-
-            return (playerName ?? string.Empty).Contains(filter, StringComparison.OrdinalIgnoreCase);
-        }
 
         private Texture2D CropTexture(Texture2D source, int x = 0, int y = 0, int width = 520, int height = 810)
         {
@@ -3171,17 +2370,6 @@ namespace Smartphone
             int viewportWidth = Math.Max(1, Game1.uiViewport.Width);
             int viewportHeight = Math.Max(1, Game1.uiViewport.Height);
             return new Rectangle(0, 0, viewportWidth, viewportHeight);
-        }
-
-        private static float GetNormalizedScrollSteps(int direction)
-        {
-            if (direction == 0)
-                return 0f;
-
-            if (Math.Abs(direction) >= ScrollWheelNotchDelta)
-                return direction / (float)ScrollWheelNotchDelta;
-
-            return Math.Sign(direction) * ControllerScrollNotchBoost;
         }
 
         private void EnsureFreeControllerCursor()
@@ -3339,7 +2527,7 @@ namespace Smartphone
             {
                 DrawPhoneScreenBackground(b, xOffset, applyBackgroundImage: true);
 
-                string timeText = FormatTimeOfDay(Game1.timeOfDay);
+                string timeText = Game1.getTimeOfDayString(Game1.timeOfDay);
                 string dateText = BuildLockScreenDateText();
 
                 Vector2 timeSize = Game1.dialogueFont.MeasureString(timeText) * LockScreenTimeTextScale;
@@ -3883,10 +3071,9 @@ namespace Smartphone
                 },
                 new HomeAppEntry
                 {
-                    Id = BuiltinAppTextId,
-                    DisplayName = ModEntry.SHelper.Translation.Get("app.messages.name"),
-                    IconTexture = textureAppText,
-                    GetBadgeCount = () => MessageManager.unreadCounts.Count(pair => pair.Value > 0)
+                    Id = BuiltinAppStoreId,
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.appstore.name"),
+                    IconTexture = textureAppAppStore
                 },
                 new HomeAppEntry
                 {
@@ -3899,13 +3086,6 @@ namespace Smartphone
                     Id = BuiltinAppPhotoId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.photos.name"),
                     IconTexture = textureAppPhoto
-                },
-                new HomeAppEntry
-                {
-                    Id = BuiltinAppSocialId,
-                    DisplayName = ModEntry.SHelper.Translation.Get("app.social.name"),
-                    IconTexture = textureAppSocial,
-                    GetBadgeCount = () => GetTotalSocialNotificationCount()
                 },
                 new HomeAppEntry
                 {
@@ -4112,35 +3292,12 @@ namespace Smartphone
                     currentApp = "appStore";
                     return true;
 
-                case BuiltinAppTextId:
-                    if (ModEntry.Config != null && !ModEntry.Config.EnableAI)
-                    {
-                        ClosePhoneMenu();
-                        Game1.drawDialogueNoTyping("You need to acknowledge and enable AI feature in the Mod Settings to use Messages.");
-                        return true;
-                    }
-                    scrollOffset = 0;
-                    UpdateNpcList();
-                    currentApp = "appText";
-                    MessageManager.MarkPhoneOpenedToday();
-                    return true;
-
                 case BuiltinAppCameraId:
                     currentApp = "appCamera";
                     return true;
 
                 case BuiltinAppPhotoId:
                     OpenPhotoApp();
-                    return true;
-
-                case BuiltinAppSocialId:
-                    if (ModEntry.Config != null && !ModEntry.Config.EnableAI)
-                    {
-                        ClosePhoneMenu();
-                        Game1.drawDialogueNoTyping("You need to acknowledge and enable AI feature in the Mod Settings to use StardewSocial.");
-                        return true;
-                    }
-                    OpenSocialApp();
                     return true;
 
                 case BuiltinAppSettingId:
@@ -4157,14 +3314,6 @@ namespace Smartphone
                 default:
                     return ModEntry.TryInvokeRegisteredPhoneApp(appId, this);
             }
-        }
-
-        public void OpenCameraApp()
-        {
-            if (currentApp == ExternalGroupAppState)
-                ClearCurrentExternalGroup();
-
-            currentApp = "appCamera";
         }
 
 
@@ -4701,58 +3850,6 @@ namespace Smartphone
             b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
         }
 
-        private void DrawLoopingPhotoName(SpriteBatch b, string photoName, Vector2 position, float viewportWidth)
-        {
-            SpriteFont labelFont = Game1.dialogueFont;
-            float textScale = GetPhoneTextScale();
-            string safeName = photoName ?? "";
-
-            if (string.IsNullOrEmpty(safeName))
-                return;
-
-            if ((labelFont.MeasureString(safeName).X * textScale) <= viewportWidth)
-            {
-                DrawPhoneText(b, labelFont, safeName, position, Color.White);
-                return;
-            }
-
-            string marqueeSource = safeName + new string(' ', AppLabelTrailingSpaces);
-            Rectangle clipRect = new Rectangle(
-                (int)Math.Floor(position.X),
-                (int)Math.Floor(position.Y),
-                Math.Max(1, (int)Math.Ceiling(viewportWidth)),
-                Math.Max(1, (int)Math.Ceiling(labelFont.LineSpacing * textScale + 2f)));
-
-            Rectangle viewportBounds = Game1.graphics.GraphicsDevice.Viewport.Bounds;
-            clipRect = Rectangle.Intersect(clipRect, viewportBounds);
-            if (clipRect.Width <= 0 || clipRect.Height <= 0)
-                return;
-
-            float marqueeWidth = labelFont.MeasureString(marqueeSource).X * textScale;
-            if (marqueeWidth <= 0f)
-            {
-                DrawPhoneText(b, labelFont, safeName, position, Color.White);
-                return;
-            }
-
-            float scrollOffset = (float)((appLabelMarqueeElapsedSeconds * AppLabelMarqueePixelsPerSecond) % marqueeWidth);
-            Vector2 drawPos = new Vector2(position.X - scrollOffset, position.Y);
-
-            b.End();
-
-            Rectangle previousScissorRect = Game1.graphics.GraphicsDevice.ScissorRectangle;
-            Game1.graphics.GraphicsDevice.ScissorRectangle = clipRect;
-
-            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, appLabelScissorRasterizer);
-
-            b.DrawString(labelFont, marqueeSource, drawPos, Color.White, 0f, Vector2.Zero, textScale, SpriteEffects.None, 1f);
-            b.DrawString(labelFont, marqueeSource, new Vector2(drawPos.X + marqueeWidth, drawPos.Y), Color.White, 0f, Vector2.Zero, textScale, SpriteEffects.None, 1f);
-
-            b.End();
-            Game1.graphics.GraphicsDevice.ScissorRectangle = previousScissorRect;
-            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
-        }
-
         private void DrawAppBadge(SpriteBatch b, Rectangle appBounds, int badgeCount)
         {
             string badgeText = Math.Min(99, badgeCount).ToString();
@@ -4846,27 +3943,14 @@ namespace Smartphone
 
         public void OpenHomeScreen()
         {
-            if (currentApp == TextAppState && selectedNpc != null)
-                MessageManager.SetUnreadCount(selectedNpc);
-
-            if (textProfileMenuOpen)
-                CloseTextProfileEditor();
-
-            if (currentApp == SocialAppState)
-                CloseSocialApp();
-
             if (currentApp == ExternalGroupAppState)
                 ClearCurrentExternalGroup();
 
-            currentSuggestion = new("", "");
             selectedNpc = null;
             scrollOffset = 0;
             homeAppPage = 0;
             currentSettingMenuState = SettingMenuMainState;
-            ResetChatQuickActionsState();
-            CloseChatPhotoPicker(clearSelection: true);
             ResetEditableTextFieldState(EditableTextFieldKind.Search);
-            UpdateNpcList();
             currentApp = null;
             rootLandingState = RootLandingState.Home;
             lockScreenUnlockAnimating = false;
@@ -4923,10 +4007,6 @@ namespace Smartphone
             }
 
             SetPhoneTextInputFocus(false);
-            ResetChatQuickActionsState();
-            CloseChatPhotoPicker(clearSelection: true);
-            if (textProfileMenuOpen)
-                CloseTextProfileEditor();
             currentMessage = null;
             lockScreenUnlockAnimating = false;
             lockScreenUnlockElapsedSeconds = 0d;
@@ -4935,21 +4015,10 @@ namespace Smartphone
             lockScreenInitializationElapsedSeconds = 0d;
             lockScreenInitializationNextTickSeconds = 0d;
 
-            if (currentApp == "appText" && selectedNpc != null)
-            {
-                MessageManager.SetUnreadCount(selectedNpc);
-                selectedNpc = null;
-                currentSuggestion = new("", "");
-                ResetEditableTextFieldState(EditableTextFieldKind.Search);
-            }
-
             if (currentApp != null)
             {
                 if (currentApp == ExternalGroupAppState)
                     ClearCurrentExternalGroup();
-
-                if (currentApp == SocialAppState)
-                    CloseSocialApp();
 
                 if (currentApp != null)
                     currentApp = null;

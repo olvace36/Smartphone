@@ -207,7 +207,7 @@ namespace Smartphone
                 photoSelectionApiSquareOnly = false;
             }
 
-            ApplyPhoneBackground(MessageManager.currentPhoneBackground);
+            ApplyPhoneBackground(ModEntry.currentPhoneBackground);
             LoadPhotoAlbumStore();
 
             string userCaptureFolderPath = GetCaptureFolderPath("photo_player");
@@ -1444,21 +1444,22 @@ namespace Smartphone
         {
             if (!photoAlbumCreationOpen) return false;
 
-            bool handled = TryApplyEditableTextKeyToField(
-                EditableTextFieldKind.PhotoAlbumName,
-                key,
-                allowEnter: false,
-                allowPaste: true,
-                out bool textChanged,
-                out bool enterPressed);
-
-            if (enterPressed)
+            if (key == Keys.Enter)
             {
                 ConfirmAlbumCreation();
                 return true;
             }
 
-            return handled;
+            if (key == Keys.Back && photoNewAlbumName.Length > 0)
+            {
+                photoNewAlbumName = photoNewAlbumName.Substring(0, photoNewAlbumName.Length - 1);
+                photoNewAlbumNameCursorIndex = Math.Max(0, photoNewAlbumNameCursorIndex - 1);
+                photoNewAlbumNameSelectionAnchorIndex = photoNewAlbumNameCursorIndex;
+                Game1.playSound("hammer");
+                return true;
+            }
+
+            return false;
         }
 
         // ─────────────────────────────────────────────────────────────
@@ -1827,7 +1828,7 @@ namespace Smartphone
                 string path = capturedImages[idx];
                 string fname = Path.GetFileName(path);
 
-                if (IsSameFilePath(MessageManager.currentPhoneBackground, path))
+                if (IsSameFilePath(ModEntry.currentPhoneBackground, path))
                     deletedBackground = true;
 
                 try { File.Delete(path); }
