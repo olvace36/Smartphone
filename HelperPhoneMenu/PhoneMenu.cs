@@ -413,6 +413,10 @@ namespace Smartphone
                 {
                     ReleaseLeftClickPhotoApp(x, y);
                 }
+                else if (currentApp == "appStore")
+                {
+                    ReleaseLeftClickAppStore(x, y);
+                }
             }
 
             ResetCameraZoomHoldState();
@@ -567,12 +571,6 @@ namespace Smartphone
                 }
             }
 
-            if (currentApp == "appCamera")
-            {
-                ReceiveLeftClickCameraApp(x, y);
-                return;
-            }
-
             if (IsBackButtonPressed(x, y))
             {
                 if (HandleBackButtonAction())
@@ -591,6 +589,12 @@ namespace Smartphone
                 ModEntry.OpenPhoneFromHudTrigger();
                 return;
 
+            }
+
+            if (currentApp == "appCamera")
+            {
+                ReceiveLeftClickCameraApp(x, y);
+                return;
             }
 
             if (currentApp == "appPhoto")
@@ -617,11 +621,7 @@ namespace Smartphone
                 ReceiveLeftClickSettingApp(x, y);
                 return;
             }
-            else if (currentApp == "appStore")
-            {
-                ReceiveLeftClickAppStore(x, y);
-                return;
-            }
+
         }
 
 

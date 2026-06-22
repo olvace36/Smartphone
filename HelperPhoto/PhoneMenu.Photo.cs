@@ -613,7 +613,7 @@ namespace Smartphone
             }
 
             // ── Nav bar (fixed, not scrolled) ────────────────────────
-            Rectangle navBar = new(content.X, content.Y - 55, content.Width, PhotoNavBarHeight);
+            Rectangle navBar = new(content.X, content.Y - ScaleUiValue(55), content.Width, PhotoNavBarHeight);
             DrawPhotoNavBar(b, navBar, content);
 
             // ── Scrollable photo grid + sections ─────────────────────
@@ -649,26 +649,26 @@ namespace Smartphone
             photoBtnBackFilterBounds = Rectangle.Empty;
 
             Vector2 titlePos = new(
-                navBar.Left + 70,
+                navBar.Left + ScaleUiValue(70),
                 navBar.Center.Y - titleSize.Y / 2f);
             b.DrawString(Game1.smallFont, title, titlePos, Color.Black, 0f, Vector2.Zero, textScale, SpriteEffects.None, 1f);
 
             if (photoSelectionApiMode)
             {
-                photoBtnApiCancelBounds = new Rectangle(navBar.Left + 190, btnY, btnW, btnH);
-                photoBtnApiDoneBounds = new Rectangle(navBar.Left + 260, btnY, btnW, btnH);
+                photoBtnApiCancelBounds = new Rectangle(navBar.Left + ScaleUiValue(190), btnY, btnW, btnH);
+                photoBtnApiDoneBounds = new Rectangle(navBar.Left + ScaleUiValue(260), btnY, btnW, btnH);
                 photoBtnSelectBounds = Rectangle.Empty;
                 photoBtnActionBounds = Rectangle.Empty;
                 photoBtnDoneBounds = Rectangle.Empty;
 
                 DrawPhoneRoundButton(b, photoBtnApiCancelBounds, "Cancel", Color.White, Color.White);
-                DrawPhoneRoundButton(b, photoBtnApiDoneBounds, "Send", Color.White, Color.White);
+                DrawPhoneRoundButton(b, photoBtnApiDoneBounds, "Done", Color.White, Color.White);
             }
             else if (photoSelectMode)
             {
                 // [action ▾]   [Done]
-                photoBtnActionBounds = new Rectangle(navBar.Left + 190, btnY, btnW, btnH);
-                photoBtnDoneBounds = new Rectangle(navBar.Left + 260, btnY, btnW, btnH);
+                photoBtnActionBounds = new Rectangle(navBar.Left + ScaleUiValue(190), btnY, btnW, btnH);
+                photoBtnDoneBounds = new Rectangle(navBar.Left + ScaleUiValue(260), btnY, btnW, btnH);
                 photoBtnSelectBounds = Rectangle.Empty;
                 photoBtnApiCancelBounds = Rectangle.Empty;
                 photoBtnApiDoneBounds = Rectangle.Empty;
@@ -682,7 +682,7 @@ namespace Smartphone
             else
             {
                 // [Select]
-                photoBtnSelectBounds = new Rectangle(navBar.Left + 260, btnY, btnW, btnH);
+                photoBtnSelectBounds = new Rectangle(navBar.Left + ScaleUiValue(260), btnY, btnW, btnH);
                 photoBtnActionBounds = Rectangle.Empty;
                 photoBtnDoneBounds = Rectangle.Empty;
                 photoBtnApiCancelBounds = Rectangle.Empty;
@@ -1037,7 +1037,7 @@ namespace Smartphone
         {
             int itemH = ScaleUiValue(PhotoDropdownItemHBase);
             int dropW = ScaleUiValue(PhotoDropdownWidthBase);
-            var items = new List<string> { "Delete", "Favourite", "Add to Album" };
+            var items = new List<string> { "Delete", "Select all", "Favourite", "Add to Album" };
             photoDropdownItems.Clear();
             photoDropdownItemBounds.Clear();
             photoDropdownItems.AddRange(items);
@@ -1187,7 +1187,7 @@ namespace Smartphone
             int pad = ScaleUiValue(PhotoModalPadBase);
             int itemH = ScaleUiValue(PhotoDropdownItemHBase);
             float scale = GetPhoneTextScale(0.7f);
-            float titleScale = GetPhoneTextScale(0.7f);
+            float titleScale = GetPhoneTextScale(0.85f);
 
             photoAlbumPickerBounds.Clear();
             photoAlbumPickerKeys.Clear();
@@ -1198,13 +1198,25 @@ namespace Smartphone
             int mH = pad + ScaleUiValue(36) + pad + albums.Count * itemH + pad;
             int mX = content.Center.X - mW / 2;
             int mY = content.Center.Y - mH / 2;
-            b.Draw(Game1.staminaRect, new Rectangle(mX, mY, mW, mH), new Color(40, 40, 40, 250));
+
+            IClickableMenu.drawTextureBox(
+                b,
+                Game1.menuTexture,
+                new Rectangle(0, 256, 60, 60),
+                mX,
+                mY,
+                mW,
+                mH,
+                Color.White,
+                1f,
+                false
+            );
 
             // Title
             string titleText = "Add to Album";
             b.DrawString(Game1.smallFont, titleText,
                 new Vector2(mX + pad, mY + pad),
-                Color.White, 0f, Vector2.Zero, titleScale, SpriteEffects.None, 1f);
+                Color.Black, 0f, Vector2.Zero, titleScale, SpriteEffects.None, 1f);
 
             int iy = mY + pad + ScaleUiValue(36) + pad;
             foreach (string albumName in albums)
@@ -1212,10 +1224,10 @@ namespace Smartphone
                 Rectangle r = new(mX, iy, mW, itemH);
                 photoAlbumPickerBounds.Add(r);
                 photoAlbumPickerKeys.Add(albumName);
-                b.Draw(Game1.staminaRect, new Rectangle(mX, iy, mW, 1), new Color(80, 80, 80));
+                b.Draw(Game1.staminaRect, new Rectangle(mX + pad, iy, mW - pad * 2, 1), Color.Black * 0.2f);
                 b.DrawString(Game1.smallFont, albumName,
                     new Vector2(mX + pad, iy + itemH / 2f - Game1.smallFont.MeasureString(albumName).Y * scale / 2f),
-                    albumName == "+ New Album" ? new Color(80, 160, 255) : Color.White,
+                    albumName == "+ New Album" ? new Color(0, 96, 200) : Color.Black,
                     0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
                 iy += itemH;
             }
@@ -1416,7 +1428,7 @@ namespace Smartphone
             photoClickHandledOnPress = false;
 
             Rectangle content = GetPhoneContentBounds();
-            Rectangle navBar = new(content.X, content.Y - 55, content.Width, PhotoNavBarHeight);
+            Rectangle navBar = new(content.X, content.Y - ScaleUiValue(55), content.Width, PhotoNavBarHeight);
             if (!content.Contains(x, y) && !navBar.Contains(x, y))
             {
                 return;
@@ -2100,6 +2112,17 @@ namespace Smartphone
                 case "Delete":
                     if (photoSelectedIndices.Count > 0)
                         photoDeleteConfirmOpen = true;
+                    break;
+
+                case "Select all":
+                    {
+                        var filtered = GetFilteredPhotoIndices();
+                        foreach (int idx in filtered)
+                        {
+                            photoSelectedIndices.Add(idx);
+                        }
+                        Game1.playSound("bigSelect");
+                    }
                     break;
 
                 case "Favourite":
