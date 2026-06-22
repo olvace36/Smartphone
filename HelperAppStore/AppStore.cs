@@ -706,5 +706,44 @@ namespace Smartphone
             appStoreCurrentType = "App";
             AppStoreManager.ApplySortAndTypeFilter(appStoreCurrentSort, appStoreCurrentType);
         }
+
+        private void DrawAppStoreApp(SpriteBatch b)
+        {
+            b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
+            DrawPhoneScreenBackground(b, xOffset: 0);
+            DrawPhoneFrame(b);
+            backButton.draw(b, Color.Tan, 1f);
+            lockButton.draw(b, Color.Tan, 1f);
+            homeButton.draw(b, Color.Tan, 1f);
+            DrawAppStore(b);
+        }
+
+        private bool HandleAppStoreBackButton()
+        {
+            if (TryHandleAppStoreBackButton())
+                return true;
+
+            AppStoreManager.DisposeTextures();
+            ResetAppStoreState();
+            currentApp = null;
+            return true;
+        }
+
+        private void ApplyTouchScrollDeltaAppStore(int pixelDelta)
+        {
+            if (appStoreCurrentState == AppStoreState.Detail)
+            {
+                appStoreDetailScrollOffset = Math.Max(0, Math.Min(appStoreDetailScrollOffset + pixelDelta, appStoreMaxDetailScroll));
+            }
+        }
+
+        private void CloseAppStoreApp()
+        {
+            AppStoreManager.DisposeTextures();
+            if (currentApp == "appStore")
+            {
+                ResetAppStoreState();
+            }
+        }
     }
 }

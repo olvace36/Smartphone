@@ -197,7 +197,7 @@ namespace Smartphone
                                 SMonitor.Log($"Smartphone: Newer version available", LogLevel.Warn);
                                 Game1.drawLetterMessage(ModEntry.SHelper.Translation.Get("mail.update_warning"));
 
-                                NotificationManager.addNotification(ModEntry.SHelper.Translation.Get("notification.update_warning"));
+                                NotificationManager.AddNotification(ModEntry.SHelper.Translation.Get("notification.update_warning"));
                             }
                             catch (Exception ex)
                             {
@@ -215,7 +215,7 @@ namespace Smartphone
 
         private void OnDayStarted(object sender, DayStartedEventArgs e)
         {
-            NotificationManager.LoadNoticationData();
+            NotificationManager.LoadNotificationData();
         }
 
 
@@ -252,7 +252,7 @@ namespace Smartphone
             {
                 Game1.drawLetterMessage(ModEntry.SHelper.Translation.Get("mail.first_time"));
 
-                NotificationManager.addNotification(ModEntry.SHelper.Translation.Get("notification.first_time"));
+                NotificationManager.AddNotification(ModEntry.SHelper.Translation.Get("notification.first_time"));
 
                 pendingInitNotification = false;
             }
@@ -457,7 +457,7 @@ namespace Smartphone
 
         private static bool HasAnyHudPhoneAlert()
         {
-            if (NotificationManager.getUnreadNotication() > 0)
+            if (NotificationManager.GetUnreadNotification() > 0)
                 return true;
 
             return false;

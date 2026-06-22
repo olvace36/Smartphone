@@ -31,7 +31,7 @@ namespace Smartphone
 
         public void SendSmartphoneNotification(string message, string notificationName = "", string playerId = "")
         {
-            NotificationManager.addNotification(message, notificationName);
+            NotificationManager.AddNotification(message, notificationName);
         }
 
         public string CaptureNpcPhoto(GameLocation targetLocation, Vector2 captureCenter, NPC npc = null, bool landscape = false, bool square = false, List<NPC>? visibleNpcAtTarget = null, float zoomLevel = 1f, int? captureTimeOfDay = null, string saveLocation = null)
@@ -325,10 +325,6 @@ namespace Smartphone
         public static string currentPhoneBackground = "";
         public static string currentPhoneSound = "bigSelect";
         public static string currentPhoneTextColor = "Black";
-        public static string currentPlayerProfile = "";
-        public static string currentPlayerBirthDate = "";
-        public static string currentPlayerBirthSeason = "";
-        public static string currentPlayerAge = "";
 
         public static bool takeScreenshot = false;
         public static int currentMenuX;
@@ -347,7 +343,7 @@ namespace Smartphone
         private static string activeSaveFolderName = string.Empty;
 
         public static PhoneMenu phoneMenu;
-        private Dictionary<string, Dictionary<string, AreaData>> areaTags;
+        private Dictionary<string, Dictionary<string, AreaData>> areaTags = new();
         public static string GetActiveSaveFolderName()
         {
             lock (SaveFolderNameLock)

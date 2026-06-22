@@ -11,10 +11,8 @@ namespace Smartphone
         public static Texture2D PhoneEmpty;
         public static Texture2D Background;
 
-        public static Texture2D AppText;
         public static Texture2D AppCamera;
         public static Texture2D AppPhoto;
-        public static Texture2D AppSocial;
         public static Texture2D AppSetting;
         public static Texture2D AppNotification;
         public static Texture2D AppAppStore;

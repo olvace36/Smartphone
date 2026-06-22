@@ -6,32 +6,32 @@ namespace Smartphone
 {
     public static class NotificationManager
     {
-        public static List<string> notificationList = new();
-        public static int unreadNotification = 0;
+        public static List<string> NotificationList = new();
+        public static int UnreadNotification = 0;
 
-        public static int getUnreadNotication()
+        public static int GetUnreadNotification()
         {
-            return unreadNotification;
+            return UnreadNotification;
         }
 
-        public static void resetUnreadNotication()
+        public static void ResetUnreadNotification()
         {
-            unreadNotification = 0;
+            UnreadNotification = 0;
         }
 
-        public static void addUnreadNotication(int add = 1)
+        public static void AddUnreadNotification(int add = 1)
         {
-            unreadNotification += add;
+            UnreadNotification += add;
         }
 
-        public static List<string> getNoticationList()
+        public static List<string> GetNotificationList()
         {
-            return notificationList;
+            return NotificationList;
         }
 
-        public static void addNotification(string notificationMessage, string notificationName = "")
+        public static void AddNotification(string notificationMessage, string notificationName = "")
         {
-            notificationList.Add(notificationMessage);
+            NotificationList.Add(notificationMessage);
             if (ModEntry.Config?.notifyNotification ?? true)
             {
                 if (!string.IsNullOrWhiteSpace(notificationName))
@@ -42,23 +42,23 @@ namespace Smartphone
 
             DelayedAction.playSoundAfterDelay(ModEntry.currentPhoneSound, 0);
             if (ModEntry.phoneMenu != null && PhoneMenu.currentApp != "appNotification")
-                addUnreadNotication();
+                AddUnreadNotification();
         }
 
-        public static void clearNotification()
+        public static void ClearNotification()
         {
-            notificationList.Clear();
-            resetUnreadNotication();
+            NotificationList.Clear();
+            ResetUnreadNotification();
         }
 
-        public static void SaveNoticationData()
+        public static void SaveNotificationData()
         {
-            ModEntry.SHelper.Data.WriteJsonFile(ModEntry.GetSaveDataPath("notificationList"), notificationList);
+            ModEntry.SHelper.Data.WriteJsonFile(ModEntry.GetSaveDataPath("notificationList"), NotificationList);
         }
 
-        public static void LoadNoticationData()
+        public static void LoadNotificationData()
         {
-            notificationList = ModEntry.SHelper.Data.ReadJsonFile<List<string>>(ModEntry.GetSaveDataPath("notificationList"))
+            NotificationList = ModEntry.SHelper.Data.ReadJsonFile<List<string>>(ModEntry.GetSaveDataPath("notificationList"))
                           ?? new List<string>();
         }
     }
