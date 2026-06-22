@@ -59,6 +59,8 @@ namespace Smartphone
         private bool photoSelectionApiGetTexture = false;
         private bool photoSelectionApiGetMetadata = false;
         private Action<string>? photoSelectionApiCallback = null;
+        private bool photoSelectionApiSquareOnly = false;
+        private readonly Dictionary<string, float> photoAspectRatioCache = new(StringComparer.OrdinalIgnoreCase);
         private Rectangle photoBtnApiCancelBounds = Rectangle.Empty;
         private Rectangle photoBtnApiDoneBounds = Rectangle.Empty;
 
@@ -173,13 +175,14 @@ namespace Smartphone
         //  Open / Close
         // ─────────────────────────────────────────────────────────────
 
-        internal void StartPhotoSelectionApiMode(int limit, bool getTexture, bool getMetadata, Action<string> callback)
+        internal void StartPhotoSelectionApiMode(int limit, bool getTexture, bool getMetadata, Action<string> callback, bool squareOnly = false)
         {
             photoSelectionApiMode = true;
             photoSelectionApiLimit = limit;
             photoSelectionApiGetTexture = getTexture;
             photoSelectionApiGetMetadata = getMetadata;
             photoSelectionApiCallback = callback;
+            photoSelectionApiSquareOnly = squareOnly;
         }
 
         private void TriggerPhotoSelectionApiCallback(List<SelectedPhotoResult>? results)
@@ -201,6 +204,7 @@ namespace Smartphone
                 photoSelectionApiGetTexture = false;
                 photoSelectionApiGetMetadata = false;
                 photoSelectionApiLimit = 1;
+                photoSelectionApiSquareOnly = false;
             }
 
             ApplyPhoneBackground(MessageManager.currentPhoneBackground);
@@ -995,9 +999,9 @@ namespace Smartphone
 
             if (photoDetailTexture != null && !photoDetailTexture.IsDisposed)
             {
-                if (photoDetailTexture.Width > photoDetailTexture.Height)
+                if (photoDetailTexture.Width >= photoDetailTexture.Height)
                 {
-                    // Landscape mode: max the possible width and keep original aspect ratio (centered vertically)
+                    // Landscape or Square mode: max the possible width and keep original aspect ratio (centered vertically)
                     float scale = (float)content.Width / photoDetailTexture.Width;
                     int destW = content.Width;
                     int destH = (int)Math.Round(photoDetailTexture.Height * scale);
@@ -1587,6 +1591,42 @@ namespace Smartphone
 
         private List<int> GetFilteredPhotoIndices()
         {
+            var indices = GetFilteredPhotoIndicesRaw();
+            if (photoSelectionApiMode && photoSelectionApiSquareOnly)
+            {
+                indices = indices.Where(idx =>
+                {
+                    if (idx < 0 || idx >= capturedImages.Count) return false;
+                    float ratio = GetPhotoAspectRatio(capturedImages[idx]);
+                    return ratio > 0.95f && ratio < 1.05f;
+                }).ToList();
+            }
+            return indices;
+        }
+
+        private float GetPhotoAspectRatio(string path)
+        {
+            if (photoAspectRatioCache.TryGetValue(path, out float ratio))
+                return ratio;
+
+            try
+            {
+                using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using (Texture2D temp = Texture2D.FromStream(Game1.graphics.GraphicsDevice, stream))
+                {
+                    float r = temp.Width / (float)temp.Height;
+                    photoAspectRatioCache[path] = r;
+                    return r;
+                }
+            }
+            catch (Exception)
+            {
+                return 0f;
+            }
+        }
+
+        private List<int> GetFilteredPhotoIndicesRaw()
+        {
             if (photoFilterType == "all")
                 return Enumerable.Range(0, capturedImages.Count).ToList();
 
@@ -2013,6 +2053,7 @@ namespace Smartphone
                 if (tex != null && !tex.IsDisposed)
                     tex.Dispose();
             photoThumbnailCache.Clear();
+            photoAspectRatioCache.Clear();
         }
 
         private void RebuildThumbnailCacheKeys()

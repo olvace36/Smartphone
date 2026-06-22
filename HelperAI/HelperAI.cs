@@ -525,8 +525,7 @@ namespace Smartphone
                 {
                     npcCharacteristic = customCharacteristic;
                 }
-                else if (NpcCharacteristicsMinimal.TryGetValue(npc.Name, out string? customCharacteristicMinimal) && !string.IsNullOrWhiteSpace(customCharacteristicMinimal)
-                && (Config.CharacteristicMode == ModConfig.CharacteristicModeMinimal || getMinimal && Config.BetterQualityComment))
+                else if (NpcCharacteristicsMinimal.TryGetValue(npc.Name, out string? customCharacteristicMinimal) && !string.IsNullOrWhiteSpace(customCharacteristicMinimal) && (Config.CharacteristicMode == ModConfig.CharacteristicModeMinimal || getMinimal && Config.BetterQualityComment))
                 {
                     npcCharacteristic = customCharacteristicMinimal;
                 }

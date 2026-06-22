@@ -268,9 +268,9 @@ namespace Smartphone
             }
         }
 
-        public void RetrievePhotos(int limit, bool getTexture, bool getMetadata, Action<string> onComplete)
+        public void RetrievePhotos(int limit, bool getTexture, bool getMetadata, Action<string> onComplete, bool squareOnly = false)
         {
-            ModEntry.RetrievePhotosInternal(limit, getTexture, getMetadata, onComplete);
+            ModEntry.RetrievePhotosInternal(limit, getTexture, getMetadata, onComplete, squareOnly);
         }
 
         public bool IsSmallPhoneSize()
@@ -817,7 +817,7 @@ namespace Smartphone
             }
         }
 
-        public static void RetrievePhotosInternal(int limit, bool getTexture, bool getMetadata, Action<string> onComplete)
+        public static void RetrievePhotosInternal(int limit, bool getTexture, bool getMetadata, Action<string> onComplete, bool squareOnly = false)
         {
             if (limit <= 0)
             {
@@ -828,7 +828,7 @@ namespace Smartphone
             EnsurePhoneMenuUsesCurrentScale();
 
             // Set state on phone menu
-            phoneMenu.StartPhotoSelectionApiMode(limit, getTexture, getMetadata, onComplete);
+            phoneMenu.StartPhotoSelectionApiMode(limit, getTexture, getMetadata, onComplete, squareOnly);
 
             // Open the phone menu and bypass lock screen, going directly to the photo app
             phoneMenu.rootLandingState = PhoneMenu.RootLandingState.Home;
