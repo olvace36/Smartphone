@@ -1153,6 +1153,11 @@ namespace Smartphone
             {
                 DrawCalendarWidget4x2(b, rect);
             }
+
+            if (appId == BuiltinAppPhotoId)
+            {
+                DrawPhotoWidget(b, rect, size);
+            }
         }
 
         /// <summary>Public bridge for layout manager to launch apps.</summary>
