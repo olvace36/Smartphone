@@ -35,7 +35,6 @@ namespace Smartphone
         private const string SettingMenuOptionTextColor = "textColor";
         private const string SettingMenuOptionSound = "sound";
         private const string SettingMenuOptionTheme = "theme";
-        private const string SettingMenuOptionReorderApp = "reorderApp";
         private const string SettingMenuOptionPhoneSetting = "phoneSetting";
         private const string ThemeReadmeFileName = "readme.txt";
         private const int SettingsTitleXOffsetBase = 105;
@@ -169,8 +168,7 @@ namespace Smartphone
             DrawSettingOptionRow(b, SettingMenuOptionTextColor, ModEntry.SHelper.Translation.Get("ui.setting.text_color"), yStart);
             DrawSettingOptionRow(b, SettingMenuOptionSound, ModEntry.SHelper.Translation.Get("ui.setting.sound"), yStart + mainSpacing);
             DrawSettingOptionRow(b, SettingMenuOptionTheme, ModEntry.SHelper.Translation.Get("ui.setting.theme"), yStart + mainSpacing * 2);
-            DrawSettingOptionRow(b, SettingMenuOptionReorderApp, ModEntry.SHelper.Translation.Get("ui.setting.reorder_app"), yStart + mainSpacing * 3);
-            DrawSettingOptionRow(b, SettingMenuOptionPhoneSetting, ModEntry.SHelper.Translation.Get("ui.setting.phone_setting"), yStart + mainSpacing * 4);
+            DrawSettingOptionRow(b, SettingMenuOptionPhoneSetting, ModEntry.SHelper.Translation.Get("ui.setting.phone_setting"), yStart + mainSpacing * 3);
         }
 
         private void DrawSettingOptionRow(SpriteBatch b, string optionId, string displayText, int rowY)
@@ -578,13 +576,6 @@ namespace Smartphone
                 {
                     if (!option.Value.Contains(x, y))
                         continue;
-
-                    if (option.Key == SettingMenuOptionReorderApp)
-                    {
-                        Game1.playSound("smallSelect");
-                        EnterReorderMode();
-                        return;
-                    }
 
                     if (option.Key == SettingMenuOptionPhoneSetting)
                     {

@@ -162,10 +162,5 @@
   "ui.appstore.type.app": "App",
   "ui.appstore.type.theme": "Theme",
   "ui.appstore.type.translation": "Translation",
-  "ui.reorder.done": "Done",
-  "ui.reorder.back": "← Back",
-  "ui.reorder.close": "Cancel",
-  "ui.reorder.change_size": "Change Size",
-  "ui.reorder.add_to_dock": "Add to Dock",
-  "ui.reorder.remove_from_dock": "Remove from Dock"
+  "ui.reorder.done": "Done"
 }

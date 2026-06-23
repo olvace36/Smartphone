@@ -15,7 +15,16 @@ namespace Smartphone
         Setting,
         Calendar
     }
-
+public enum AppSize
+    {
+        Size1x1,
+        Size2x1,
+        Size2x2,
+        Size3x2,
+        Size4x2,
+        Size4x3,
+        Size4x4,
+    }
     public interface ISmartPhoneApi
     {
         /// ======================================

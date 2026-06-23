@@ -58,6 +58,9 @@ namespace Smartphone
         private int lastScrollMouseY = 0;
         private int touchScrollStartY = 0;
         private bool hasTouchScrolled = false;
+        private int touchScrollStartX = 0;
+        private bool hasTouchSwiped = false;
+        internal bool HasTouchSwiped => hasTouchSwiped;
         private const float ChatScrollPixelsPerWheelNotch = 48f;
         private const float ChatScrollLerpSpeed = 16f;
         private const int ScrollDrawOverscanBase = 72;
@@ -380,6 +383,32 @@ namespace Smartphone
         {
             base.releaseLeftClick(x, y);
 
+            // Detect swipe left/right
+            if (currentApp == null && layoutManager != null && !layoutManager.IsReorderMode)
+            {
+                int deltaX = x - touchScrollStartX;
+                int deltaY = y - touchScrollStartY;
+                if (Math.Abs(deltaX) > 50 && Math.Abs(deltaX) > Math.Abs(deltaY) * 1.5)
+                {
+                    if (deltaX > 0)
+                    {
+                        if (layoutManager.TryChangePageScroll(-1))
+                        {
+                            Game1.playSound("shwip");
+                            hasTouchSwiped = true;
+                        }
+                    }
+                    else
+                    {
+                        if (layoutManager.TryChangePageScroll(1))
+                        {
+                            Game1.playSound("shwip");
+                            hasTouchSwiped = true;
+                        }
+                    }
+                }
+            }
+
             // Release drag/clicks in layout manager
             if (currentApp == null && layoutManager != null)
             {
@@ -471,11 +500,12 @@ namespace Smartphone
                 return;
             }
 
-            // Layout manager drag (reorder mode)
-            if (currentApp == null && layoutManager?.IsReorderMode == true)
+            // Layout manager drag
+            if (currentApp == null && layoutManager != null)
             {
                 layoutManager.ReceiveLeftClickHeld(x, y);
-                return;
+                if (layoutManager.IsReorderMode)
+                    return;
             }
 
             if (!isDragging && !isScrolling)
@@ -514,7 +544,9 @@ namespace Smartphone
 
             lastScrollMouseY = y;
             touchScrollStartY = y;
+            touchScrollStartX = x;
             hasTouchScrolled = false;
+            hasTouchSwiped = false;
             isScrolling = false;
             appAtClickStart = currentApp;
 
@@ -622,6 +654,11 @@ namespace Smartphone
 
         public override void receiveKeyPress(Keys key)
         {
+            if (currentApp == null && layoutManager != null && layoutManager.IsReorderMode)
+            {
+                layoutManager.HandleKeyPress(key);
+            }
+
             if (currentApp == "appPhoto" && HandlePhotoAlbumNameKeyPress(key))
                 return;
 

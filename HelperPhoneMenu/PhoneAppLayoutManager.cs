@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using Newtonsoft.Json;
 using StardewModdingAPI;
 using StardewValley;
@@ -15,140 +16,106 @@ namespace Smartphone
     // Data structures
     // ──────────────────────────────────────────────────────────────────────────
 
-    /// <summary>All supported app widget sizes on the home screen grid.</summary>
-    public enum AppSize
-    {
-        /// <summary>1 column × 1 row</summary>
-        Size1x1,
-        /// <summary>2 columns × 1 row</summary>
-        Size2x1,
-        /// <summary>2 columns × 2 rows</summary>
-        Size2x2,
-        /// <summary>3 columns × 2 rows</summary>
-        Size3x2,
-        /// <summary>4 columns × 2 rows</summary>
-        Size4x2,
-        /// <summary>4 columns × 3 rows</summary>
-        Size4x3,
-        /// <summary>4 columns × 4 rows</summary>
-        Size4x4,
-    }
-
-    /// <summary>A single item stored in the layout (either an app or a folder).</summary>
     public class LayoutItem
     {
-        /// <summary>App composite ID, or "__folder__" if this is a folder.</summary>
         public string AppId { get; set; } = string.Empty;
         public AppSize Size { get; set; } = AppSize.Size1x1;
-        /// <summary>For folders: the display name.</summary>
+        public int GridCol { get; set; } = -1;
+        public int GridRow { get; set; } = -1;
         public string FolderName { get; set; } = string.Empty;
-        /// <summary>For folders: the list of app IDs contained within.</summary>
         public List<string> FolderItems { get; set; } = new();
 
         public bool IsFolder => AppId == PhoneAppLayoutManager.FolderAppId;
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Layout file serialization root
-    // ──────────────────────────────────────────────────────────────────────────
-
     internal class PhoneLayoutData
     {
+        public List<List<LayoutItem>> Pages { get; set; } = new();
         public List<LayoutItem> Main { get; set; } = new();
         public List<string> Dock { get; set; } = new();
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Dropdown menu state
-    // ──────────────────────────────────────────────────────────────────────────
-
     internal enum DropdownOption
     {
-        ChangeSize,
         ChangeSize1x1,
         ChangeSize2x1,
         ChangeSize2x2,
         ChangeSize3x2,
         ChangeSize4x2,
         ChangeSize4x3,
-        ChangeSize4x4,
-        RemoveFromDock,
-        AddToDock,
-        Close,
+        ChangeSize4x4
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Manager
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Manages the iOS-style grid layout for the phone home screen.
-    /// Handles packing, drawing, drag-and-drop, reorder mode, folders, and
-    /// JSON persistence.
-    /// </summary>
     internal sealed class PhoneAppLayoutManager
     {
-        // ── constants ──────────────────────────────────────────────────────
-
         public const string FolderAppId = "__folder__";
 
-        // Grid geometry (base values, relative to phone content top-left unless specified)
+        // Grid Geometry
         private const int GridCols = 4;
         private const int GridRows = 5;
-        private const int GridCellSize = 114;      // px per cell (1x1)
-        private const int GridStartX = 23;         // centered horizontally inside 520px content width ((520 - (4*114 + 3*6)) / 2)
-        private const int GridStartY = 50;         // starting Y relative to content top (leaves 50px for status bar)
-        private const int GridPadding = 6;         // gap between cells
-        
-        // Dock geometry
-        private const int DockCellSize = 96;       // reduced from 112
+        private const int GridCellSize = 114;
+        private const int GridStartX = 23;
+        private const int GridStartY = 50;
+        private const int GridPadding = 6;
+
+        // Dock Geometry
+        private const int DockCellSize = 96;
         private const int DockPadding = 8;
         private const int DockCols = 4;
-        private const int DockStartY = 702;        // centered vertically inside 120px dock height starting at Y=690 (690 + (120 - 96)/2)
-        private const int AppIconPadding = 8;      // inset inside cell rect
+        private const int DockStartY = 702;
 
-        // Reorder mode visual constants
-        private const float JiggleAmplitude = 1.2f;   // degrees
-        private const float JiggleFrequency = 6f;     // oscillations / second
+        private const int GridIconPadding = 14;
+        private const int DockIconPadding = 4;
 
-        // Done button
-        private const int DoneButtonX = 340;
-        private const int DoneButtonY = 40;
-        private const int DoneButtonW = 130;
-        private const int DoneButtonH = 44;
+        private const float JiggleAmplitude = 1.2f;
+        private const float JiggleFrequency = 6f;
 
-        // ── references ─────────────────────────────────────────────────────
+        // UI Header Controls
+        private const int DoneButtonX = 350;
+        private const int DoneButtonY = 12;
+        private const int DoneButtonW = 115;
+        private const int DoneButtonH = 36;
+
+        private const int ResetButtonX = 55;
+        private const int ResetButtonY = 12;
+        private const int ResetButtonW = 115;
+        private const int ResetButtonH = 36;
 
         private readonly PhoneMenu _menu;
 
-        // ── layout state ───────────────────────────────────────────────────
-
-        /// <summary>All pages of main grid items (each page is a list of <see cref="LayoutItem"/>).</summary>
         private List<List<LayoutItem>> _pages = new();
-        /// <summary>Dock: up to 4 app IDs (1x1 only, always visible).</summary>
         private List<string> _dock = new();
-
-        // ── reorder mode ───────────────────────────────────────────────────
 
         public bool IsReorderMode { get; private set; }
         private double _jiggleElapsed;
 
-        // drag state
+        // Drag States
         private bool _isDragging;
         private string? _dragAppId;
         private int _dragSourcePage;
-        private int _dragSourceIndex;           // -1 = dragging from dock
+        private int _dragSourceIndex;
         private bool _dragFromDock;
         private AppSize _dragAppSize;
         private int _dragMouseX, _dragMouseY;
         private int _dragOffsetX, _dragOffsetY;
-        private string? _mergeTargetId;
+        private LayoutItem? _draggedItem;
+
+        private bool _hoverIsOnIcon;
+        private bool _hoverIsOnGap;
+        private int _hoverCellCol = -1;
+        private int _hoverCellRow = -1;
         private int _hoverMainIndex = -1;
         private int _hoverDockIndex = -1;
 
-        // click-hold and drag threshold state
+        private double _pageBoundaryHoverTimer;
+        private int _lastPageBoundaryDir;
+
+        private double _folderPageHoverTimer;
+        private int _lastFolderPageDir;
+
         private bool _isDragCandidate;
         private bool _dragStarted;
+        private double _holdTimer;
         private string? _clickedAppId;
         private bool _clickedIsDock;
         private int _clickedIndex;
@@ -156,37 +123,34 @@ namespace Smartphone
         private int _clickStartY;
         private AppSize _clickedAppSize;
 
-        // dropdown
         private bool _dropdownOpen;
         private string? _dropdownAppId;
         private bool _dropdownForDock;
         private int _dropdownForMainIndex = -1;
         private List<(DropdownOption option, Rectangle bounds, string label)> _dropdownItems = new();
 
-        // folder view
         private LayoutItem? _openFolder;
+        private int _openFolderIndex = -1;
+        private int _currentFolderPage;
+        private bool _isEditingFolderName;
+        private string _folderNameBuffer = string.Empty;
         private List<Rectangle> _folderItemBounds = new();
         private Rectangle _folderOverlayBounds;
+        private Rectangle _folderRenameBoxBounds;
 
-        // Done button bounds (scaled, in screen coords)
         private Rectangle _doneButtonBounds;
-        // current page
+        private Rectangle _resetButtonBounds;
         private int _currentPage;
 
-        // click bounds used per frame
         private readonly Dictionary<string, Rectangle> _mainClickBounds = new();
         private readonly Dictionary<int, Rectangle> _dockClickBounds = new();
         private Rectangle _prevPageBounds = Rectangle.Empty;
         private Rectangle _nextPageBounds = Rectangle.Empty;
 
-        // ── ctor ───────────────────────────────────────────────────────────
-
         public PhoneAppLayoutManager(PhoneMenu menu)
         {
             _menu = menu;
         }
-
-        // ── public API ─────────────────────────────────────────────────────
 
         public void EnterReorderMode()
         {
@@ -195,6 +159,7 @@ namespace Smartphone
             _isDragging = false;
             _dropdownOpen = false;
             _openFolder = null;
+            _isEditingFolderName = false;
         }
 
         public void ExitReorderMode()
@@ -203,20 +168,148 @@ namespace Smartphone
             _isDragging = false;
             _dropdownOpen = false;
             _openFolder = null;
+            _isEditingFolderName = false;
             SaveLayout();
         }
 
         public int CurrentPage => _currentPage;
 
-        // ── update ─────────────────────────────────────────────────────────
-
         public void Update(GameTime time)
         {
             if (IsReorderMode)
                 _jiggleElapsed += time.ElapsedGameTime.TotalSeconds;
+
+            if (_isDragCandidate && !_isDragging)
+            {
+                _holdTimer += time.ElapsedGameTime.TotalSeconds;
+                if (_holdTimer > 1.0)
+                {
+                    _holdTimer = 0;
+                    if (!IsReorderMode)
+                    {
+                        EnterReorderMode();
+                    }
+                    _dragStarted = true;
+                    Rectangle itemBounds = Rectangle.Empty;
+                    if (_openFolder != null)
+                    {
+                        int relIndex = _clickedIndex - (_currentFolderPage * 9);
+                        if (relIndex >= 0 && relIndex < _folderItemBounds.Count)
+                            itemBounds = _folderItemBounds[relIndex];
+                    }
+                    else if (_clickedIsDock)
+                    {
+                        _dockClickBounds.TryGetValue(_clickedIndex, out itemBounds);
+                    }
+                    else
+                    {
+                        _mainClickBounds.TryGetValue(_clickedAppId + "_" + _clickedIndex, out itemBounds);
+                    }
+
+                    if (itemBounds != Rectangle.Empty)
+                    {
+                        int mx = Game1.getMouseX();
+                        int my = Game1.getMouseY();
+                        BeginDrag(_clickedAppId!, _clickedAppSize, _clickedIsDock ? -1 : _currentPage, _clickedIndex, _clickedIsDock, mx, my, itemBounds);
+                        _dragMouseX = mx;
+                        _dragMouseY = my;
+                    }
+                }
+            }
+            else
+            {
+                _holdTimer = 0;
+            }
+
+            if (_isDragging)
+            {
+                Rectangle contentBounds = _menu.GetPhoneContentBounds();
+                int borderTolerance = ScaleUi(35);
+
+                if (_openFolder != null)
+                {
+                    _folderOverlayBounds = new Rectangle(contentBounds.X + ScaleUi(40), contentBounds.Y + ScaleUi(140), ScaleUi(440), ScaleUi(440));
+                    int folderTotalPages = (int)Math.Ceiling(_openFolder.FolderItems.Count / 9.0);
+
+                    if (_dragMouseY >= _folderOverlayBounds.Top && _dragMouseY <= _folderOverlayBounds.Bottom)
+                    {
+                        if (_dragMouseX < _folderOverlayBounds.Left + ScaleUi(40) && _currentFolderPage > 0)
+                        {
+                            UpdateFolderPageBoundaryHover(time, -1, folderTotalPages);
+                        }
+                        else if (_dragMouseX > _folderOverlayBounds.Right - ScaleUi(40) && _currentFolderPage < folderTotalPages)
+                        {
+                            UpdateFolderPageBoundaryHover(time, 1, folderTotalPages);
+                        }
+                        else
+                        {
+                            _folderPageHoverTimer = 0;
+                            _lastFolderPageDir = 0;
+                        }
+                    }
+                    else
+                    {
+                        _folderPageHoverTimer = 0;
+                        _lastFolderPageDir = 0;
+                    }
+                }
+                else
+                {
+                    if (_dragMouseX < contentBounds.Left + borderTolerance && _currentPage > 0)
+                    {
+                        UpdatePageBoundaryHover(time, -1);
+                    }
+                    else if (_dragMouseX > contentBounds.Right - borderTolerance)
+                    {
+                        UpdatePageBoundaryHover(time, 1);
+                    }
+                    else
+                    {
+                        _pageBoundaryHoverTimer = 0;
+                        _lastPageBoundaryDir = 0;
+                    }
+                }
+            }
         }
 
-        // ── draw ───────────────────────────────────────────────────────────
+        private void UpdatePageBoundaryHover(GameTime time, int direction)
+        {
+            if (_lastPageBoundaryDir != direction)
+            {
+                _lastPageBoundaryDir = direction;
+                _pageBoundaryHoverTimer = 0;
+            }
+
+            _pageBoundaryHoverTimer += time.ElapsedGameTime.TotalSeconds;
+            if (_pageBoundaryHoverTimer >= 1.0)
+            {
+                _pageBoundaryHoverTimer = 0;
+                if (direction == 1 && _currentPage == _pages.Count - 1)
+                {
+                    _pages.Add(new List<LayoutItem>());
+                }
+                _currentPage = Math.Clamp(_currentPage + direction, 0, _pages.Count - 1);
+                Game1.playSound("shwip");
+            }
+        }
+
+        private void UpdateFolderPageBoundaryHover(GameTime time, int direction, int maxPages)
+        {
+            if (_lastFolderPageDir != direction)
+            {
+                _lastFolderPageDir = direction;
+                _folderPageHoverTimer = 0;
+            }
+
+            _folderPageHoverTimer += time.ElapsedGameTime.TotalSeconds;
+            if (_folderPageHoverTimer >= 1.0)
+            {
+                _folderPageHoverTimer = 0;
+                int allowedMax = direction == 1 ? maxPages : maxPages - 1;
+                _currentFolderPage = Math.Clamp(_currentFolderPage + direction, 0, allowedMax);
+                Game1.playSound("shwip");
+            }
+        }
 
         public void DrawHomeScreen(SpriteBatch b)
         {
@@ -225,95 +318,135 @@ namespace Smartphone
             _prevPageBounds = Rectangle.Empty;
             _nextPageBounds = Rectangle.Empty;
 
-            // Refresh app snapshots to get current visible apps.
             List<HomeAppEntryProxy> allApps = BuildAllAppsSnapshot();
-
-            // Sync layout to the current app list.
             SyncLayoutWithApps(allApps);
-
-            // Draw dock divider line
             DrawDockDivider(b);
-
-            // Draw dock
             DrawDock(b, allApps);
 
-            // Draw current page
+            if (IsReorderMode && _openFolder == null)
+            {
+                DrawEmptyGridPlaceholders(b);
+            }
+
             if (_currentPage >= 0 && _currentPage < _pages.Count)
                 DrawPage(b, _pages[_currentPage], allApps);
 
-            // Draw page dots
             DrawPageIndicator(b);
 
-            // Draw reorder UI on top
-            if (IsReorderMode)
+            if (IsReorderMode && _openFolder == null)
             {
                 DrawDoneButton(b);
+                DrawResetButton(b);
                 if (_isDragging)
                     DrawDragGhost(b, allApps);
             }
 
-            // Draw folder overlay
             if (_openFolder != null)
                 DrawFolderOverlay(b, allApps);
 
-            // Draw dropdown
             if (_dropdownOpen)
                 DrawDropdown(b);
         }
 
-        // ── input ──────────────────────────────────────────────────────────
+        private void DrawEmptyGridPlaceholders(SpriteBatch b)
+        {
+            for (int col = 0; col < GridCols; col++)
+            {
+                for (int row = 0; row < GridRows; row++)
+                {
+                    Rectangle r = GetMainCellRect(col, row, 1, 1);
+                    b.Draw(Game1.staminaRect, r, Color.White * 0.04f);
 
-        /// <summary>Called on left-click. Returns true if consumed.</summary>
+                    if (_hoverCellCol == col && _hoverCellRow == row && !_hoverIsOnIcon)
+                    {
+                        b.Draw(Game1.staminaRect, r, Color.LightGreen * 0.25f);
+                    }
+                }
+            }
+        }
+
         public bool ReceiveLeftClick(int x, int y)
         {
-            // Done button
-            if (IsReorderMode && _doneButtonBounds.Contains(x, y))
+            if (IsReorderMode && _doneButtonBounds.Contains(x, y) && _openFolder == null)
             {
                 Game1.playSound("smallSelect");
                 ExitReorderMode();
                 return true;
             }
 
-            // Close dropdown on click outside
+            if (IsReorderMode && _resetButtonBounds.Contains(x, y) && _openFolder == null)
+            {
+                Game1.playSound("trashcan");
+                BuildDefaultLayout(BuildAllAppsSnapshot());
+                SaveLayout();
+                return true;
+            }
+
             if (_dropdownOpen)
             {
-                bool clickedInside = _dropdownItems.Any(item => item.bounds.Contains(x, y));
-                if (clickedInside)
+                if (_dropdownItems.Any(item => item.bounds.Contains(x, y)))
                 {
                     HandleDropdownClick(x, y);
-                    return true;
                 }
                 else
                 {
                     _dropdownOpen = false;
-                    return true;
-                }
-            }
-
-            // Folder overlay
-            if (_openFolder != null)
-            {
-                bool inOverlay = _folderOverlayBounds.Contains(x, y);
-                if (!inOverlay)
-                {
-                    _openFolder = null;
-                    return true;
-                }
-                // Click on item inside folder
-                for (int i = 0; i < _folderItemBounds.Count; i++)
-                {
-                    if (_folderItemBounds[i].Contains(x, y))
-                    {
-                        string fid = _openFolder.FolderItems[i];
-                        HandleAppLaunch(fid);
-                        _openFolder = null;
-                        return true;
-                    }
                 }
                 return true;
             }
 
-            // Page navigation
+            if (_openFolder != null)
+            {
+                if (_isEditingFolderName && !_folderRenameBoxBounds.Contains(x, y))
+                {
+                    _isEditingFolderName = false;
+                    _openFolder.FolderName = string.IsNullOrWhiteSpace(_folderNameBuffer) ? "Folder" : _folderNameBuffer;
+                    SaveLayout();
+                }
+
+                if (_folderRenameBoxBounds.Contains(x, y) && IsReorderMode)
+                {
+                    _isEditingFolderName = true;
+                    _folderNameBuffer = _openFolder.FolderName;
+                    return true;
+                }
+
+                for (int i = 0; i < _folderItemBounds.Count; i++)
+                {
+                    if (_folderItemBounds[i].Contains(x, y))
+                    {
+                        int targetGlobalIdx = (_currentFolderPage * 9) + i;
+                        if (targetGlobalIdx >= _openFolder.FolderItems.Count) continue;
+
+                        string fid = _openFolder.FolderItems[targetGlobalIdx];
+                        if (string.IsNullOrEmpty(fid)) continue;
+
+                        _isDragCandidate = true;
+                        _clickedAppId = fid;
+                        _clickedIsDock = false;
+                        _clickedIndex = targetGlobalIdx;
+                        _clickStartX = x;
+                        _clickStartY = y;
+                        _clickedAppSize = AppSize.Size1x1;
+                        return true;
+                    }
+                }
+
+                if (!_folderOverlayBounds.Contains(x, y) && !_isDragging)
+                {
+                    if (_isEditingFolderName)
+                    {
+                        _openFolder.FolderName = string.IsNullOrWhiteSpace(_folderNameBuffer) ? "Folder" : _folderNameBuffer;
+                        SaveLayout();
+                    }
+                    _openFolder = null;
+                    _openFolderIndex = -1;
+                    _isEditingFolderName = false;
+                    Game1.playSound("bigDeSelect");
+                }
+                return true;
+            }
+
             if (_prevPageBounds.Contains(x, y) && _currentPage > 0)
             {
                 _currentPage--;
@@ -327,15 +460,12 @@ namespace Smartphone
                 return true;
             }
 
-            // Reset drag candidate tracking
             _isDragCandidate = false;
             _dragStarted = false;
 
-            // Dock clicks (check if we clicked a dock app first)
             foreach (KeyValuePair<int, Rectangle> kv in _dockClickBounds)
             {
                 if (!kv.Value.Contains(x, y)) continue;
-
                 string appId = kv.Key < _dock.Count ? _dock[kv.Key] : string.Empty;
                 if (string.IsNullOrEmpty(appId)) return true;
 
@@ -349,17 +479,14 @@ namespace Smartphone
                 return true;
             }
 
-            // Main grid clicks (check if we clicked a main app)
             if (_currentPage >= 0 && _currentPage < _pages.Count)
             {
                 List<LayoutItem> page = _pages[_currentPage];
                 for (int i = 0; i < page.Count; i++)
                 {
                     LayoutItem item = page[i];
-                    if (!_mainClickBounds.TryGetValue(item.AppId + "_" + i, out Rectangle bounds))
+                    if (!_mainClickBounds.TryGetValue(item.AppId + "_" + i, out Rectangle bounds) || !bounds.Contains(x, y))
                         continue;
-
-                    if (!bounds.Contains(x, y)) continue;
 
                     _isDragCandidate = true;
                     _clickedAppId = item.AppId;
@@ -379,27 +506,40 @@ namespace Smartphone
         {
             if (_dropdownOpen) return;
 
-            if (_isDragCandidate && !_dragStarted && IsReorderMode)
+            if (_isDragCandidate && !_dragStarted)
             {
                 int dx = x - _clickStartX;
                 int dy = y - _clickStartY;
+
                 if (Math.Max(Math.Abs(dx), Math.Abs(dy)) >= 10)
                 {
-                    _dragStarted = true;
-                    // Find the bounds for offset calculation
-                    Rectangle itemBounds = Rectangle.Empty;
-                    if (_clickedIsDock)
+                    if (IsReorderMode)
                     {
-                        _dockClickBounds.TryGetValue(_clickedIndex, out itemBounds);
+                        _dragStarted = true;
+                        Rectangle itemBounds = Rectangle.Empty;
+                        if (_openFolder != null)
+                        {
+                            int relIndex = _clickedIndex - (_currentFolderPage * 9);
+                            if (relIndex >= 0 && relIndex < _folderItemBounds.Count)
+                                itemBounds = _folderItemBounds[relIndex];
+                        }
+                        else if (_clickedIsDock)
+                        {
+                            _dockClickBounds.TryGetValue(_clickedIndex, out itemBounds);
+                        }
+                        else
+                        {
+                            _mainClickBounds.TryGetValue(_clickedAppId + "_" + _clickedIndex, out itemBounds);
+                        }
+
+                        if (itemBounds != Rectangle.Empty)
+                        {
+                            BeginDrag(_clickedAppId!, _clickedAppSize, _clickedIsDock ? -1 : _currentPage, _clickedIndex, _clickedIsDock, x, y, itemBounds);
+                        }
                     }
                     else
                     {
-                        _mainClickBounds.TryGetValue(_clickedAppId + "_" + _clickedIndex, out itemBounds);
-                    }
-
-                    if (itemBounds != Rectangle.Empty)
-                    {
-                        BeginDrag(_clickedAppId!, _clickedAppSize, _clickedIsDock ? -1 : _currentPage, _clickedIndex, _clickedIsDock, _clickStartX, _clickStartY, itemBounds);
+                        _isDragCandidate = false;
                     }
                 }
             }
@@ -419,6 +559,7 @@ namespace Smartphone
                 DropDraggedItem(x, y);
                 _isDragging = false;
                 _dragAppId = null;
+                _draggedItem = null;
                 _dragStarted = false;
                 _isDragCandidate = false;
             }
@@ -427,62 +568,94 @@ namespace Smartphone
                 _isDragCandidate = false;
                 _dragStarted = false;
 
-                if (IsReorderMode)
+                if (_menu.HasTouchSwiped)
                 {
-                    if (!_clickedIsDock)
+                    return;
+                }
+
+                if (_openFolder != null && _clickedIndex >= 0 && _clickedIndex < _openFolder.FolderItems.Count)
+                {
+                    if (!IsReorderMode)
                     {
-                        // Open dropdown for main grid app
-                        if (_currentPage >= 0 && _currentPage < _pages.Count && _clickedIndex >= 0 && _clickedIndex < _pages[_currentPage].Count)
+                        string fid = _openFolder.FolderItems[_clickedIndex];
+                        if (!string.IsNullOrEmpty(fid))
                         {
-                            Rectangle bounds;
-                            if (_mainClickBounds.TryGetValue(_clickedAppId + "_" + _clickedIndex, out bounds))
-                            {
-                                OpenDropdownForMain(_clickedIndex, bounds);
-                            }
+                            HandleAppLaunch(fid);
+                            _openFolder = null;
                         }
                     }
                 }
-                else
+                else if (_openFolder == null && _currentPage >= 0 && _currentPage < _pages.Count && _clickedIndex >= 0 && _clickedIndex < _pages[_currentPage].Count && !_clickedIsDock)
                 {
-                    // Normal mode launch
-                    if (_clickedIsDock)
+                    LayoutItem item = _pages[_currentPage][_clickedIndex];
+                    if (item.IsFolder)
                     {
-                        HandleAppLaunch(_clickedAppId!);
+                        _mainClickBounds.TryGetValue(item.AppId + "_" + _clickedIndex, out Rectangle bounds);
+                        OpenFolderOverlay(item, _clickedIndex, bounds);
+                    }
+                    else if (IsReorderMode)
+                    {
+                        _mainClickBounds.TryGetValue(item.AppId + "_" + _clickedIndex, out Rectangle bounds);
+                        OpenDropdownForMain(_clickedIndex, bounds);
                     }
                     else
                     {
-                        if (_currentPage >= 0 && _currentPage < _pages.Count && _clickedIndex >= 0 && _clickedIndex < _pages[_currentPage].Count)
-                        {
-                            LayoutItem item = _pages[_currentPage][_clickedIndex];
-                            if (item.IsFolder)
-                            {
-                                Rectangle bounds;
-                                _mainClickBounds.TryGetValue(item.AppId + "_" + _clickedIndex, out bounds);
-                                OpenFolderOverlay(item, bounds);
-                            }
-                            else
-                            {
-                                HandleAppLaunch(_clickedAppId!);
-                            }
-                        }
+                        HandleAppLaunch(item.AppId);
                     }
+                }
+                else if (_clickedIsDock && !IsReorderMode)
+                {
+                    HandleAppLaunch(_clickedAppId!);
+                }
+            }
+        }
+
+        public void HandleKeyPress(Keys key)
+        {
+            if (_openFolder != null && _isEditingFolderName)
+            {
+                if (key == Keys.Enter)
+                {
+                    _isEditingFolderName = false;
+                    _openFolder.FolderName = string.IsNullOrWhiteSpace(_folderNameBuffer) ? "Folder" : _folderNameBuffer;
+                    SaveLayout();
+                }
+                else if (key == Keys.Back && _folderNameBuffer.Length > 0)
+                {
+                    _folderNameBuffer = _folderNameBuffer.Substring(0, _folderNameBuffer.Length - 1);
+                }
+            }
+        }
+
+        public void HandleTextInput(char character)
+        {
+            if (_openFolder != null && _isEditingFolderName && (char.IsLetterOrDigit(character) || character == ' '))
+            {
+                if (_folderNameBuffer.Length < 15)
+                {
+                    _folderNameBuffer += character;
                 }
             }
         }
 
         public bool TryChangePageScroll(int delta)
         {
-            if (_dropdownOpen || _openFolder != null)
-                return false;
+            if (_dropdownOpen) return false;
 
-            int total = _pages.Count;
-            int next = Math.Clamp(_currentPage + delta, 0, Math.Max(0, total - 1));
+            if (_openFolder != null)
+            {
+                int folderTotalPages = (int)Math.Ceiling(_openFolder.FolderItems.Count / 9.0);
+                int nextFolderPage = Math.Clamp(_currentFolderPage + delta, 0, Math.Max(0, folderTotalPages));
+                if (nextFolderPage == _currentFolderPage) return false;
+                _currentFolderPage = nextFolderPage;
+                return true;
+            }
+
+            int next = Math.Clamp(_currentPage + delta, 0, Math.Max(0, _pages.Count - 1));
             if (next == _currentPage) return false;
             _currentPage = next;
             return true;
         }
-
-        // ── persistence ────────────────────────────────────────────────────
 
         public void LoadLayout(List<HomeAppEntryProxy> allApps)
         {
@@ -504,25 +677,65 @@ namespace Smartphone
                 }
 
                 _dock = data.Dock ?? new List<string>();
-                // Rebuild pages from flat main list
-                RebuildPagesFromFlat(data.Main ?? new List<LayoutItem>());
+
+                if (data.Pages != null && data.Pages.Count > 0)
+                {
+                    _pages = data.Pages;
+                }
+                else if (data.Main != null && data.Main.Count > 0)
+                {
+                    MigrateFlatListToSparsePages(data.Main);
+                }
+                else
+                {
+                    BuildDefaultLayout(allApps);
+                }
+
                 SyncLayoutWithApps(allApps);
             }
             catch (Exception ex)
             {
-                ModEntry.SMonitor?.Log($"[PhoneAppLayoutManager] Failed to load layout: {ex.Message}", LogLevel.Warn);
+                ModEntry.SMonitor?.Log($"[PhoneAppLayoutManager] Failed to load layout details: {ex.Message}", LogLevel.Warn);
                 BuildDefaultLayout(allApps);
             }
+        }
+
+        private void MigrateFlatListToSparsePages(List<LayoutItem> flatList)
+        {
+            _pages.Clear();
+            List<LayoutItem> currentPage = new();
+            int col = 0, row = 0;
+
+            foreach (var item in flatList)
+            {
+                (int w, int h) = GetSizeDims(item.Size);
+                AdvanceGridCursor(ref col, ref row, w, h);
+
+                if (row >= GridRows)
+                {
+                    _pages.Add(currentPage);
+                    currentPage = new List<LayoutItem>();
+                    col = 0; row = 0;
+                    AdvanceGridCursor(ref col, ref row, w, h);
+                }
+
+                item.GridCol = col;
+                item.GridRow = row;
+                currentPage.Add(item);
+                col += w;
+            }
+
+            if (currentPage.Count > 0 || _pages.Count == 0)
+                _pages.Add(currentPage);
         }
 
         public void SaveLayout()
         {
             try
             {
-                List<LayoutItem> flat = _pages.SelectMany(p => p).ToList();
                 PhoneLayoutData data = new PhoneLayoutData
                 {
-                    Main = flat,
+                    Pages = _pages,
                     Dock = _dock
                 };
 
@@ -536,7 +749,7 @@ namespace Smartphone
             }
             catch (Exception ex)
             {
-                ModEntry.SMonitor?.Log($"[PhoneAppLayoutManager] Failed to save layout: {ex.Message}", LogLevel.Warn);
+                ModEntry.SMonitor?.Log($"[PhoneAppLayoutManager] Failed saving layouts: {ex.Message}", LogLevel.Warn);
             }
         }
 
@@ -549,127 +762,203 @@ namespace Smartphone
                 "phone_layout.json");
         }
 
-        // ── layout building ────────────────────────────────────────────────
-
         private void BuildDefaultLayout(List<HomeAppEntryProxy> allApps)
         {
             _dock.Clear();
             _pages.Clear();
 
-            // Put first 4 builtin apps in dock
-            var builtins = allApps.Where(a => IsBuiltinApp(a.Id)).Take(DockCols).ToList();
-            foreach (var app in builtins)
-                _dock.Add(app.Id);
+            _dock.Add("builtin:calendar");
+            _dock.Add("builtin:setting");
 
-            // Remaining apps go to main grid
-            var remaining = allApps.Where(a => !_dock.Contains(a.Id)).ToList();
-            List<LayoutItem> flat = remaining.Select(a => new LayoutItem
+            List<LayoutItem> page1 = new List<LayoutItem>();
+
+            page1.Add(new LayoutItem { AppId = "builtin:appstore", Size = AppSize.Size2x2, GridCol = 0, GridRow = 0 });
+            page1.Add(new LayoutItem { AppId = "builtin:camera", Size = AppSize.Size1x1, GridCol = 2, GridRow = 0 });
+            page1.Add(new LayoutItem { AppId = "builtin:photo", Size = AppSize.Size1x1, GridCol = 3, GridRow = 0 });
+            page1.Add(new LayoutItem { AppId = "builtin:notification", Size = AppSize.Size1x1, GridCol = 2, GridRow = 1 });
+
+            _pages.Add(page1);
+
+            HashSet<string> placedIds = new(StringComparer.OrdinalIgnoreCase)
             {
-                AppId = a.Id,
-                Size = AppSize.Size1x1
-            }).ToList();
+                "builtin:calendar", "builtin:setting", "builtin:appstore", "builtin:camera", "builtin:photo", "builtin:notification"
+            };
 
-            RebuildPagesFromFlat(flat);
-        }
+            var remainingApps = allApps.Where(a => !placedIds.Contains(a.Id)).ToList();
+            List<LayoutItem> flat = remainingApps.Select(a => new LayoutItem { AppId = a.Id, Size = AppSize.Size1x1 }).ToList();
 
-        private bool IsBuiltinApp(string id)
-        {
-            return id.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private void RebuildPagesFromFlat(List<LayoutItem> flat)
-        {
-            _pages.Clear();
-            List<LayoutItem> current = new();
-            int usedCells = 0;
-
-            foreach (LayoutItem item in flat)
+            foreach (var item in flat)
             {
-                int cells = GetCellCount(item.Size);
-                if (!FitsOnPage(usedCells, item.Size, GridCols, GridRows))
-                {
-                    _pages.Add(current);
-                    current = new List<LayoutItem>();
-                    usedCells = 0;
-                }
-                current.Add(item);
-                usedCells += cells;
+                RelocateItem(item, 0);
             }
 
-            if (current.Count > 0 || _pages.Count == 0)
-                _pages.Add(current);
+            _currentPage = 0;
         }
 
-        private bool FitsOnPage(int usedCells, AppSize size, int cols, int rows)
-        {
-            return usedCells + GetCellCount(size) <= cols * rows;
-        }
-
-        /// <summary>Sync: add new apps that don't exist in layout; remove apps no longer registered.</summary>
         private void SyncLayoutWithApps(List<HomeAppEntryProxy> allApps)
         {
             HashSet<string> allIds = new(allApps.Select(a => a.Id), StringComparer.OrdinalIgnoreCase);
-            HashSet<string> layoutIds = new(StringComparer.OrdinalIgnoreCase);
 
-            // Collect what's in layout
-            foreach (string id in _dock) layoutIds.Add(id);
-            foreach (List<LayoutItem> page in _pages)
-                foreach (LayoutItem item in page)
-                    layoutIds.Add(item.AppId);
+            _dock.RemoveAll(id => !allIds.Contains(id) && !string.IsNullOrEmpty(id));
 
-            // Remove dock items no longer visible
-            _dock.RemoveAll(id => !allIds.Contains(id));
-
-            // Remove main grid items no longer visible (but keep folders)
-            foreach (List<LayoutItem> page in _pages)
-                page.RemoveAll(item => !item.IsFolder && !allIds.Contains(item.AppId));
-
-            // Clean up empty pages (except at least one page always exists)
-            _pages.RemoveAll(p => p.Count == 0);
-            if (_pages.Count == 0) _pages.Add(new List<LayoutItem>());
-
-            // Add new apps that aren't in layout yet
-            var newApps = allApps.Where(a => !layoutIds.Contains(a.Id));
-            List<LayoutItem> lastPage = _pages[_pages.Count - 1];
-            foreach (HomeAppEntryProxy app in newApps)
+            foreach (var page in _pages)
             {
-                LayoutItem newItem = new LayoutItem
+                page.RemoveAll(item => !item.IsFolder && !allIds.Contains(item.AppId));
+                foreach (var folder in page.Where(f => f.IsFolder))
                 {
-                    AppId = app.Id,
-                    Size = AppSize.Size1x1
-                };
-
-                if (!FitsOnPage(CountPageCells(lastPage), AppSize.Size1x1, GridCols, GridRows))
-                {
-                    lastPage = new List<LayoutItem>();
-                    _pages.Add(lastPage);
+                    for (int i = 0; i < folder.FolderItems.Count; i++)
+                    {
+                        if (!string.IsNullOrEmpty(folder.FolderItems[i]) && !allIds.Contains(folder.FolderItems[i]))
+                        {
+                            folder.FolderItems[i] = string.Empty;
+                        }
+                    }
                 }
-                lastPage.Add(newItem);
             }
 
-            _currentPage = Math.Clamp(_currentPage, 0, Math.Max(0, _pages.Count - 1));
+            if (!IsReorderMode)
+            {
+                _pages.RemoveAll(p => p.Count == 0);
+                foreach (var page in _pages)
+                {
+                    page.RemoveAll(item => item.IsFolder && (item.FolderItems.Count == 0 || item.FolderItems.All(string.IsNullOrEmpty)));
+                }
+            }
+            if (_pages.Count == 0) _pages.Add(new List<LayoutItem>());
+
+            HashSet<string> trackedIds = new(StringComparer.OrdinalIgnoreCase);
+            foreach (string id in _dock) trackedIds.Add(id);
+            foreach (var page in _pages)
+            {
+                foreach (var item in page)
+                {
+                    if (item.IsFolder)
+                    {
+                        foreach (var fid in item.FolderItems)
+                            if (!string.IsNullOrEmpty(fid)) trackedIds.Add(fid);
+                    }
+                    else
+                    {
+                        trackedIds.Add(item.AppId);
+                    }
+                }
+            }
+
+            var missingApps = allApps.Where(a => !trackedIds.Contains(a.Id));
+            foreach (var app in missingApps)
+            {
+                var targetPage = _pages.Last();
+                (int c, int r) = FindFirstAvailableGridPosition(targetPage, 1, 1);
+                if (c == -1)
+                {
+                    targetPage = new List<LayoutItem>();
+                    _pages.Add(targetPage);
+                    (c, r) = FindFirstAvailableGridPosition(targetPage, 1, 1);
+                }
+
+                targetPage.Add(new LayoutItem
+                {
+                    AppId = app.Id,
+                    Size = AppSize.Size1x1,
+                    GridCol = c,
+                    GridRow = r
+                });
+            }
+
+            _currentPage = Math.Clamp(_currentPage, 0, _pages.Count - 1);
         }
 
-        private int CountPageCells(List<LayoutItem> page)
+        private (int col, int row) FindFirstAvailableGridPosition(List<LayoutItem> page, int w, int h)
         {
-            return page.Sum(item => GetCellCount(item.Size));
+            for (int r = 0; r <= GridRows - h; r++)
+            {
+                for (int c = 0; c <= GridCols - w; c++)
+                {
+                    if (IsCellRegionFree(page, c, r, w, h))
+                        return (c, r);
+                }
+            }
+            return (-1, -1);
         }
 
-        // ── drawing helpers ────────────────────────────────────────────────
+        private bool IsCellRegionFree(List<LayoutItem> page, int startCol, int startRow, int w, int h, LayoutItem? ignoreItem = null)
+        {
+            if (startCol < 0 || startCol + w > GridCols || startRow < 0 || startRow + h > GridRows)
+                return false;
+
+            bool[,] occupied = new bool[GridCols, GridRows];
+            foreach (var item in page)
+            {
+                if (item == ignoreItem || item.GridCol < 0 || item.GridRow < 0) continue;
+                (int iw, int ih) = GetSizeDims(item.Size);
+
+                for (int c = item.GridCol; c < item.GridCol + iw && c < GridCols; c++)
+                {
+                    for (int r = item.GridRow; r < item.GridRow + ih && r < GridRows; r++)
+                    {
+                        occupied[c, r] = true;
+                    }
+                }
+            }
+
+            for (int c = startCol; c < startCol + w; c++)
+            {
+                for (int r = startRow; r < startRow + h; r++)
+                {
+                    if (occupied[c, r]) return false;
+                }
+            }
+            return true;
+        }
+
+        private bool Intersects(int col, int row, int w, int h, LayoutItem other)
+        {
+            if (other.GridCol < 0 || other.GridRow < 0) return false;
+            (int ow, int oh) = GetSizeDims(other.Size);
+            return col < other.GridCol + ow && col + w > other.GridCol &&
+                   row < other.GridRow + oh && row + h > other.GridRow;
+        }
+
+        private void RelocateItem(LayoutItem item, int preferredPage)
+        {
+            (int w, int h) = GetSizeDims(item.Size);
+            int pIdx = preferredPage;
+
+            while (true)
+            {
+                if (pIdx >= _pages.Count)
+                {
+                    _pages.Add(new List<LayoutItem>());
+                }
+
+                var page = _pages[pIdx];
+                (int c, int r) = FindFirstAvailableGridPosition(page, w, h);
+                if (c != -1)
+                {
+                    item.GridCol = c;
+                    item.GridRow = r;
+                    page.Add(item);
+                    break;
+                }
+                pIdx++;
+            }
+        }
 
         private void DrawDock(SpriteBatch b, List<HomeAppEntryProxy> allApps)
         {
             Rectangle contentRect = _menu.GetPhoneContentBounds();
-            // Draw gray translucent dock background (from Y=690 to Y=810, height 120 base)
             Rectangle dockBgRect = new Rectangle(contentRect.X, contentRect.Y + ScaleUi(690), contentRect.Width, ScaleUi(120));
             b.Draw(Game1.staminaRect, dockBgRect, new Color(80, 80, 80, 180));
 
             int count = _dock.Count;
-            for (int i = 0; i < count; i++)
+            int displayCount = Math.Max(1, count);
+
+            for (int i = 0; i < displayCount; i++)
             {
-                Rectangle cellRect = GetDockCellRect(i, count);
+                Rectangle cellRect = GetDockCellRect(i, displayCount);
                 _dockClickBounds[i] = cellRect;
 
+                if (i >= _dock.Count) continue;
                 string appId = _dock[i];
                 if (string.IsNullOrEmpty(appId)) continue;
 
@@ -677,104 +966,105 @@ namespace Smartphone
                 if (app == null) continue;
 
                 if (IsReorderMode && _isDragging && _dragFromDock && _dragSourceIndex == i)
-                    continue; // skip ghost origin
+                    continue;
 
-                float jiggle = IsReorderMode ? GetJiggleAngle(i * 73) : 0f;
-                DrawAppCell(b, app, cellRect, AppSize.Size1x1, jiggle, isMergeTarget: appId == _mergeTargetId);
+                float jiggle = IsReorderMode && _openFolder == null ? GetJiggleAngle(i * 73) : 0f;
+                DrawAppCell(b, app, cellRect, AppSize.Size1x1, jiggle, isMergeTarget: (i == _hoverDockIndex && _hoverIsOnIcon), isDockContext: true);
             }
         }
 
         private void DrawPage(SpriteBatch b, List<LayoutItem> page, List<HomeAppEntryProxy> allApps)
         {
-            int col = 0, row = 0;
             for (int i = 0; i < page.Count; i++)
             {
                 LayoutItem item = page[i];
-                (int w, int h) = GetSizeDims(item.Size);
+                if (item.GridCol < 0 || item.GridRow < 0) continue;
 
-                // Advance past filled rows/cols
-                AdvanceGridCursor(ref col, ref row, w, h);
-
-                Rectangle cellRect = GetMainCellRect(col, row, w, h);
-                string key = item.AppId + "_" + i;
-                _mainClickBounds[key] = cellRect;
-
-                if (IsReorderMode && _isDragging && !_dragFromDock
-                    && _dragSourcePage == _currentPage && _dragSourceIndex == i)
-                {
-                    // Skip drawing ghost origin
-                    col += w;
-                    if (col >= GridCols) { col = 0; row += h; }
+                if (_isDragging && !_dragFromDock && _dragSourcePage == _currentPage && _dragSourceIndex == i && _openFolder == null)
                     continue;
-                }
 
-                float jiggle = IsReorderMode ? GetJiggleAngle((i + 13) * 37) : 0f;
-                bool isMerge = !string.IsNullOrEmpty(_mergeTargetId)
-                               && (item.AppId == _mergeTargetId);
+                (int w, int h) = GetSizeDims(item.Size);
+                Rectangle cellRect = GetMainCellRect(item.GridCol, item.GridRow, w, h);
+                _mainClickBounds[item.AppId + "_" + i] = cellRect;
+
+                float jiggle = IsReorderMode && _openFolder == null ? GetJiggleAngle((i + 13) * 37) : 0f;
+                bool isMerge = (i == _hoverMainIndex && _hoverIsOnIcon);
 
                 if (item.IsFolder)
                 {
-                    DrawFolderCell(b, item, cellRect, jiggle);
+                    DrawFolderCell(b, item, cellRect, jiggle, allApps);
                 }
                 else
                 {
                     HomeAppEntryProxy? app = FindApp(allApps, item.AppId);
                     if (app != null)
-                        DrawAppCell(b, app, cellRect, item.Size, jiggle, isMerge);
+                        DrawAppCell(b, app, cellRect, item.Size, jiggle, isMerge, isDockContext: false);
                 }
-
-                col += w;
-                if (col >= GridCols) { col = 0; row += h; }
             }
         }
 
-        private void DrawAppCell(SpriteBatch b, HomeAppEntryProxy app, Rectangle cellRect,
-            AppSize size, float jiggleDeg, bool isMergeTarget)
+        private void DrawAppCell(SpriteBatch b, HomeAppEntryProxy app, Rectangle cellRect, AppSize size, float jiggleDeg, bool isMergeTarget, bool isDockContext)
         {
+            int pad = isDockContext ? DockIconPadding : GridIconPadding;
             Rectangle iconRect = new Rectangle(
-                cellRect.X + ScaleUi(AppIconPadding),
-                cellRect.Y + ScaleUi(AppIconPadding),
-                Math.Max(1, cellRect.Width - ScaleUi(AppIconPadding * 2)),
-                Math.Max(1, cellRect.Height - ScaleUi(AppIconPadding * 2)));
+                cellRect.X + ScaleUi(pad),
+                cellRect.Y + ScaleUi(pad),
+                Math.Max(1, cellRect.Width - ScaleUi(pad * 2)),
+                Math.Max(1, cellRect.Height - ScaleUi(pad * 2)));
 
-            // Merge-target highlight
             if (isMergeTarget)
             {
-                b.Draw(Game1.staminaRect, cellRect, Color.White * 0.35f);
+                b.Draw(Game1.staminaRect, cellRect, Color.White * 0.4f);
             }
 
-            // Draw icon with jiggle transform
             DrawIconWithJiggle(b, app, iconRect, jiggleDeg);
 
-            // Badge
             if (app.GetBadgeCount != null)
             {
                 try
                 {
                     int badge = app.GetBadgeCount();
-                    if (badge > 0)
-                        DrawBadge(b, iconRect, badge);
+                    if (badge > 0) DrawBadge(b, iconRect, badge);
                 }
                 catch { }
             }
 
-            // Label (only for 1x1 on normal mode, or always in reorder mode for larger sizes)
-            if (size == AppSize.Size1x1 || IsReorderMode)
-                DrawAppLabel(b, iconRect, app.DisplayName);
+            if (!isDockContext)
+                DrawAppLabel(b, cellRect, app.DisplayName);
         }
 
-        private void DrawFolderCell(SpriteBatch b, LayoutItem folder, Rectangle cellRect, float jiggleDeg)
+        private void DrawFolderCell(SpriteBatch b, LayoutItem folder, Rectangle cellRect, float jiggleDeg, List<HomeAppEntryProxy> allApps)
         {
-            // Draw folder background
             Rectangle innerRect = new Rectangle(
-                cellRect.X + ScaleUi(4),
-                cellRect.Y + ScaleUi(4),
-                Math.Max(1, cellRect.Width - ScaleUi(8)),
-                Math.Max(1, cellRect.Height - ScaleUi(8)));
+                cellRect.X + ScaleUi(GridIconPadding),
+                cellRect.Y + ScaleUi(GridIconPadding),
+                Math.Max(1, cellRect.Width - ScaleUi(GridIconPadding * 2)),
+                Math.Max(1, cellRect.Height - ScaleUi(GridIconPadding * 2)));
 
-            b.Draw(Game1.staminaRect, innerRect, Color.DarkSlateBlue * 0.6f);
+            b.Draw(Game1.staminaRect, innerRect, Color.Black * 0.25f);
+            b.Draw(Game1.staminaRect, innerRect, Color.White * 0.15f);
 
-            // Draw label
+            int miniGridPadding = ScaleUi(4);
+            int miniCellSize = (innerRect.Width - (miniGridPadding * 4)) / 3;
+
+            for (int i = 0; i < 9; i++)
+            {
+                if (i >= folder.FolderItems.Count) break;
+                if (string.IsNullOrEmpty(folder.FolderItems[i])) continue;
+
+                HomeAppEntryProxy? childApp = FindApp(allApps, folder.FolderItems[i]);
+                if (childApp == null) continue;
+
+                int mc = i % 3;
+                int mr = i / 3;
+                Rectangle miniIconRect = new Rectangle(
+                    innerRect.X + miniGridPadding + mc * (miniCellSize + miniGridPadding),
+                    innerRect.Y + miniGridPadding + mr * (miniCellSize + miniGridPadding),
+                    miniCellSize, miniCellSize);
+
+                DrawAppIcon(b, childApp.IconTexture, miniIconRect, childApp.SourceRect);
+            }
+
             DrawAppLabel(b, cellRect, folder.FolderName);
         }
 
@@ -782,13 +1072,9 @@ namespace Smartphone
         {
             if (Math.Abs(jiggleDeg) < 0.001f)
             {
-                // No jiggle, direct draw
                 DrawAppIcon(b, app.IconTexture, iconRect, app.SourceRect);
                 return;
             }
-
-            // We can't rotate with SpriteBatch without restarting the batch.
-            // For simplicity, draw without rotation but with a slight offset to simulate jiggle.
             float offsetX = (float)(Math.Sin(jiggleDeg * MathHelper.Pi / 180.0) * 2);
             Rectangle shifted = new Rectangle(iconRect.X + (int)offsetX, iconRect.Y, iconRect.Width, iconRect.Height);
             DrawAppIcon(b, app.IconTexture, shifted, app.SourceRect);
@@ -797,21 +1083,11 @@ namespace Smartphone
         private void DrawAppIcon(SpriteBatch b, Texture2D texture, Rectangle bounds, Rectangle? sourceRect)
         {
             if (texture == null) return;
-
-            Rectangle textureBounds = new Rectangle(0, 0, texture.Width, texture.Height);
-            Rectangle source = sourceRect.HasValue
-                ? Rectangle.Intersect(sourceRect.Value, textureBounds)
-                : textureBounds;
-            if (source.Width <= 0 || source.Height <= 0) source = textureBounds;
-
+            Rectangle source = sourceRect ?? new Rectangle(0, 0, texture.Width, texture.Height);
             float scale = Math.Min(bounds.Width / (float)source.Width, bounds.Height / (float)source.Height);
             int dw = Math.Max(1, (int)Math.Round(source.Width * scale));
             int dh = Math.Max(1, (int)Math.Round(source.Height * scale));
-            Rectangle drawRect = new Rectangle(
-                bounds.X + (bounds.Width - dw) / 2,
-                bounds.Y + (bounds.Height - dh) / 2,
-                dw, dh);
-
+            Rectangle drawRect = new Rectangle(bounds.X + (bounds.Width - dw) / 2, bounds.Y + (bounds.Height - dh) / 2, dw, dh);
             b.Draw(texture, drawRect, source, Color.White);
         }
 
@@ -821,10 +1097,11 @@ namespace Smartphone
             SpriteFont labelFont = Game1.smallFont;
             float labelScale = _menu.PhoneUiScale < 0.999f ? 0.55f : 0.65f;
             Vector2 labelSize = labelFont.MeasureString(name) * labelScale;
+
+            // REDUCED GAP: Adjusted upward from Bottom - 2 to Bottom - 14 to fit closer to the lower icon boundary line
             Vector2 labelPos = new Vector2(
                 appBounds.X + (appBounds.Width - labelSize.X) / 2f,
-                appBounds.Bottom + ScaleUi(3));
-
+                appBounds.Bottom - ScaleUi(14));
             b.DrawString(labelFont, name, labelPos, GetHomeTextColor(), 0f, Vector2.Zero, labelScale, SpriteEffects.None, 1f);
         }
 
@@ -834,194 +1111,198 @@ namespace Smartphone
             Vector2 textSize = Game1.smallFont.MeasureString(text);
             int bw = Math.Max(ScaleUi(24), (int)textSize.X + ScaleUi(10));
             int bh = Math.Max(ScaleUi(18), (int)textSize.Y + ScaleUi(4));
-            int bx = iconRect.Right - bw / 2 - ScaleUi(6);
-            int by = iconRect.Top - bh / 2 + ScaleUi(6);
-
-            IClickableMenu.drawTextureBox(b, Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
-                bx, by, bw, bh,
-                new Color(255, 0, 0, 200), 1f, false);
-
-            b.DrawString(Game1.smallFont, text,
-                new Vector2(bx + (bw - textSize.X) / 2f, by + (bh - textSize.Y) / 2f),
-                Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 1f);
+            IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
+                iconRect.Right - bw / 2 - ScaleUi(4), iconRect.Top - bh / 2 + ScaleUi(4), bw, bh, new Color(255, 0, 0, 220), 1f, false);
         }
 
         private void DrawDockDivider(SpriteBatch b)
         {
             Rectangle contentBounds = _menu.GetPhoneContentBounds();
-            int divY = contentBounds.Y + ScaleUi(690);
-            // Draw a subtle light border line at the top edge of the gray dock background
-            b.Draw(Game1.staminaRect,
-                new Rectangle(contentBounds.X, divY, contentBounds.Width, ScaleUi(1)),
-                Color.White * 0.25f);
+            b.Draw(Game1.staminaRect, new Rectangle(contentBounds.X, contentBounds.Y + ScaleUi(690), contentBounds.Width, ScaleUi(1)), Color.White * 0.25f);
         }
 
         private void DrawPageIndicator(SpriteBatch b)
         {
             if (_pages.Count <= 1) return;
-
             Rectangle contentBounds = _menu.GetPhoneContentBounds();
-            int dotSize = ScaleUi(10);
-            int dotSpacing = ScaleUi(16);
+            int dotSize = ScaleUi(8), dotSpacing = ScaleUi(14);
             int totalW = _pages.Count * dotSpacing;
-            int startX = contentBounds.X + ScaleUi(260) - totalW / 2; // Center horizontally relative to content width (520 / 2 = 260)
-            int dotY = contentBounds.Y + ScaleUi(690 - 22); // 22px above dock background
+            int startX = contentBounds.X + ScaleUi(260) - totalW / 2;
+            int dotY = contentBounds.Y + ScaleUi(665);
 
             for (int i = 0; i < _pages.Count; i++)
             {
-                Color dotColor = i == _currentPage ? Color.White : Color.White * 0.4f;
-                Rectangle dotRect = new Rectangle(startX + i * dotSpacing, dotY, dotSize, dotSize);
-                b.Draw(Game1.staminaRect, dotRect, dotColor);
+                b.Draw(Game1.staminaRect, new Rectangle(startX + i * dotSpacing, dotY, dotSize, dotSize), i == _currentPage ? Color.White : Color.White * 0.4f);
             }
-
-            // Prev/next buttons for accessibility
-            _prevPageBounds = new Rectangle(
-                contentBounds.X + ScaleUi(10),
-                contentBounds.Y + ScaleUi(690 - 28),
-                ScaleUi(50), ScaleUi(30));
-            _nextPageBounds = new Rectangle(
-                contentBounds.X + contentBounds.Width - ScaleUi(60),
-                contentBounds.Y + ScaleUi(690 - 28),
-                ScaleUi(50), ScaleUi(30));
+            _prevPageBounds = new Rectangle(contentBounds.X + ScaleUi(10), contentBounds.Y + ScaleUi(655), ScaleUi(50), ScaleUi(30));
+            _nextPageBounds = new Rectangle(contentBounds.Right - ScaleUi(60), contentBounds.Y + ScaleUi(655), ScaleUi(50), ScaleUi(30));
         }
 
         private void DrawDoneButton(SpriteBatch b)
         {
+            Rectangle contentBounds = _menu.GetPhoneContentBounds();
             _doneButtonBounds = new Rectangle(
-                _menu.xPositionOnScreen + ScaleUi(DoneButtonX),
-                _menu.yPositionOnScreen + ScaleUi(DoneButtonY),
+                contentBounds.X + ScaleUi(DoneButtonX),
+                contentBounds.Y + ScaleUi(DoneButtonY),
                 ScaleUi(DoneButtonW),
                 ScaleUi(DoneButtonH));
 
-            IClickableMenu.drawTextureBox(b, Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
-                _doneButtonBounds.X, _doneButtonBounds.Y,
-                _doneButtonBounds.Width, _doneButtonBounds.Height,
-                new Color(80, 200, 120, 230), 1f, false);
+            IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
+                _doneButtonBounds.X, _doneButtonBounds.Y, _doneButtonBounds.Width, _doneButtonBounds.Height, new Color(80, 200, 120, 240), 1f, false);
 
             string label = ModEntry.SHelper.Translation.Get("ui.reorder.done").Default("Done");
-            Vector2 labelSize = Game1.smallFont.MeasureString(label);
-            float labelScale = 0.75f;
-            b.DrawString(Game1.smallFont, label,
-                new Vector2(
-                    _doneButtonBounds.X + (_doneButtonBounds.Width - labelSize.X * labelScale) / 2f,
-                    _doneButtonBounds.Y + (_doneButtonBounds.Height - labelSize.Y * labelScale) / 2f),
-                Color.White, 0f, Vector2.Zero, labelScale, SpriteEffects.None, 1f);
+            Vector2 size = Game1.smallFont.MeasureString(label) * 0.7f;
+            b.DrawString(Game1.smallFont, label, new Vector2(_doneButtonBounds.X + (_doneButtonBounds.Width - size.X) / 2f, _doneButtonBounds.Y + (_doneButtonBounds.Height - size.Y) / 2f), Color.White, 0f, Vector2.Zero, 0.7f, SpriteEffects.None, 1f);
+        }
+
+        private void DrawResetButton(SpriteBatch b)
+        {
+            Rectangle contentBounds = _menu.GetPhoneContentBounds();
+            _resetButtonBounds = new Rectangle(
+                contentBounds.X + ScaleUi(ResetButtonX),
+                contentBounds.Y + ScaleUi(ResetButtonY),
+                ScaleUi(ResetButtonW),
+                ScaleUi(ResetButtonH));
+
+            IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
+                _resetButtonBounds.X, _resetButtonBounds.Y, _resetButtonBounds.Width, _resetButtonBounds.Height, new Color(220, 80, 80, 240), 1f, false);
+
+            string label = ModEntry.SHelper.Translation.Get("ui.reorder.reset").Default("Reset");
+            Vector2 size = Game1.smallFont.MeasureString(label) * 0.7f;
+            b.DrawString(Game1.smallFont, label, new Vector2(_resetButtonBounds.X + (_resetButtonBounds.Width - size.X) / 2f, _resetButtonBounds.Y + (_resetButtonBounds.Height - size.Y) / 2f), Color.White, 0f, Vector2.Zero, 0.7f, SpriteEffects.None, 1f);
         }
 
         private void DrawDragGhost(SpriteBatch b, List<HomeAppEntryProxy> allApps)
         {
             if (string.IsNullOrEmpty(_dragAppId)) return;
+
+            int size1x1 = ScaleUi(GridCellSize);
+            int ghostSize = (int)(size1x1 * 0.5f);
+            Rectangle gRect = new Rectangle(_dragMouseX, _dragMouseY, ghostSize, ghostSize);
+
+            if (_dragAppId == FolderAppId)
+            {
+                b.Draw(Game1.staminaRect, gRect, Color.Black * 0.35f);
+                b.Draw(Game1.staminaRect, gRect, Color.White * 0.15f);
+                return;
+            }
+
             HomeAppEntryProxy? app = FindApp(allApps, _dragAppId);
             if (app == null) return;
 
-            (int w, int h) = GetSizeDims(_dragAppSize);
-            int ghostW = ScaleUi(w * GridCellSize + (w - 1) * GridPadding);
-            int ghostH = ScaleUi(h * GridCellSize + (h - 1) * GridPadding);
-            Rectangle ghostRect = new Rectangle(
-                _dragMouseX - _dragOffsetX,
-                _dragMouseY - _dragOffsetY,
-                ghostW, ghostH);
-
-            // Semi-transparent ghost
-            DrawAppIcon(b, app.IconTexture,
-                new Rectangle(ghostRect.X + ScaleUi(4), ghostRect.Y + ScaleUi(4),
-                    ghostRect.Width - ScaleUi(8), ghostRect.Height - ScaleUi(8)),
-                app.SourceRect);
-            b.Draw(Game1.staminaRect, ghostRect, Color.White * 0.2f);
+            DrawAppIcon(b, app.IconTexture, gRect, app.SourceRect);
+            b.Draw(Game1.staminaRect, gRect, Color.White * 0.25f);
         }
 
         private void DrawFolderOverlay(SpriteBatch b, List<HomeAppEntryProxy> allApps)
         {
             if (_openFolder == null) return;
+            Rectangle phoneContent = _menu.GetPhoneContentBounds();
 
-            // Dim background
-            b.Draw(Game1.staminaRect, _menu.GetPhoneContentBounds(), Color.Black * 0.55f);
+            b.Draw(Game1.staminaRect, phoneContent, Color.Black * 0.65f);
 
-            // Folder panel
-            _folderOverlayBounds = new Rectangle(
-                _menu.xPositionOnScreen + ScaleUi(40),
-                _menu.yPositionOnScreen + ScaleUi(200),
-                ScaleUi(520),
-                ScaleUi(400));
-            b.Draw(Game1.staminaRect, _folderOverlayBounds, new Color(40, 40, 80, 220));
+            _folderOverlayBounds = new Rectangle(phoneContent.X + ScaleUi(40), phoneContent.Y + ScaleUi(140), ScaleUi(440), ScaleUi(440));
 
-            // Folder name
-            string folderName = _openFolder.FolderName ?? "Folder";
-            float nameScale = _menu.PhoneUiScale < 0.999f ? 0.7f : 0.85f;
-            Vector2 nameSize = Game1.dialogueFont.MeasureString(folderName) * nameScale;
-            b.DrawString(Game1.dialogueFont, folderName,
-                new Vector2(_folderOverlayBounds.X + (_folderOverlayBounds.Width - nameSize.X) / 2f,
-                    _folderOverlayBounds.Y + ScaleUi(12)),
-                Color.White, 0f, Vector2.Zero, nameScale, SpriteEffects.None, 1f);
+            b.Draw(Game1.staminaRect, _folderOverlayBounds, Color.Black * 0.2f);
+            b.Draw(Game1.staminaRect, _folderOverlayBounds, Color.White * 0.75f);
 
-            // Items in folder
-            _folderItemBounds.Clear();
-            int folderCols = 4;
-            int folderCellSize = ScaleUi(90);
-            int folderPad = ScaleUi(8);
-            int startX = _folderOverlayBounds.X + ScaleUi(18);
-            int startY = _folderOverlayBounds.Y + ScaleUi(70);
+            string title = _isEditingFolderName ? (_folderNameBuffer + "|") : (_openFolder.FolderName ?? "Folder");
+            Vector2 titleSize = Game1.dialogueFont.MeasureString(title) * 0.8f;
+            Vector2 titlePos = new Vector2(_folderOverlayBounds.X + (_folderOverlayBounds.Width - titleSize.X) / 2f, _folderOverlayBounds.Y + ScaleUi(20));
+            b.DrawString(Game1.dialogueFont, title, titlePos, Color.Black, 0f, Vector2.Zero, 0.8f, SpriteEffects.None, 1f);
 
-            for (int i = 0; i < _openFolder.FolderItems.Count; i++)
+            _folderRenameBoxBounds = new Rectangle((int)titlePos.X - ScaleUi(10), (int)titlePos.Y - ScaleUi(5), (int)titleSize.X + ScaleUi(20), (int)titleSize.Y + ScaleUi(10));
+
+            if (IsReorderMode && !_isEditingFolderName)
             {
-                string fid = _openFolder.FolderItems[i];
-                HomeAppEntryProxy? fapp = FindApp(allApps, fid);
-                int col = i % folderCols;
-                int row = i / folderCols;
-                Rectangle itemRect = new Rectangle(
-                    startX + col * (folderCellSize + folderPad),
-                    startY + row * (folderCellSize + folderPad + ScaleUi(16)),
-                    folderCellSize, folderCellSize);
+                b.Draw(Game1.staminaRect, new Rectangle(_folderRenameBoxBounds.Right, _folderRenameBoxBounds.Y + ScaleUi(4), ScaleUi(6), ScaleUi(14)), Color.Gray);
+            }
 
-                _folderItemBounds.Add(itemRect);
-                if (fapp != null)
+            _folderItemBounds.Clear();
+
+            int folderCols = 3;
+            int innerCellSize = ScaleUi(96);
+            int padX = ScaleUi(24);
+            int padY = ScaleUi(16);
+            int startX = _folderOverlayBounds.X + ScaleUi(52);
+            int startY = _folderOverlayBounds.Y + ScaleUi(80);
+
+            int startIdx = _currentFolderPage * 9;
+
+            while (_openFolder.FolderItems.Count < startIdx + 9)
+            {
+                _openFolder.FolderItems.Add(string.Empty);
+            }
+
+            for (int i = 0; i < 9; i++)
+            {
+                int globalIdx = startIdx + i;
+                string fid = _openFolder.FolderItems[globalIdx];
+
+                int c = i % folderCols;
+                int r = i / folderCols;
+                Rectangle itemBounds = new Rectangle(startX + c * (innerCellSize + padX), startY + r * (innerCellSize + padY + ScaleUi(14)), innerCellSize, innerCellSize);
+                _folderItemBounds.Add(itemBounds);
+
+                if (_isDragging && _dragAppId == fid && _dragSourcePage == -2) continue;
+
+                if (!string.IsNullOrEmpty(fid))
                 {
-                    DrawAppIcon(b, fapp.IconTexture,
-                        new Rectangle(itemRect.X + ScaleUi(6), itemRect.Y + ScaleUi(6),
-                            itemRect.Width - ScaleUi(12), itemRect.Height - ScaleUi(12)),
-                        fapp.SourceRect);
-                    DrawAppLabel(b, itemRect, fapp.DisplayName);
+                    HomeAppEntryProxy? childApp = FindApp(allApps, fid);
+                    if (childApp != null)
+                    {
+                        float jiggle = IsReorderMode ? GetJiggleAngle(globalIdx * 45) : 0f;
+                        Rectangle iconBounds = new Rectangle(itemBounds.X + ScaleUi(6), itemBounds.Y + ScaleUi(6), itemBounds.Width - ScaleUi(12), itemBounds.Height - ScaleUi(12));
+                        DrawIconWithJiggle(b, childApp, iconBounds, jiggle);
+
+                        Vector2 labelSz = Game1.smallFont.MeasureString(childApp.DisplayName) * 0.55f;
+                        // REDUCED GAP (Group Menu): Pulled text up closer into the box footprint margin boundaries
+                        b.DrawString(Game1.smallFont, childApp.DisplayName, new Vector2(itemBounds.X + (itemBounds.Width - labelSz.X) / 2f, itemBounds.Bottom - ScaleUi(4)), Color.Black, 0f, Vector2.Zero, 0.55f, SpriteEffects.None, 1f);
+                    }
                 }
+                else if (IsReorderMode)
+                {
+                    b.Draw(Game1.staminaRect, itemBounds, Color.Black * 0.05f);
+                }
+            }
+
+            int folderTotalPages = (int)Math.Ceiling(_openFolder.FolderItems.Count / 9.0);
+            if (folderTotalPages > 1)
+            {
+                int dotSize = ScaleUi(6), dotSpacing = ScaleUi(12);
+                int totalDotW = folderTotalPages * dotSpacing;
+                int dotStartX = _folderOverlayBounds.X + (_folderOverlayBounds.Width - totalDotW) / 2;
+                int dotY = _folderOverlayBounds.Bottom - ScaleUi(20);
+
+                for (int p = 0; p < folderTotalPages; p++)
+                {
+                    b.Draw(Game1.staminaRect, new Rectangle(dotStartX + p * dotSpacing, dotY, dotSize, dotSize), p == _currentFolderPage ? Color.Black : Color.Black * 0.3f);
+                }
+            }
+
+            if (_isDragging && _dragSourcePage == -2)
+            {
+                DrawDragGhost(b, allApps);
             }
         }
 
         private void DrawDropdown(SpriteBatch b)
         {
-            if (!_dropdownOpen || _dropdownItems.Count == 0) return;
-
-            foreach ((DropdownOption opt, Rectangle bounds, string label) in _dropdownItems)
+            foreach (var item in _dropdownItems)
             {
-                IClickableMenu.drawTextureBox(b, Game1.menuTexture,
-                    new Rectangle(0, 256, 60, 60),
-                    bounds.X, bounds.Y, bounds.Width, bounds.Height,
-                    new Color(240, 240, 240, 235), 1f, false);
-
-                float textScale = 0.65f;
-                Vector2 textSize = Game1.dialogueFont.MeasureString(label) * textScale;
-                b.DrawString(Game1.dialogueFont, label,
-                    new Vector2(bounds.X + (bounds.Width - textSize.X) / 2f,
-                        bounds.Y + (bounds.Height - textSize.Y) / 2f),
-                    Color.Black, 0f, Vector2.Zero, textScale, SpriteEffects.None, 1f);
+                IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), item.bounds.X, item.bounds.Y, item.bounds.Width, item.bounds.Height, Color.White, 1f, false);
+                Vector2 sz = Game1.smallFont.MeasureString(item.label) * 0.65f;
+                b.DrawString(Game1.smallFont, item.label, new Vector2(item.bounds.X + (item.bounds.Width - sz.X) / 2f, item.bounds.Y + (item.bounds.Height - sz.Y) / 2f), Color.Black, 0f, Vector2.Zero, 0.65f, SpriteEffects.None, 1f);
             }
         }
 
-        // ── dropdown ───────────────────────────────────────────────────────
-
         private void OpenDropdownForMain(int index, Rectangle appBounds)
         {
-            _dropdownAppId = _pages[_currentPage][index].AppId;
-            _dropdownForDock = false;
-            _dropdownForMainIndex = index;
-            BuildDropdownItems(appBounds);
-            _dropdownOpen = true;
-        }
+            var item = _pages[_currentPage][index];
+            if (item.IsFolder) return;
 
-        private void OpenDropdownForDock(int index, Rectangle appBounds)
-        {
-            _dropdownAppId = _dock[index];
-            _dropdownForDock = true;
+            _dropdownAppId = item.AppId;
+            _dropdownForDock = false;
             _dropdownForMainIndex = index;
             BuildDropdownItems(appBounds);
             _dropdownOpen = true;
@@ -1030,169 +1311,240 @@ namespace Smartphone
         private void BuildDropdownItems(Rectangle anchorBounds)
         {
             _dropdownItems.Clear();
-            int itemH = ScaleUi(42);
-            int itemW = ScaleUi(200);
-            int x = anchorBounds.X;
-            int y = anchorBounds.Bottom + ScaleUi(4);
+            int itemH = ScaleUi(32), itemW = ScaleUi(140);
+            int x = anchorBounds.X, y = anchorBounds.Bottom + ScaleUi(4);
 
-            // Clamp to screen
-            Rectangle phoneBounds = _menu.GetPhoneContentBounds();
-            if (x + itemW > phoneBounds.Right) x = phoneBounds.Right - itemW;
-            if (x < phoneBounds.Left) x = phoneBounds.Left;
-
-            List<(DropdownOption, string)> options = new List<(DropdownOption, string)>
+            List<(DropdownOption option, string label)> options = new()
             {
-                (DropdownOption.ChangeSize1x1, "1×1"),
-                (DropdownOption.ChangeSize2x1, "2×1"),
-                (DropdownOption.ChangeSize2x2, "2×2"),
-                (DropdownOption.ChangeSize3x2, "3×2"),
-                (DropdownOption.ChangeSize4x2, "4×2"),
-                (DropdownOption.ChangeSize4x3, "4×3"),
-                (DropdownOption.ChangeSize4x4, "4×4"),
-                (DropdownOption.Close, ModEntry.SHelper.Translation.Get("ui.reorder.close").Default("Cancel")),
+                (DropdownOption.ChangeSize1x1, "1×1 Size"),
+                (DropdownOption.ChangeSize2x1, "2×1 Size"),
+                (DropdownOption.ChangeSize2x2, "2×2 Size"),
+                (DropdownOption.ChangeSize3x2, "3×2 Size"),
+                (DropdownOption.ChangeSize4x2, "4×2 Size"),
+                (DropdownOption.ChangeSize4x3, "4×3 Size"),
+                (DropdownOption.ChangeSize4x4, "4×4 Size")
             };
 
-            // Ensure dropdown doesn't go off bottom
-            int totalH = options.Count * (itemH + ScaleUi(2));
-            if (y + totalH > phoneBounds.Bottom)
-                y = Math.Max(anchorBounds.Top - totalH - ScaleUi(4), phoneBounds.Top);
+            Rectangle contentBounds = _menu.GetPhoneContentBounds();
+            if (y + options.Count * (itemH + ScaleUi(2)) > contentBounds.Bottom)
+            {
+                y = anchorBounds.Top - options.Count * (itemH + ScaleUi(2)) - ScaleUi(4);
+            }
 
             for (int i = 0; i < options.Count; i++)
             {
-                (DropdownOption opt, string label) = options[i];
-                Rectangle itemBounds = new Rectangle(x, y + i * (itemH + ScaleUi(2)), itemW, itemH);
-                _dropdownItems.Add((opt, itemBounds, label));
+                _dropdownItems.Add((options[i].option, new Rectangle(x, y + i * (itemH + ScaleUi(2)), itemW, itemH), options[i].label));
             }
         }
 
         private void HandleDropdownClick(int x, int y)
         {
-            foreach ((DropdownOption opt, Rectangle bounds, _) in _dropdownItems)
+            foreach (var item in _dropdownItems)
             {
-                if (!bounds.Contains(x, y)) continue;
+                if (!item.bounds.Contains(x, y)) continue;
 
-                switch (opt)
-                {
-                    case DropdownOption.ChangeSize1x1: ApplySize(AppSize.Size1x1); break;
-                    case DropdownOption.ChangeSize2x1: ApplySize(AppSize.Size2x1); break;
-                    case DropdownOption.ChangeSize2x2: ApplySize(AppSize.Size2x2); break;
-                    case DropdownOption.ChangeSize3x2: ApplySize(AppSize.Size3x2); break;
-                    case DropdownOption.ChangeSize4x2: ApplySize(AppSize.Size4x2); break;
-                    case DropdownOption.ChangeSize4x3: ApplySize(AppSize.Size4x3); break;
-                    case DropdownOption.ChangeSize4x4: ApplySize(AppSize.Size4x4); break;
+                if (item.option == DropdownOption.ChangeSize1x1) ApplySize(AppSize.Size1x1);
+                if (item.option == DropdownOption.ChangeSize2x1) ApplySize(AppSize.Size2x1);
+                if (item.option == DropdownOption.ChangeSize2x2) ApplySize(AppSize.Size2x2);
+                if (item.option == DropdownOption.ChangeSize3x2) ApplySize(AppSize.Size3x2);
+                if (item.option == DropdownOption.ChangeSize4x2) ApplySize(AppSize.Size4x2);
+                if (item.option == DropdownOption.ChangeSize4x3) ApplySize(AppSize.Size4x3);
+                if (item.option == DropdownOption.ChangeSize4x4) ApplySize(AppSize.Size4x4);
 
-                    case DropdownOption.Close:
-                        _dropdownOpen = false;
-                        _dropdownItems.Clear();
-                        break;
-                }
-
-                if (opt != DropdownOption.Close)
-                {
-                    _dropdownOpen = false;
-                    _dropdownItems.Clear();
-                    Game1.playSound("smallSelect");
-                }
+                _dropdownOpen = false;
+                Game1.playSound("smallSelect");
                 return;
             }
         }
 
         private void ApplySize(AppSize newSize)
         {
-            if (_dropdownForDock || _currentPage >= _pages.Count) return;
-            if (_dropdownForMainIndex < 0 || _dropdownForMainIndex >= _pages[_currentPage].Count) return;
-
-            _pages[_currentPage][_dropdownForMainIndex].Size = newSize;
-            // Re-pack pages to handle overflow
-            List<LayoutItem> flat = _pages.SelectMany(p => p).ToList();
-            RebuildPagesFromFlat(flat);
-        }
-
-        private void AddAppToDock(string? appId)
-        {
-            if (string.IsNullOrEmpty(appId)) return;
-            if (_dock.Contains(appId, StringComparer.OrdinalIgnoreCase)) return;
-            if (_dock.Count >= DockCols) return;
-            _dock.Add(appId!);
-        }
-
-        private void RemoveAppFromDock(int dockIndex)
-        {
-            if (dockIndex < 0 || dockIndex >= _dock.Count) return;
-            string appId = _dock[dockIndex];
-            _dock.RemoveAt(dockIndex);
-
-            // Move app back to main grid
-            List<LayoutItem> lastPage = _pages.Last();
-            LayoutItem item = new LayoutItem { AppId = appId, Size = AppSize.Size1x1 };
-            if (!FitsOnPage(CountPageCells(lastPage), AppSize.Size1x1, GridCols, GridRows))
+            if (_dropdownForMainIndex >= 0 && _dropdownForMainIndex < _pages[_currentPage].Count)
             {
-                lastPage = new List<LayoutItem>();
-                _pages.Add(lastPage);
+                var item = _pages[_currentPage][_dropdownForMainIndex];
+                (int nw, int nh) = GetSizeDims(newSize);
+
+                item.Size = newSize;
+
+                if (item.GridCol + nw > GridCols) item.GridCol = Math.Max(0, GridCols - nw);
+                if (item.GridRow + nh > GridRows) item.GridRow = Math.Max(0, GridRows - nh);
+
+                List<LayoutItem> page = _pages[_currentPage];
+                List<LayoutItem> toDisplace = new List<LayoutItem>();
+
+                for (int i = page.Count - 1; i >= 0; i--)
+                {
+                    var other = page[i];
+                    if (other == item) continue;
+
+                    if (Intersects(item.GridCol, item.GridRow, nw, nh, other))
+                    {
+                        toDisplace.Add(other);
+                        page.RemoveAt(i);
+                    }
+                }
+
+                foreach (var disp in toDisplace)
+                {
+                    RelocateItem(disp, _currentPage);
+                }
+
+                CleanupEmptyPages();
+                SaveLayout();
             }
-            lastPage.Add(item);
         }
 
-        // ── drag & drop ────────────────────────────────────────────────────
-
-        private void BeginDrag(string appId, AppSize size, int sourcePage, int sourceIndex,
-            bool isDock, int mouseX, int mouseY, Rectangle itemBounds)
+        private void BeginDrag(string appId, AppSize size, int sourcePage, int sourceIndex, bool isDock, int mouseX, int mouseY, Rectangle itemBounds)
         {
             _isDragging = true;
             _dragAppId = appId;
             _dragAppSize = size;
-            _dragSourcePage = sourcePage;
+            _dragSourcePage = _openFolder != null ? -2 : sourcePage;
             _dragSourceIndex = sourceIndex;
             _dragFromDock = isDock;
             _dragMouseX = mouseX;
             _dragMouseY = mouseY;
-            _dragOffsetX = mouseX - itemBounds.X;
-            _dragOffsetY = mouseY - itemBounds.Y;
-            _mergeTargetId = null;
+
+            _dragOffsetX = 0;
+            _dragOffsetY = 0;
+
+            if (_openFolder == null && !isDock && sourcePage >= 0 && sourcePage < _pages.Count && sourceIndex >= 0 && sourceIndex < _pages[sourcePage].Count)
+            {
+                _draggedItem = _pages[sourcePage][sourceIndex];
+            }
+            else
+            {
+                _draggedItem = null;
+            }
+
+            _hoverCellCol = -1;
+            _hoverCellRow = -1;
+            _hoverIsOnIcon = false;
+            _hoverIsOnGap = false;
+
             Game1.playSound("smallSelect");
         }
 
         private void UpdateDragHover(int x, int y)
         {
-            _mergeTargetId = null;
             _hoverMainIndex = -1;
             _hoverDockIndex = -1;
+            _hoverCellCol = -1;
+            _hoverCellRow = -1;
+            _hoverIsOnIcon = false;
+            _hoverIsOnGap = false;
 
-            // Check dock hover
-            int activeDockCount = _dock.Count;
-            for (int i = 0; i < activeDockCount; i++)
-            {
-                if (_dockClickBounds.TryGetValue(i, out Rectangle r) && r.Contains(x, y))
-                {
-                    _hoverDockIndex = i;
-                    _mergeTargetId = _dock[i];
-                    return;
-                }
-            }
+            Rectangle contentRect = _menu.GetPhoneContentBounds();
 
-            // General dock area hover (if we didn't hit a specific app but are inside the dock bar, and dock is not full)
-            if (_isDragging && activeDockCount < DockCols)
+            if (_openFolder != null)
             {
-                Rectangle contentRect = _menu.GetPhoneContentBounds();
-                Rectangle dockBgRect = new Rectangle(contentRect.X, contentRect.Y + ScaleUi(690), contentRect.Width, ScaleUi(120));
-                if (dockBgRect.Contains(x, y))
-                {
-                    _hoverDockIndex = activeDockCount;
-                    return;
-                }
-            }
+                int startIdx = _currentFolderPage * 9;
+                int closestIdx = -1;
+                float closestDist = float.MaxValue;
 
-            // Check main grid hover
-            if (_currentPage < _pages.Count)
-            {
-                List<LayoutItem> page = _pages[_currentPage];
-                for (int i = 0; i < page.Count; i++)
+                for (int i = 0; i < _folderItemBounds.Count; i++)
                 {
-                    string key = page[i].AppId + "_" + i;
-                    if (_mainClickBounds.TryGetValue(key, out Rectangle r) && r.Contains(x, y))
+                    int globalIdx = startIdx + i;
+                    if (globalIdx == _dragSourceIndex) continue;
+
+                    Vector2 center = new Vector2(_folderItemBounds[i].Center.X, _folderItemBounds[i].Center.Y);
+                    float dist = Vector2.Distance(new Vector2(x, y), center);
+                    if (dist < closestDist && dist < ScaleUi(110))
                     {
-                        _hoverMainIndex = i;
-                        _mergeTargetId = page[i].AppId;
+                        closestDist = dist;
+                        closestIdx = globalIdx;
+                    }
+                }
+
+                if (closestIdx != -1)
+                {
+                    _hoverMainIndex = closestIdx;
+                    _hoverIsOnGap = true;
+                }
+                return;
+            }
+
+            Rectangle dockBgRect = new Rectangle(contentRect.X, contentRect.Y + ScaleUi(690), contentRect.Width, ScaleUi(120));
+            if (dockBgRect.Contains(x, y))
+            {
+                for (int i = 0; i < _dock.Count; i++)
+                {
+                    if (_dockClickBounds.TryGetValue(i, out Rectangle cellBound) && cellBound.Contains(x, y))
+                    {
+                        _hoverDockIndex = i;
+                        _hoverIsOnIcon = true;
+                        return;
+                    }
+                }
+
+                if (_dock.Count == 0)
+                {
+                    _hoverDockIndex = 0;
+                }
+                else
+                {
+                    int closestIdx = _dock.Count;
+                    for (int i = 0; i < _dock.Count; i++)
+                    {
+                        if (_dockClickBounds.TryGetValue(i, out Rectangle cellBound))
+                        {
+                            if (x < cellBound.Center.X)
+                            {
+                                closestIdx = i;
+                                break;
+                            }
+                        }
+                    }
+                    _hoverDockIndex = closestIdx;
+                }
+                return;
+            }
+
+            int relX = x - contentRect.X;
+            int relY = y - contentRect.Y;
+
+            for (int col = 0; col < GridCols; col++)
+            {
+                for (int row = 0; row < GridRows; row++)
+                {
+                    int cx = ScaleUi(GridStartX + col * (GridCellSize + GridPadding));
+                    int cy = ScaleUi(GridStartY + row * (GridCellSize + GridPadding));
+                    int cs = ScaleUi(GridCellSize);
+
+                    if (relX >= cx && relX < cx + cs && relY >= cy && relY < cy + cs)
+                    {
+                        _hoverCellCol = col;
+                        _hoverCellRow = row;
+
+                        var page = _currentPage < _pages.Count ? _pages[_currentPage] : null;
+                        if (page != null)
+                        {
+                            for (int i = 0; i < page.Count; i++)
+                            {
+                                if (!_dragFromDock && _dragSourcePage == _currentPage && i == _dragSourceIndex && _openFolder == null)
+                                    continue;
+
+                                var item = page[i];
+                                (int iw, int ih) = GetSizeDims(item.Size);
+                                if (col >= item.GridCol && col < item.GridCol + iw && row >= item.GridRow && row < item.GridRow + ih)
+                                {
+                                    _hoverMainIndex = i;
+
+                                    Rectangle cellBounds = GetMainCellRect(item.GridCol, item.GridRow, iw, ih);
+                                    Rectangle iconBounds = new Rectangle(cellBounds.X + ScaleUi(GridIconPadding), cellBounds.Y + ScaleUi(GridIconPadding), cellBounds.Width - ScaleUi(GridIconPadding * 2), cellBounds.Height - ScaleUi(GridIconPadding * 2));
+
+                                    if (iconBounds.Contains(x, y))
+                                    {
+                                        _hoverIsOnIcon = true;
+                                    }
+                                    else
+                                    {
+                                        _hoverIsOnGap = true;
+                                    }
+                                    return;
+                                }
+                            }
+                        }
                         return;
                     }
                 }
@@ -1203,14 +1555,121 @@ namespace Smartphone
         {
             if (string.IsNullOrEmpty(_dragAppId)) return;
 
-            // Determine drop target
-            bool droppedOnDock = _hoverDockIndex >= 0;
-            bool droppedOnMain = _hoverMainIndex >= 0;
-
-            // Remove from source
-            if (_dragFromDock && _dragSourceIndex >= 0 && _dragSourceIndex < _dock.Count)
+            int sourceCol = -1;
+            int sourceRow = -1;
+            if (!_dragFromDock && _dragSourcePage >= 0 && _dragSourcePage < _pages.Count && _dragSourceIndex >= 0 && _dragSourceIndex < _pages[_dragSourcePage].Count)
             {
-                _dock.RemoveAt(_dragSourceIndex);
+                sourceCol = _pages[_dragSourcePage][_dragSourceIndex].GridCol;
+                sourceRow = _pages[_dragSourcePage][_dragSourceIndex].GridRow;
+            }
+
+            if (!_dragFromDock && _dragSourcePage == _currentPage && _dragSourceIndex == _hoverMainIndex && _openFolder == null)
+            {
+                _hoverMainIndex = -1; _hoverDockIndex = -1; _hoverCellCol = -1; _hoverCellRow = -1;
+                return;
+            }
+
+            if (_dragFromDock && _dragSourceIndex == _hoverDockIndex && _hoverIsOnIcon && _openFolder == null)
+            {
+                _dock.Insert(Math.Clamp(_dragSourceIndex, 0, _dock.Count), _dragAppId);
+                _hoverMainIndex = -1; _hoverDockIndex = -1; _hoverCellCol = -1; _hoverCellRow = -1;
+                return;
+            }
+
+            if (_dragSourcePage == -2 && _openFolder != null)
+            {
+                if (_folderOverlayBounds.Contains(x, y))
+                {
+                    if (_hoverMainIndex >= 0 && _hoverMainIndex < _openFolder.FolderItems.Count)
+                    {
+                        string temp = _openFolder.FolderItems[_hoverMainIndex];
+                        _openFolder.FolderItems[_hoverMainIndex] = _dragAppId;
+                        _openFolder.FolderItems[_dragSourceIndex] = temp;
+                    }
+                    else
+                    {
+                        _openFolder.FolderItems[_dragSourceIndex] = _dragAppId;
+                    }
+                }
+                else
+                {
+                    _openFolder.FolderItems[_dragSourceIndex] = string.Empty;
+                    var page = _pages[_currentPage];
+                    (int c, int r) = (_hoverCellCol != -1) ? (_hoverCellCol, _hoverCellRow) : FindFirstAvailableGridPosition(page, 1, 1);
+
+                    if (c != -1 && IsCellRegionFree(page, c, r, 1, 1))
+                    {
+                        page.Add(new LayoutItem { AppId = _dragAppId, Size = AppSize.Size1x1, GridCol = c, GridRow = r });
+                    }
+                    else
+                    {
+                        AddToPageGrid(_currentPage, _dragAppId, AppSize.Size1x1);
+                    }
+                }
+
+                while (_openFolder.FolderItems.Count > 0 && string.IsNullOrEmpty(_openFolder.FolderItems.Last()))
+                {
+                    _openFolder.FolderItems.RemoveAt(_openFolder.FolderItems.Count - 1);
+                }
+
+                // AUTO-PRUNE FOLDER PAGES: Recalculate total page count and snap layout viewport to match active allocations
+                int folderTotalPages = (int)Math.Ceiling(_openFolder.FolderItems.Count / 9.0);
+                if (_currentFolderPage >= folderTotalPages && folderTotalPages > 0)
+                {
+                    _currentFolderPage = folderTotalPages - 1;
+                }
+
+                if (_openFolder.FolderItems.Count == 0 || _openFolder.FolderItems.All(string.IsNullOrEmpty))
+                {
+                    if (_currentPage < _pages.Count) _pages[_currentPage].Remove(_openFolder);
+                    _openFolder = null;
+                    _openFolderIndex = -1;
+                }
+
+                CleanupEmptyPages();
+                SaveLayout();
+                _hoverMainIndex = -1; _hoverDockIndex = -1; _hoverCellCol = -1; _hoverCellRow = -1;
+                return;
+            }
+
+            LayoutItem? targetItem = null;
+            List<LayoutItem>? targetPage = (_currentPage >= 0 && _currentPage < _pages.Count) ? _pages[_currentPage] : null;
+            if (targetPage != null && _hoverMainIndex >= 0 && _hoverMainIndex < targetPage.Count)
+            {
+                targetItem = targetPage[_hoverMainIndex];
+            }
+
+            // DROP GROUP ON APP ICON PROTECTION: Revert folder drop targets away from standard apps to prevent spilling
+            if (targetItem != null && _hoverIsOnIcon && targetPage != null)
+            {
+                if (_dragAppId == FolderAppId || (_draggedItem != null && _draggedItem.IsFolder))
+                {
+                    if (_draggedItem != null && _dragSourcePage >= 0 && _dragSourcePage < _pages.Count)
+                    {
+                        _draggedItem.GridCol = sourceCol;
+                        _draggedItem.GridRow = sourceRow;
+                        _pages[_dragSourcePage].Add(_draggedItem);
+                    }
+                    else if (_dragFromDock)
+                    {
+                        _dock.Insert(Math.Clamp(_dragSourceIndex, 0, _dock.Count), _dragAppId);
+                    }
+                    else
+                    {
+                        AddToPageGrid(_dragSourcePage, _dragAppId, _dragAppSize);
+                    }
+
+                    _dock.RemoveAll(string.IsNullOrEmpty);
+                    CleanupEmptyPages();
+                    SaveLayout();
+                    _hoverMainIndex = -1; _hoverDockIndex = -1; _hoverCellCol = -1; _hoverCellRow = -1;
+                    return;
+                }
+            }
+
+            if (_dragFromDock)
+            {
+                if (_dragSourceIndex >= 0 && _dragSourceIndex < _dock.Count) _dock.RemoveAt(_dragSourceIndex);
             }
             else if (_dragSourcePage >= 0 && _dragSourcePage < _pages.Count)
             {
@@ -1218,89 +1677,207 @@ namespace Smartphone
                     _pages[_dragSourcePage].RemoveAt(_dragSourceIndex);
             }
 
-            if (droppedOnDock)
+            if (_hoverDockIndex >= 0)
             {
-                // Dropped on dock slot
-                string? targetId = _hoverDockIndex < _dock.Count ? _dock[_hoverDockIndex] : null;
+                if (_dragAppId == FolderAppId || (_draggedItem != null && _draggedItem.IsFolder))
+                {
+                    if (_dragFromDock) _dock.Insert(Math.Clamp(_dragSourceIndex, 0, _dock.Count), _dragAppId);
+                    else if (_dragSourcePage >= 0 && _draggedItem != null) _pages[_dragSourcePage].Add(_draggedItem);
+                    else AddToPageGrid(_currentPage, _dragAppId, _dragAppSize);
 
-                if (!string.IsNullOrEmpty(targetId) && targetId != _dragAppId)
-                {
-                    // Swap dock item with drag source
-                    _dock[_hoverDockIndex] = _dragAppId!;
-                    // Move bumped app to main grid
-                    AddToMainGrid(targetId);
+                    _dock.RemoveAll(string.IsNullOrEmpty);
+                    CleanupEmptyPages(); SaveLayout();
+                    _hoverMainIndex = -1; _hoverDockIndex = -1; _hoverCellCol = -1; _hoverCellRow = -1;
+                    return;
                 }
-                else if (!string.IsNullOrEmpty(targetId))
+
+                _dragAppSize = AppSize.Size1x1;
+                if (_draggedItem != null) _draggedItem.Size = AppSize.Size1x1;
+
+                if (_dragFromDock)
                 {
-                    // Same app, just re-insert
-                    _dock.Insert(Math.Clamp(_hoverDockIndex, 0, _dock.Count), _dragAppId!);
+                    if (_hoverIsOnIcon && _hoverDockIndex < _dock.Count)
+                    {
+                        string targetId = _dock[_hoverDockIndex];
+                        _dock[_hoverDockIndex] = _dragAppId;
+                        _dock.Insert(Math.Clamp(_dragSourceIndex, 0, _dock.Count), targetId);
+                    }
+                    else
+                    {
+                        _dock.Insert(Math.Clamp(_hoverDockIndex, 0, _dock.Count), _dragAppId);
+                    }
                 }
                 else
                 {
-                    // Empty slot
-                    while (_dock.Count <= _hoverDockIndex) _dock.Add(string.Empty);
-                    _dock[_hoverDockIndex] = _dragAppId!;
+                    if (_hoverIsOnIcon && _hoverDockIndex < _dock.Count)
+                    {
+                        string bumpId = _dock[_hoverDockIndex];
+                        _dock[_hoverDockIndex] = _dragAppId;
+                        AddToPageGrid(_currentPage, bumpId, AppSize.Size1x1);
+                    }
+                    else
+                    {
+                        if (_dock.Count < DockCols)
+                        {
+                            _dock.Insert(Math.Clamp(_hoverDockIndex, 0, _dock.Count), _dragAppId);
+                        }
+                        else
+                        {
+                            int bumpIdx = Math.Clamp(_hoverDockIndex, 0, _dock.Count - 1);
+                            string bumpId = _dock[bumpIdx];
+                            _dock[bumpIdx] = _dragAppId;
+                            AddToPageGrid(_currentPage, bumpId, AppSize.Size1x1);
+                        }
+                    }
+                }
+
+                _dock.RemoveAll(string.IsNullOrEmpty);
+                CleanupEmptyPages(); SaveLayout();
+                _hoverMainIndex = -1; _hoverDockIndex = -1; _hoverCellCol = -1; _hoverCellRow = -1;
+                return;
+            }
+
+            if (targetItem != null && _hoverIsOnIcon && targetPage != null)
+            {
+                if (targetItem.IsFolder)
+                {
+                    int firstEmpty = targetItem.FolderItems.IndexOf(string.Empty);
+                    if (firstEmpty != -1) targetItem.FolderItems[firstEmpty] = _dragAppId;
+                    else targetItem.FolderItems.Add(_dragAppId);
+                }
+                else
+                {
+                    LayoutItem newFolder = new LayoutItem
+                    {
+                        AppId = FolderAppId,
+                        FolderName = "Folder",
+                        GridCol = targetItem.GridCol,
+                        GridRow = targetItem.GridRow,
+                        Size = AppSize.Size1x1,
+                        FolderItems = new List<string> { targetItem.AppId, _dragAppId }
+                    };
+                    targetPage.Remove(targetItem);
+                    targetPage.Add(newFolder);
                 }
             }
-            else if (droppedOnMain && _currentPage < _pages.Count)
+            else if (targetItem != null && _hoverIsOnGap && targetPage != null)
             {
-                List<LayoutItem> page = _pages[_currentPage];
-                if (_hoverMainIndex < page.Count)
+                int targetCol = targetItem.GridCol;
+                int targetRow = targetItem.GridRow;
+                (int dw, int dh) = GetSizeDims(_dragAppSize);
+
+                if (targetCol + dw > GridCols) targetCol = Math.Max(0, GridCols - dw);
+                if (targetRow + dh > GridRows) targetRow = Math.Max(0, GridRows - dh);
+
+                LayoutItem newItem = _draggedItem ?? new LayoutItem { AppId = _dragAppId, Size = _dragAppSize };
+                newItem.GridCol = targetCol; newItem.GridRow = targetRow;
+
+                List<LayoutItem> tDisplace = new List<LayoutItem>();
+                for (int i = targetPage.Count - 1; i >= 0; i--)
                 {
-                    // Insert before target (push target right)
-                    page.Insert(_hoverMainIndex, new LayoutItem { AppId = _dragAppId!, Size = _dragAppSize });
+                    if (Intersects(targetCol, targetRow, dw, dh, targetPage[i]))
+                    {
+                        tDisplace.Add(targetPage[i]);
+                        targetPage.RemoveAt(i);
+                    }
                 }
-                else
+                targetPage.Add(newItem);
+                foreach (var disp in tDisplace) RelocateItem(disp, _currentPage);
+            }
+            else if (_hoverCellCol != -1 && _hoverCellRow != -1 && targetPage != null)
+            {
+                (int w, int h) = GetSizeDims(_dragAppSize);
+                int dropCol = _hoverCellCol;
+                int dropRow = _hoverCellRow;
+                if (dropCol + w > GridCols) dropCol = Math.Max(0, GridCols - w);
+                if (dropRow + h > GridRows) dropRow = Math.Max(0, GridRows - h);
+
+                LayoutItem newItem = _draggedItem ?? new LayoutItem { AppId = _dragAppId, Size = _dragAppSize };
+                newItem.GridCol = dropCol; newItem.GridRow = dropRow;
+
+                List<LayoutItem> toDisplace = new List<LayoutItem>();
+                for (int i = targetPage.Count - 1; i >= 0; i--)
                 {
-                    page.Add(new LayoutItem { AppId = _dragAppId!, Size = _dragAppSize });
+                    if (Intersects(dropCol, dropRow, w, h, targetPage[i]))
+                    {
+                        toDisplace.Add(targetPage[i]);
+                        targetPage.RemoveAt(i);
+                    }
                 }
+                targetPage.Add(newItem);
+                foreach (var disp in toDisplace) RelocateItem(disp, _currentPage);
             }
             else
             {
-                // Dropped in empty space — append to current page or new page
-                AddToMainGrid(_dragAppId!, _dragAppSize);
+                if (_draggedItem != null && _dragSourcePage >= 0 && _dragSourcePage < _pages.Count)
+                {
+                    _draggedItem.GridCol = sourceCol;
+                    _draggedItem.GridRow = sourceRow;
+                    _pages[_dragSourcePage].Add(_draggedItem);
+                }
+                else if (_dragFromDock)
+                {
+                    _dock.Insert(Math.Clamp(_dragSourceIndex, 0, _dock.Count), _dragAppId);
+                }
+                else
+                {
+                    AddToPageGrid(_dragSourcePage, _dragAppId, _dragAppSize);
+                }
             }
 
-            // Clean up and re-pack
             _dock.RemoveAll(string.IsNullOrEmpty);
-            List<LayoutItem> flat = _pages.SelectMany(p => p).ToList();
-            RebuildPagesFromFlat(flat);
+            CleanupEmptyPages();
+            SaveLayout();
 
-            _mergeTargetId = null;
-            _hoverMainIndex = -1;
-            _hoverDockIndex = -1;
+            _hoverMainIndex = -1; _hoverDockIndex = -1; _hoverCellCol = -1; _hoverCellRow = -1;
         }
 
-        private void AddToMainGrid(string appId, AppSize size = AppSize.Size1x1)
+        private void AddToPageGrid(int pageIndex, string appId, AppSize size)
         {
+            if (pageIndex < 0 || pageIndex >= _pages.Count) pageIndex = _pages.Count - 1;
             if (_pages.Count == 0) _pages.Add(new List<LayoutItem>());
-            List<LayoutItem> last = _pages.Last();
-            LayoutItem item = new LayoutItem { AppId = appId, Size = size };
-            if (!FitsOnPage(CountPageCells(last), size, GridCols, GridRows))
+
+            var targetPage = _pages[pageIndex];
+            (int w, int h) = GetSizeDims(size);
+            (int c, int r) = FindFirstAvailableGridPosition(targetPage, w, h);
+
+            if (c == -1)
             {
-                last = new List<LayoutItem>();
-                _pages.Add(last);
+                targetPage = new List<LayoutItem>();
+                _pages.Add(targetPage);
+                _currentPage = _pages.Count - 1;
+                (c, r) = FindFirstAvailableGridPosition(targetPage, w, h);
             }
-            last.Add(item);
+
+            targetPage.Add(new LayoutItem { AppId = appId, Size = size, GridCol = c, GridRow = r });
         }
 
-        // ── folder ─────────────────────────────────────────────────────────
+        private void CleanupEmptyPages()
+        {
+            for (int i = _pages.Count - 1; i >= 1; i--)
+            {
+                if (_pages[i].Count == 0)
+                {
+                    _pages.RemoveAt(i);
+                }
+            }
+            _currentPage = Math.Clamp(_currentPage, 0, _pages.Count - 1);
+        }
 
-        private void OpenFolderOverlay(LayoutItem folder, Rectangle bounds)
+        private void OpenFolderOverlay(LayoutItem folder, int index, Rectangle bounds)
         {
             _openFolder = folder;
+            _openFolderIndex = index;
+            _currentFolderPage = 0;
+            _isEditingFolderName = false;
             _folderItemBounds.Clear();
             Game1.playSound("smallSelect");
         }
-
-        // ── app launch ─────────────────────────────────────────────────────
 
         private void HandleAppLaunch(string appId)
         {
             _menu.TryHandleHomeAppClickPublic(appId);
         }
-
-        // ── geometry helpers ───────────────────────────────────────────────
 
         private Rectangle GetMainCellRect(int col, int row, int w, int h)
         {
@@ -1323,11 +1900,8 @@ namespace Smartphone
             return new Rectangle(x, y, ScaleUi(DockCellSize), ScaleUi(DockCellSize));
         }
 
-        private Rectangle GetDockCellRect(int col) => GetDockCellRect(col, _dock.Count);
-
         private void AdvanceGridCursor(ref int col, ref int row, int w, int h)
         {
-            // If the item doesn't fit in the remaining columns of this row, move to next row
             if (col + w > GridCols)
             {
                 col = 0;
@@ -1345,19 +1919,9 @@ namespace Smartphone
 
         private Color GetHomeTextColor()
         {
-            // Try to get from setting
-            try
-            {
-                // Access current color through the PhoneMenu's text color helper
-                return _menu.GetHomeTextColorPublic();
-            }
-            catch
-            {
-                return Color.White;
-            }
+            try { return _menu.GetHomeTextColorPublic(); }
+            catch { return Color.White; }
         }
-
-        // ── static size helpers ────────────────────────────────────────────
 
         public static int GetCellCount(AppSize size)
         {
@@ -1380,12 +1944,7 @@ namespace Smartphone
             };
         }
 
-        // ── snapshot ───────────────────────────────────────────────────────
-
-        private List<HomeAppEntryProxy> BuildAllAppsSnapshot()
-        {
-            return _menu.BuildHomeAppsSnapshotPublic();
-        }
+        private List<HomeAppEntryProxy> BuildAllAppsSnapshot() => _menu.BuildHomeAppsSnapshotPublic();
 
         private static HomeAppEntryProxy? FindApp(List<HomeAppEntryProxy> apps, string id)
         {
@@ -1393,10 +1952,6 @@ namespace Smartphone
             return apps.FirstOrDefault(a => string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
         }
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Public proxy for home app entry (to avoid partial class leakage)
-    // ──────────────────────────────────────────────────────────────────────────
 
     internal class HomeAppEntryProxy
     {
