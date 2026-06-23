@@ -17,6 +17,7 @@ namespace Smartphone
         public Func<bool>? IsVisible { get; init; }
         public Func<int>? GetBadgeCount { get; init; }
         public List<AppSize> SupportedSizes { get; init; } = new() { AppSize.Size1x1 };
+        public Action<SpriteBatch, Rectangle, AppSize>? OnDrawWidget { get; init; }
 
         public string CompositeId => BuildCompositeId(this.OwnerModId, this.AppId);
 
@@ -61,7 +62,8 @@ namespace Smartphone
             Rectangle? sourceRect,
             Func<bool>? isVisible,
             Func<int>? getBadgeCount,
-            List<AppSize>? supportedSizes = null)
+            List<AppSize>? supportedSizes = null,
+            Action<SpriteBatch, Rectangle, AppSize>? onDrawWidget = null) // <-- Add here
         {
             if (onClick == null)
             {
@@ -79,7 +81,8 @@ namespace Smartphone
                 sourceRect,
                 isVisible,
                 getBadgeCount,
-                supportedSizes);
+                supportedSizes,
+                onDrawWidget); // <-- Forward here
         }
 
         private static bool RegisterPhoneAppCore(
@@ -92,7 +95,8 @@ namespace Smartphone
             Rectangle? sourceRect,
             Func<bool>? isVisible,
             Func<int>? getBadgeCount,
-            List<AppSize>? supportedSizes = null)
+            List<AppSize>? supportedSizes = null,
+            Action<SpriteBatch, Rectangle, AppSize>? onDrawWidget = null) // <-- Add here
         {
             if (string.IsNullOrWhiteSpace(ownerModId)
                 || string.IsNullOrWhiteSpace(appId)
@@ -125,7 +129,8 @@ namespace Smartphone
                 SourceRect = sourceRect,
                 IsVisible = isVisible,
                 GetBadgeCount = getBadgeCount,
-                SupportedSizes = sizes
+                SupportedSizes = sizes,
+                OnDrawWidget = onDrawWidget // <-- Assign property here
             };
 
             bool replaced;

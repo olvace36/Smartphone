@@ -771,7 +771,7 @@ namespace Smartphone
 
 
 
-        
+
 
         private bool IsSameFilePath(string left, string right)
         {
@@ -1125,7 +1125,9 @@ namespace Smartphone
                     DisplayName = app.DisplayName,
                     IconTexture = app.IconTexture,
                     SourceRect = app.SourceRect,
-                    GetBadgeCount = () => GetRegisteredAppBadgeCount(app)
+                    GetBadgeCount = () => GetRegisteredAppBadgeCount(app),
+                    OnDrawWidget = app.OnDrawWidget,
+                    SupportedSizes = app.SupportedSizes
                 });
             }
 

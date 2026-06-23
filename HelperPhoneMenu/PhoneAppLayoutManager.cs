@@ -97,7 +97,6 @@ namespace Smartphone
         private bool _dragFromDock;
         private AppSize _dragAppSize;
         private int _dragMouseX, _dragMouseY;
-        private int _dragOffsetX, _dragOffsetY;
         private LayoutItem? _draggedItem;
 
         private bool _hoverIsOnIcon;
@@ -1005,32 +1004,51 @@ namespace Smartphone
 
         private void DrawAppCell(SpriteBatch b, HomeAppEntryProxy app, Rectangle cellRect, AppSize size, float jiggleDeg, bool isMergeTarget, bool isDockContext)
         {
-            int pad = isDockContext ? DockIconPadding : GridIconPadding;
+            int pad = isDockContext ? DockIconPadding : GridIconPadding; // cite: PhoneAppLayoutManager.cs
             Rectangle iconRect = new Rectangle(
                 cellRect.X + ScaleUi(pad),
                 cellRect.Y + ScaleUi(pad),
                 Math.Max(1, cellRect.Width - ScaleUi(pad * 2)),
-                Math.Max(1, cellRect.Height - ScaleUi(pad * 2)));
+                Math.Max(1, cellRect.Height - ScaleUi(pad * 2))); // cite: PhoneAppLayoutManager.cs
 
             if (isMergeTarget)
             {
-                b.Draw(Game1.staminaRect, cellRect, Color.White * 0.4f);
+                b.Draw(Game1.staminaRect, cellRect, Color.White * 0.4f); // cite: PhoneAppLayoutManager.cs
             }
 
-            DrawIconWithJiggle(b, app, iconRect, jiggleDeg);
+            // --- NEW DESIGN ENHANCEMENT: DYNAMIC WIDGET CHECK ---
+            if (app.OnDrawWidget != null)
+            {
+                // If reorder mode is active, translate the rect automatically so widgets jiggle smoothly!
+                if (Math.Abs(jiggleDeg) > 0.001f)
+                {
+                    float offsetX = (float)(Math.Sin(jiggleDeg * MathHelper.Pi / 180.0) * 2);
+                    Rectangle shiftedRect = new Rectangle(iconRect.X + (int)offsetX, iconRect.Y, iconRect.Width, iconRect.Height);
+                    app.OnDrawWidget(b, shiftedRect, size);
+                }
+                else
+                {
+                    app.OnDrawWidget(b, iconRect, size);
+                }
+            }
+            else
+            {
+                // Fall back to standard static icon render if no widget callback exists
+                DrawIconWithJiggle(b, app, iconRect, jiggleDeg); // cite: PhoneAppLayoutManager.cs
+            }
 
-            if (app.GetBadgeCount != null)
+            if (app.GetBadgeCount != null) // cite: PhoneAppLayoutManager.cs
             {
                 try
                 {
-                    int badge = app.GetBadgeCount();
-                    if (badge > 0) DrawBadge(b, iconRect, badge);
+                    int badge = app.GetBadgeCount(); // cite: PhoneAppLayoutManager.cs
+                    if (badge > 0) DrawBadge(b, iconRect, badge); // cite: PhoneAppLayoutManager.cs
                 }
                 catch { }
             }
 
-            if (!isDockContext)
-                DrawAppLabel(b, cellRect, app.DisplayName);
+            if (!isDockContext) // cite: PhoneAppLayoutManager.cs
+                DrawAppLabel(b, cellRect, app.DisplayName); // cite: PhoneAppLayoutManager.cs
         }
 
         private void DrawFolderCell(SpriteBatch b, LayoutItem folder, Rectangle cellRect, float jiggleDeg, List<HomeAppEntryProxy> allApps)
@@ -1304,26 +1322,51 @@ namespace Smartphone
             _dropdownAppId = item.AppId;
             _dropdownForDock = false;
             _dropdownForMainIndex = index;
-            BuildDropdownItems(appBounds);
+
+            List<HomeAppEntryProxy> allApps = BuildAllAppsSnapshot();
+            HomeAppEntryProxy? app = FindApp(allApps, item.AppId);
+
+            BuildDropdownItems(appBounds, app);
             _dropdownOpen = true;
         }
 
-        private void BuildDropdownItems(Rectangle anchorBounds)
+        private void BuildDropdownItems(Rectangle anchorBounds, HomeAppEntryProxy? app)
         {
             _dropdownItems.Clear();
             int itemH = ScaleUi(32), itemW = ScaleUi(140);
             int x = anchorBounds.X, y = anchorBounds.Bottom + ScaleUi(4);
 
-            List<(DropdownOption option, string label)> options = new()
+            // Master lookup sheet defining maps between sizes and layout options
+            List<(AppSize size, DropdownOption option, string label)> allOptions = new()
             {
-                (DropdownOption.ChangeSize1x1, "1×1 Size"),
-                (DropdownOption.ChangeSize2x1, "2×1 Size"),
-                (DropdownOption.ChangeSize2x2, "2×2 Size"),
-                (DropdownOption.ChangeSize3x2, "3×2 Size"),
-                (DropdownOption.ChangeSize4x2, "4×2 Size"),
-                (DropdownOption.ChangeSize4x3, "4×3 Size"),
-                (DropdownOption.ChangeSize4x4, "4×4 Size")
+                (AppSize.Size1x1, DropdownOption.ChangeSize1x1, "1×1 Size"),
+                (AppSize.Size2x1, DropdownOption.ChangeSize2x1, "2×1 Size"),
+                (AppSize.Size2x2, DropdownOption.ChangeSize2x2, "2×2 Size"),
+                (AppSize.Size3x2, DropdownOption.ChangeSize3x2, "3×2 Size"),
+                (AppSize.Size4x2, DropdownOption.ChangeSize4x2, "4×2 Size"),
+                (AppSize.Size4x3, DropdownOption.ChangeSize4x3, "4×3 Size"),
+                (AppSize.Size4x4, DropdownOption.ChangeSize4x4, "4×4 Size")
             };
+
+            List<(DropdownOption option, string label)> options = new();
+
+            // Check if it's a built-in system app (like settings or calendar) or custom mod app
+            bool isBuiltIn = app == null || app.Id.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase);
+
+            foreach (var opt in allOptions)
+            {
+                // Allow if it's a system app, or if the custom app's registration explicitly whitelists the size
+                if (isBuiltIn || (app?.SupportedSizes != null && app.SupportedSizes.Contains(opt.size)))
+                {
+                    options.Add((opt.option, opt.label));
+                }
+            }
+
+            // Safety fallback: if no valid sizes were captured, at least offer standard 1x1 layout
+            if (options.Count == 0)
+            {
+                options.Add((DropdownOption.ChangeSize1x1, "1×1 Size"));
+            }
 
             Rectangle contentBounds = _menu.GetPhoneContentBounds();
             if (y + options.Count * (itemH + ScaleUi(2)) > contentBounds.Bottom)
@@ -1404,9 +1447,6 @@ namespace Smartphone
             _dragFromDock = isDock;
             _dragMouseX = mouseX;
             _dragMouseY = mouseY;
-
-            _dragOffsetX = 0;
-            _dragOffsetY = 0;
 
             if (_openFolder == null && !isDock && sourcePage >= 0 && sourcePage < _pages.Count && sourceIndex >= 0 && sourceIndex < _pages[sourcePage].Count)
             {
@@ -1960,5 +2000,7 @@ namespace Smartphone
         public Texture2D IconTexture { get; init; } = null!;
         public Rectangle? SourceRect { get; init; }
         public Func<int>? GetBadgeCount { get; init; }
+        public List<AppSize> SupportedSizes { get; init; } = new();
+        public Action<SpriteBatch, Rectangle, AppSize>? OnDrawWidget { get; init; } // <-- Add this
     }
 }

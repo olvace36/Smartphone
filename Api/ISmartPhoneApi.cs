@@ -15,7 +15,7 @@ namespace Smartphone
         Setting,
         Calendar
     }
-public enum AppSize
+    public enum AppSize
     {
         Size1x1,
         Size2x1,
@@ -46,6 +46,7 @@ public enum AppSize
         /// <param name="supportedSizes">Optional list of <see cref="AppSize"/> values the app icon supports as widget sizes.
         /// Defaults to <see cref="AppSize.Size1x1"/> only when null or empty.</param>
         /// <returns>True if registration succeeded; otherwise false.</returns>
+        // Inside ISmartPhoneApi.cs
         bool RegisterPhoneApp(
             string ownerModId,
             string appId,
@@ -56,7 +57,8 @@ public enum AppSize
             Rectangle? sourceRect = null,
             Func<bool>? isVisible = null,
             Func<int>? getBadgeCount = null,
-            List<AppSize>? supportedSizes = null
+            List<AppSize>? supportedSizes = null,
+            Action<SpriteBatch, Rectangle, AppSize>? onDrawWidget = null
         );
 
         /// <summary>

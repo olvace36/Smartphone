@@ -69,7 +69,8 @@ namespace Smartphone
             Rectangle? sourceRect = null,
             Func<bool>? isVisible = null,
             Func<int>? getBadgeCount = null,
-            List<AppSize>? supportedSizes = null)
+            List<AppSize>? supportedSizes = null,
+            Action<SpriteBatch, Rectangle, AppSize>? onDrawWidget = null)
         {
             return ModEntry.RegisterPhoneAppInternal(
                 ownerModId,
@@ -81,7 +82,8 @@ namespace Smartphone
                 sourceRect,
                 isVisible,
                 getBadgeCount,
-                supportedSizes);
+                supportedSizes,
+                onDrawWidget);
         }
 
         public bool UnregisterPhoneApp(string ownerModId, string appId)
