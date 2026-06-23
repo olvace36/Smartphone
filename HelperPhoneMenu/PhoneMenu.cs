@@ -1083,37 +1083,43 @@ namespace Smartphone
                     Id = BuiltinAppNotificationId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.notification.name"),
                     IconTexture = textureAppNotification,
-                    GetBadgeCount = () => Math.Max(0, NotificationManager.GetUnreadNotification())
+                    GetBadgeCount = () => Math.Max(0, NotificationManager.GetUnreadNotification()),
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppNotificationId, rect, size)
                 },
                 new HomeAppEntryProxy
                 {
                     Id = BuiltinAppStoreId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.appstore.name"),
-                    IconTexture = textureAppAppStore
+                    IconTexture = textureAppAppStore,
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppStoreId, rect, size)
                 },
                 new HomeAppEntryProxy
                 {
                     Id = BuiltinAppCameraId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.camera.name"),
-                    IconTexture = textureAppCamera
+                    IconTexture = textureAppCamera,
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppCameraId, rect, size)
                 },
                 new HomeAppEntryProxy
                 {
                     Id = BuiltinAppPhotoId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.photos.name"),
-                    IconTexture = textureAppPhoto
+                    IconTexture = textureAppPhoto,
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppPhotoId, rect, size)
                 },
                 new HomeAppEntryProxy
                 {
                     Id = BuiltinAppSettingId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.settings.name"),
-                    IconTexture = textureAppSetting
+                    IconTexture = textureAppSetting,
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppSettingId, rect, size)
                 },
                 new HomeAppEntryProxy
                 {
                     Id = BuiltinAppCalendarId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.calendar.name"),
-                    IconTexture = textureAppCalendar
+                    IconTexture = textureAppCalendar,
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppCalendarId, rect, size)
                 }
             };
 
@@ -1132,6 +1138,21 @@ namespace Smartphone
             }
 
             return apps;
+        }
+
+        private void DrawBuiltinAppWidget(SpriteBatch b, string appId, Rectangle rect, AppSize size)
+        {
+            Texture2D tex = Textures.GetAppTexture(appId, size);
+            if (tex != null)
+            {
+                b.Draw(tex, rect, new Rectangle(0, 0, tex.Width, tex.Height), Color.White);
+            }
+
+            // Fire custom dynamic text drawing layer if this is the calendar at 4x2 size
+            if (appId == BuiltinAppCalendarId && size == AppSize.Size4x2)
+            {
+                DrawCalendarWidget4x2(b, rect);
+            }
         }
 
         /// <summary>Public bridge for layout manager to launch apps.</summary>

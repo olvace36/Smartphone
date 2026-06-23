@@ -216,6 +216,7 @@ namespace Smartphone
         private void OnDayStarted(object sender, DayStartedEventArgs e)
         {
             NotificationManager.LoadNotificationData();
+            PhoneMenu.RefreshCalendarData();
         }
 
 

@@ -32,11 +32,22 @@ namespace Smartphone
         private const string SettingMenuSoundState = "settingSound";
         private const string SettingMenuTextColorState = "settingTextColor";
         private const string SettingMenuThemeState = "settingTheme";
+        private const string SettingMenuThemeComponentListState = "settingThemeComponentList";
+
         private const string SettingMenuOptionTextColor = "textColor";
         private const string SettingMenuOptionSound = "sound";
         private const string SettingMenuOptionTheme = "theme";
         private const string SettingMenuOptionPhoneSetting = "phoneSetting";
         private const string ThemeReadmeFileName = "readme.txt";
+
+        private string currentSelectedThemeComponent = "phone";
+        private readonly Dictionary<string, Rectangle> themeComponentRowBounds = new(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly List<string> ThemeComponentKeys = new()
+        {
+            "phone", "app_appstore", "app_calendar", "app_camera", "app_notification", "app_photo", "app_setting"
+        };
+
         private const int SettingsTitleXOffsetBase = 105;
         private const int SettingsTitleYOffsetBase = 67;
         private const int SettingsMainOptionsStartYBase = 130;
@@ -71,33 +82,14 @@ namespace Smartphone
         {
             phoneSoundList = new List<string>
             {
-                "getNewSpecialItem",
-                "crystal",
-                "phone",
-                "achievement",
-                "cacklingWitch",
-                "dog_bark",
-                "Duck",
-                "cat",
-                "explosion",
-                "goldenWalnut",
-                "machine_bell",
-                "Meteorite",
-                "thunder",
-                "UFO",
-                "yoba"
+                "getNewSpecialItem", "crystal", "phone", "achievement", "cacklingWitch",
+                "dog_bark", "Duck", "cat", "explosion", "goldenWalnut", "machine_bell",
+                "Meteorite", "thunder", "UFO", "yoba"
             };
 
             phoneTextColorList = new List<string>
             {
-                "Black",
-                "Red",
-                "Green",
-                "Blue",
-                "Yellow",
-                "Orange",
-                "Purple",
-                "White"
+                "Black", "Red", "Green", "Blue", "Yellow", "Orange", "Purple", "White"
             };
 
             phoneTextColorMap["Black"] = Color.Black;
@@ -124,6 +116,17 @@ namespace Smartphone
                 SettingMenuSoundState => ModEntry.SHelper.Translation.Get("ui.setting.sound"),
                 SettingMenuTextColorState => ModEntry.SHelper.Translation.Get("ui.setting.text_color"),
                 SettingMenuThemeState => ModEntry.SHelper.Translation.Get("ui.setting.theme"),
+                SettingMenuThemeComponentListState => currentSelectedThemeComponent switch
+                {
+                    "phone" => "Shell & Layout",
+                    "app_appstore" => "AppStore Theme",
+                    "app_calendar" => "Calendar Theme",
+                    "app_camera" => "Camera Theme",
+                    "app_notification" => "Notif Theme",
+                    "app_photo" => "Photos Theme",
+                    "app_setting" => "Settings Theme",
+                    _ => "Pick Theme"
+                },
                 _ => ModEntry.SHelper.Translation.Get("ui.setting.title")
             };
 
@@ -148,6 +151,12 @@ namespace Smartphone
 
             if (currentSettingMenuState == SettingMenuThemeState)
             {
+                DrawThemeComponentOptionsList(b);
+                return;
+            }
+
+            if (currentSettingMenuState == SettingMenuThemeComponentListState)
+            {
                 DrawThemeSettingList(b);
                 DrawThemeSettingTooltipIfHovered(b);
                 return;
@@ -163,6 +172,7 @@ namespace Smartphone
             phoneTextColorButton.Clear();
             phoneThemeButton.Clear();
             phoneThemeHoverBounds.Clear();
+            themeComponentRowBounds.Clear();
 
             int yStart = PhoneY(SettingsMainOptionsStartYBase);
             DrawSettingOptionRow(b, SettingMenuOptionTextColor, ModEntry.SHelper.Translation.Get("ui.setting.text_color"), yStart);
@@ -210,6 +220,88 @@ namespace Smartphone
                     Math.Max(1, ScaleUiValue(SettingsOptionArrowSizeBase))),
                 Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 33),
                 Color.White);
+        }
+
+        private void DrawThemeComponentOptionsList(SpriteBatch b)
+        {
+            themeComponentRowBounds.Clear();
+            settingOptionBounds.Clear();
+            phoneThemeButton.Clear();
+
+            int yStart = PhoneY(SettingsListStartYBase);
+            int itemSpacing = listSpacing;
+
+            b.End();
+            Rectangle settingsClipRect = new Rectangle(
+                GetPhoneContentBounds().X,
+                PhoneY(SettingsListStartYBase),
+                GetPhoneContentBounds().Width,
+                ScaleUiValue(665)
+            );
+            Rectangle previousScissorRect = Game1.graphics.GraphicsDevice.ScissorRectangle;
+            Game1.graphics.GraphicsDevice.ScissorRectangle = Rectangle.Intersect(settingsClipRect, Game1.graphics.GraphicsDevice.Viewport.Bounds);
+
+            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState() { ScissorTestEnable = true });
+
+            int visibleTop = settingsClipRect.Top - ScrollDrawOverscan;
+            int visibleBottom = settingsClipRect.Bottom + ScrollDrawOverscan;
+
+            for (int i = 0; i < ThemeComponentKeys.Count; i++)
+            {
+                string compKey = ThemeComponentKeys[i];
+                int y = yStart + i * itemSpacing - (int)MathF.Floor(settingScrollOffset);
+
+                if (y + itemSpacing < visibleTop) continue;
+                if (y > visibleBottom) break;
+
+                int nameX = PhoneX(SettingsListNameXOffsetBase);
+                string friendlyName = compKey switch
+                {
+                    "phone" => "Phone Shell & Background",
+                    "app_appstore" => "App Store Icon",
+                    "app_calendar" => "Calendar Icon",
+                    "app_camera" => "Camera Icon",
+                    "app_notification" => "Notification Icon",
+                    "app_photo" => "Photos Icon",
+                    "app_setting" => "Settings Icon",
+                    _ => compKey
+                };
+
+                Rectangle rowBounds = new Rectangle(nameX - ScaleUiValue(10), y + ScaleUiValue(4), ScaleUiValue(380), ScaleUiValue(42));
+                themeComponentRowBounds[compKey] = rowBounds;
+
+                IClickableMenu.drawTextureBox(
+                    b,
+                    Game1.menuTexture,
+                    new Rectangle(0, 256, 60, 60),
+                    rowBounds.X,
+                    rowBounds.Y,
+                    rowBounds.Width,
+                    rowBounds.Height,
+                    Color.White,
+                    1f,
+                    false);
+
+                DrawPhoneText(
+                    b,
+                    Game1.smallFont,
+                    friendlyName,
+                    new Vector2(nameX + ScaleUiValue(10), y + ScaleUiValue(SettingsListNameYOffsetBase)),
+                    Color.Black);
+
+                string activeTheme = AssetHelper.GetComponentTheme(compKey);
+                Vector2 sizeText = Game1.smallFont.MeasureString(activeTheme) * GetPhoneTextScale();
+                DrawPhoneText(
+                    b,
+                    Game1.smallFont,
+                    activeTheme,
+                    new Vector2(rowBounds.Right - sizeText.X - ScaleUiValue(15), y + ScaleUiValue(SettingsListNameYOffsetBase)),
+                    Color.DarkBlue * 0.7f);
+            }
+
+            b.End();
+            Game1.graphics.GraphicsDevice.ScissorRectangle = previousScissorRect;
+            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
         }
 
         private void DrawSoundSettingList(SpriteBatch b)
@@ -382,7 +474,9 @@ namespace Smartphone
             phoneTextColorButton.Clear();
             settingOptionBounds.Clear();
 
-            RefreshPhoneThemeList();
+            phoneThemeList = AssetHelper.GetAvailableThemeNamesForComponent(currentSelectedThemeComponent);
+            if (phoneThemeList.Count == 0)
+                phoneThemeList = new List<string> { AssetHelper.DefaultPhoneThemeName };
 
             int yStart = PhoneY(SettingsListStartYBase);
             int itemSpacing = listSpacing;
@@ -427,7 +521,7 @@ namespace Smartphone
                     Math.Max(1, ScaleUiValue(SettingsThemeHoverHeightBase)));
 
                 Rectangle rect = new Rectangle(218, 428, 7, 7);
-                if (string.Equals(ModEntry.currentPhoneTheme, themeName, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(AssetHelper.GetComponentTheme(currentSelectedThemeComponent), themeName, StringComparison.OrdinalIgnoreCase))
                     rect = new Rectangle(211, 428, 7, 7);
 
                 ClickableTextureComponent selectButton = new ClickableTextureComponent(
@@ -490,7 +584,8 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(safeThemeName))
                 return "";
 
-            if (phoneThemeReadmeCache.TryGetValue(safeThemeName, out string? cachedText))
+            string cacheKey = $"{currentSelectedThemeComponent}_{safeThemeName}";
+            if (phoneThemeReadmeCache.TryGetValue(cacheKey, out string? cachedText))
                 return cachedText;
 
             string tooltipText = "";
@@ -500,7 +595,7 @@ namespace Smartphone
                 string? modFolderPath = ModEntry.Instance?.Helper?.DirectoryPath ?? ModEntry.SHelper?.DirectoryPath;
                 if (!string.IsNullOrWhiteSpace(modFolderPath))
                 {
-                    string readmePath = Path.Combine(modFolderPath, AssetHelper.GetPhoneThemesRootPath(), safeThemeName, ThemeReadmeFileName);
+                    string readmePath = Path.Combine(modFolderPath, AssetHelper.GetPhoneThemesRootPath(), currentSelectedThemeComponent, safeThemeName, ThemeReadmeFileName);
                     if (File.Exists(readmePath))
                         tooltipText = (File.ReadAllText(readmePath) ?? "").Trim();
                 }
@@ -510,22 +605,22 @@ namespace Smartphone
                 ModEntry.SMonitor.Log($"Failed to load theme readme for '{safeThemeName}': {ex.Message}", LogLevel.Trace);
             }
 
-            phoneThemeReadmeCache[safeThemeName] = tooltipText;
+            phoneThemeReadmeCache[cacheKey] = tooltipText;
             return tooltipText;
         }
 
         private void RefreshPhoneThemeList()
         {
-            phoneThemeList = AssetHelper.GetAvailablePhoneThemeNames();
+            phoneThemeList = AssetHelper.GetAvailableThemeNamesForComponent(currentSelectedThemeComponent);
             if (phoneThemeList.Count == 0)
                 phoneThemeList = new List<string> { AssetHelper.DefaultPhoneThemeName };
         }
 
         private void ApplyPhoneThemeSelection(string themeName)
         {
-            AssetHelper.SetCurrentPhoneTheme(themeName);
+            AssetHelper.SetComponentTheme(currentSelectedThemeComponent, themeName);
             Textures.LoadTextures();
-            ModEntry.currentPhoneTheme = AssetHelper.CurrentPhoneThemeName;
+            ModEntry.currentPhoneTheme = AssetHelper.GetComponentTheme("phone");
             ReloadThemeTextures();
         }
 
@@ -601,6 +696,21 @@ namespace Smartphone
                     return;
                 }
             }
+            else if (currentSettingMenuState == SettingMenuThemeState)
+            {
+                foreach (var kv in themeComponentRowBounds)
+                {
+                    if (kv.Value.Contains(x, y))
+                    {
+                        currentSelectedThemeComponent = kv.Key;
+                        currentSettingMenuState = SettingMenuThemeComponentListState;
+                        settingScrollOffset = 0f;
+                        settingScrollTarget = 0f;
+                        Game1.playSound("smallSelect");
+                        return;
+                    }
+                }
+            }
             else
             {
                 Rectangle settingsClipRect = new Rectangle(
@@ -637,7 +747,7 @@ namespace Smartphone
                         return;
                     }
                 }
-                else if (currentSettingMenuState == SettingMenuThemeState)
+                else if (currentSettingMenuState == SettingMenuThemeComponentListState)
                 {
                     foreach (var button in phoneThemeButton.Values)
                     {
@@ -675,7 +785,8 @@ namespace Smartphone
             {
                 SettingMenuSoundState => phoneSoundList.Count,
                 SettingMenuTextColorState => phoneTextColorList.Count,
-                SettingMenuThemeState => phoneThemeList.Count,
+                SettingMenuThemeState => ThemeComponentKeys.Count,
+                SettingMenuThemeComponentListState => phoneThemeList.Count,
                 _ => 0
             };
 
@@ -699,6 +810,13 @@ namespace Smartphone
 
         private bool HandleSettingAppBackButton()
         {
+            if (currentSettingMenuState == SettingMenuThemeComponentListState)
+            {
+                currentSettingMenuState = SettingMenuThemeState;
+                settingScrollOffset = 0f;
+                settingScrollTarget = 0f;
+                return true;
+            }
             if (currentSettingMenuState != SettingMenuMainState)
             {
                 currentSettingMenuState = SettingMenuMainState;

@@ -1,10 +1,12 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 
 namespace Smartphone
 {
-
     public static class Textures
     {
         public static Texture2D PhoneBackground;
@@ -18,59 +20,113 @@ namespace Smartphone
         public static Texture2D AppAppStore;
         public static Texture2D AppCalendar;
 
+        // In-memory cache to keep CPU/RAM footprint flat and eliminate draw-loop lag
+        private static readonly Dictionary<string, Texture2D> AppTextureCache = new(StringComparer.OrdinalIgnoreCase);
+
         public static void LoadTextures()
         {
+            // Clear cache when user swaps themes so textures refresh instantly
+            AppTextureCache.Clear();
+
             try
             {
-                LoadTexturesFromThemeFolder(AssetHelper.GetPhoneThemeFolderPath());
+                string phonePath = AssetHelper.GetComponentThemeFolderPath("phone");
+
+                PhoneEmpty = TryLoadWithFallback(Path.Combine(phonePath, "default.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "default.png"));
+                PhoneBackground = TryLoadWithFallback(Path.Combine(phonePath, "default_background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "default_background.png"));
+                Background = TryLoadWithFallback(Path.Combine(phonePath, "background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "background.png"));
+
+                // Pre-populate standard 1x1 slots
+                AppCamera = GetAppTexture("builtin:camera", AppSize.Size1x1);
+                AppPhoto = GetAppTexture("builtin:photo", AppSize.Size1x1);
+                AppSetting = GetAppTexture("builtin:setting", AppSize.Size1x1);
+                AppNotification = GetAppTexture("builtin:notification", AppSize.Size1x1);
+                AppAppStore = GetAppTexture("builtin:appstore", AppSize.Size1x1);
+                AppCalendar = GetAppTexture("builtin:calendar", AppSize.Size1x1);
             }
             catch (Exception ex)
             {
-                ModEntry.SMonitor?.Log(
-                    $"Failed to load phone theme '{AssetHelper.CurrentPhoneThemeName}', falling back to '{AssetHelper.DefaultPhoneThemeName}'. {ex.Message}",
-                    LogLevel.Warn);
-
-                AssetHelper.SetCurrentPhoneTheme(AssetHelper.DefaultPhoneThemeName);
-
-                try
-                {
-                    LoadTexturesFromThemeFolder(AssetHelper.GetPhoneThemeFolderPath());
-                }
-                catch (Exception fallbackEx)
-                {
-                    ModEntry.SMonitor?.Log($"Failed to load fallback phone theme assets: {fallbackEx}", LogLevel.Error);
-                    throw;
-                }
+                ModEntry.SMonitor?.Log($"Error resolving core smartphone graphic updates: {ex.Message}", LogLevel.Error);
             }
         }
 
-        private static void LoadTexturesFromThemeFolder(string themeFolderPath)
+        private static Texture2D TryLoadWithFallback(string primaryPath, string fallbackPath)
         {
-            PhoneBackground = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.PhoneBackground));
-            PhoneEmpty = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.PhoneEmpty));
-            Background = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.Background));
-
-            AppCamera = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppCamera));
-            AppPhoto = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppPhoto));
-            AppSetting = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppSetting));
-            AppNotification = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppNotification));
-            AppAppStore = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppAppStore));
-            AppCalendar =  ModEntry.Instance.Helper.ModContent.Load<Texture2D>(Path.Combine(themeFolderPath, AssetHelper.ImagesConstants.AppCalendar));
+            string absPrimary = Path.Combine(ModEntry.Instance.Helper.DirectoryPath, primaryPath);
+            if (File.Exists(absPrimary))
+            {
+                try { return ModEntry.Instance.Helper.ModContent.Load<Texture2D>(primaryPath); } catch { }
+            }
+            try { return ModEntry.Instance.Helper.ModContent.Load<Texture2D>(fallbackPath); } catch { return null; }
         }
 
-        private static Texture2D TryLoadTextureOrFallback(string primaryAssetPath, string fallbackAssetPath)
+        public static string GetComponentFromAppId(string appId)
         {
+            return appId switch
+            {
+                "builtin:appstore" => "app_appstore",
+                "builtin:calendar" => "app_calendar",
+                "builtin:camera" => "app_camera",
+                "builtin:notification" => "app_notification",
+                "builtin:photo" => "app_photo",
+                "builtin:setting" => "app_setting",
+                _ => appId.Replace("builtin:", "app_")
+            };
+        }
+
+        public static string GetSizeString(AppSize size)
+        {
+            return size switch
+            {
+                AppSize.Size1x1 => "1x1",
+                AppSize.Size2x1 => "2x1",
+                AppSize.Size2x2 => "2x2",
+                AppSize.Size3x2 => "3x2",
+                AppSize.Size4x2 => "4x2",
+                AppSize.Size4x3 => "4x3",
+                AppSize.Size4x4 => "4x4",
+                _ => "1x1"
+            };
+        }
+
+        public static Texture2D GetAppTexture(string appId, AppSize size)
+        {
+            string cacheKey = $"{appId}_{size}";
+            if (AppTextureCache.TryGetValue(cacheKey, out Texture2D? cachedTex))
+            {
+                return cachedTex;
+            }
+
+            string component = GetComponentFromAppId(appId);
+            string sizeStr = GetSizeString(size);
+
+            string relativePath = Path.Combine(AssetHelper.GetPhoneThemesRootPath(), component, AssetHelper.GetComponentTheme(component), sizeStr + ".png");
+            string absolutePath = Path.Combine(ModEntry.Instance.Helper.DirectoryPath, relativePath);
+
+            if (!File.Exists(absolutePath))
+            {
+                relativePath = Path.Combine(AssetHelper.GetPhoneThemesRootPath(), component, AssetHelper.GetComponentTheme(component), "1x1.png");
+                absolutePath = Path.Combine(ModEntry.Instance.Helper.DirectoryPath, relativePath);
+            }
+
+            if (!File.Exists(absolutePath))
+            {
+                relativePath = Path.Combine(AssetHelper.GetPhoneThemesRootPath(), component, AssetHelper.DefaultPhoneThemeName, "1x1.png");
+                absolutePath = Path.Combine(ModEntry.Instance.Helper.DirectoryPath, relativePath);
+            }
+
+            Texture2D? loadedTex = null;
             try
             {
-                return ModEntry.Instance.Helper.ModContent.Load<Texture2D>(primaryAssetPath);
+                loadedTex = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(relativePath);
             }
-            catch (Exception ex)
+            catch
             {
-                ModEntry.SMonitor?.Log(
-                    $"Unable to load optional theme texture '{primaryAssetPath}'. Falling back to '{fallbackAssetPath}'. {ex.Message}",
-                    LogLevel.Trace);
-                return ModEntry.Instance.Helper.ModContent.Load<Texture2D>(fallbackAssetPath);
+                loadedTex = null;
             }
+
+            AppTextureCache[cacheKey] = loadedTex!;
+            return loadedTex!;
         }
     }
 }
