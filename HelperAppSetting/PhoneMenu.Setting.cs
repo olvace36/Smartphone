@@ -25,7 +25,8 @@ namespace Smartphone
         private readonly Dictionary<string, Rectangle> settingOptionBounds = new();
         private float settingScrollOffset = 0f;
         private float settingScrollTarget = 0f;
-        private int spacing => Math.Max(1, ScaleUiValue(95));
+        private int mainSpacing => Math.Max(1, ScaleUiValue(74));
+        private int listSpacing => Math.Max(1, ScaleUiValue(50));
 
         private const string SettingMenuMainState = "settingMain";
         private const string SettingMenuSoundState = "settingSound";
@@ -34,37 +35,38 @@ namespace Smartphone
         private const string SettingMenuOptionTextColor = "textColor";
         private const string SettingMenuOptionSound = "sound";
         private const string SettingMenuOptionTheme = "theme";
+        private const string SettingMenuOptionReorderApp = "reorderApp";
         private const string SettingMenuOptionPhoneSetting = "phoneSetting";
         private const string ThemeReadmeFileName = "readme.txt";
         private const int SettingsTitleXOffsetBase = 105;
         private const int SettingsTitleYOffsetBase = 67;
-        private const int SettingsMainOptionsStartYBase = 260;
+        private const int SettingsMainOptionsStartYBase = 130;
         private const int SettingsListStartYBase = 150;
         private const int SettingsOptionRowXOffsetBase = 90;
         private const int SettingsOptionRowWidthBase = 430;
-        private const int SettingsOptionRowHeightBase = 66;
+        private const int SettingsOptionRowHeightBase = 58;
         private const int SettingsOptionTextXPaddingBase = 20;
-        private const int SettingsOptionTextYOffsetBase = 15;
+        private const int SettingsOptionTextYOffsetBase = 10;
         private const int SettingsOptionArrowSizeBase = 32;
         private const int SettingsOptionArrowRightPaddingBase = 42;
-        private const int SettingsOptionArrowYOffsetBase = 17;
+        private const int SettingsOptionArrowYOffsetBase = 13;
         private const int SettingsListNameXOffsetBase = 100;
-        private const int SettingsListNameYOffsetBase = 15;
+        private const int SettingsListNameYOffsetBase = 13;
         private const int SettingsColorPreviewXOffsetBase = 220;
-        private const int SettingsColorPreviewYOffsetBase = 24;
+        private const int SettingsColorPreviewYOffsetBase = 15;
         private const int SettingsColorPreviewOuterWidthBase = 40;
-        private const int SettingsColorPreviewOuterHeightBase = 24;
+        private const int SettingsColorPreviewOuterHeightBase = 20;
         private const int SettingsColorPreviewInnerXOffsetBase = 2;
         private const int SettingsColorPreviewInnerYOffsetBase = 2;
         private const int SettingsColorPreviewInnerWidthBase = 36;
-        private const int SettingsColorPreviewInnerHeightBase = 20;
+        private const int SettingsColorPreviewInnerHeightBase = 16;
         private const int SettingsCheckboxXOffsetBase = 370;
-        private const int SettingsCheckboxYOffsetBase = 20;
-        private const int SettingsCheckboxSizeBase = 35;
+        private const int SettingsCheckboxYOffsetBase = 10;
+        private const int SettingsCheckboxSizeBase = 30;
         private const int SettingsThemeHoverXOffsetBase = -8;
-        private const int SettingsThemeHoverYOffsetBase = 8;
+        private const int SettingsThemeHoverYOffsetBase = 3;
         private const int SettingsThemeHoverWidthBase = 420;
-        private const int SettingsThemeHoverHeightBase = 58;
+        private const int SettingsThemeHoverHeightBase = 44;
 
         private void InitSettingApp()
         {
@@ -165,9 +167,10 @@ namespace Smartphone
 
             int yStart = PhoneY(SettingsMainOptionsStartYBase);
             DrawSettingOptionRow(b, SettingMenuOptionTextColor, ModEntry.SHelper.Translation.Get("ui.setting.text_color"), yStart);
-            DrawSettingOptionRow(b, SettingMenuOptionSound, ModEntry.SHelper.Translation.Get("ui.setting.sound"), yStart + spacing);
-            DrawSettingOptionRow(b, SettingMenuOptionTheme, ModEntry.SHelper.Translation.Get("ui.setting.theme"), yStart + spacing * 2);
-            DrawSettingOptionRow(b, SettingMenuOptionPhoneSetting, ModEntry.SHelper.Translation.Get("ui.setting.phone_setting"), yStart + spacing * 3);
+            DrawSettingOptionRow(b, SettingMenuOptionSound, ModEntry.SHelper.Translation.Get("ui.setting.sound"), yStart + mainSpacing);
+            DrawSettingOptionRow(b, SettingMenuOptionTheme, ModEntry.SHelper.Translation.Get("ui.setting.theme"), yStart + mainSpacing * 2);
+            DrawSettingOptionRow(b, SettingMenuOptionReorderApp, ModEntry.SHelper.Translation.Get("ui.setting.reorder_app"), yStart + mainSpacing * 3);
+            DrawSettingOptionRow(b, SettingMenuOptionPhoneSetting, ModEntry.SHelper.Translation.Get("ui.setting.phone_setting"), yStart + mainSpacing * 4);
         }
 
         private void DrawSettingOptionRow(SpriteBatch b, string optionId, string displayText, int rowY)
@@ -220,7 +223,7 @@ namespace Smartphone
             settingOptionBounds.Clear();
 
             int yStart = PhoneY(SettingsListStartYBase);
-            int itemSpacing = spacing;
+            int itemSpacing = listSpacing;
 
             b.End();
             Rectangle settingsClipRect = new Rectangle(
@@ -250,7 +253,7 @@ namespace Smartphone
                 int nameX = PhoneX(SettingsListNameXOffsetBase);
                 DrawPhoneText(
                     b,
-                    Game1.dialogueFont,
+                    Game1.smallFont,
                     soundString,
                     new Vector2(nameX, y + ScaleUiValue(SettingsListNameYOffsetBase)),
                     Color.Black);
@@ -270,7 +273,7 @@ namespace Smartphone
                     hoverText: "",
                     texture: Game1.mouseCursors,
                     sourceRect: rect,
-                    scale: ScaleUiValue(5f)
+                    scale: ScaleUiValue(4.3f)
                 );
 
                 phoneSoundButton[soundString] = selectButton;
@@ -291,7 +294,7 @@ namespace Smartphone
             settingOptionBounds.Clear();
 
             int yStart = PhoneY(SettingsListStartYBase);
-            int itemSpacing = spacing;
+            int itemSpacing = listSpacing;
 
             b.End();
             Rectangle settingsClipRect = new Rectangle(
@@ -321,7 +324,7 @@ namespace Smartphone
                 int nameX = PhoneX(SettingsListNameXOffsetBase);
                 DrawPhoneText(
                     b,
-                    Game1.dialogueFont,
+                    Game1.smallFont,
                     colorName,
                     new Vector2(nameX, y + ScaleUiValue(SettingsListNameYOffsetBase)),
                     Color.Black);
@@ -361,7 +364,7 @@ namespace Smartphone
                     hoverText: "",
                     texture: Game1.mouseCursors,
                     sourceRect: rect,
-                    scale: ScaleUiValue(5f)
+                    scale: ScaleUiValue(4.3f)
                 );
 
                 phoneTextColorButton[colorName] = selectButton;
@@ -384,7 +387,7 @@ namespace Smartphone
             RefreshPhoneThemeList();
 
             int yStart = PhoneY(SettingsListStartYBase);
-            int itemSpacing = spacing;
+            int itemSpacing = listSpacing;
 
             b.End();
             Rectangle settingsClipRect = new Rectangle(
@@ -415,7 +418,7 @@ namespace Smartphone
                 int nameX = PhoneX(SettingsListNameXOffsetBase);
                 DrawPhoneText(
                     b,
-                    Game1.dialogueFont,
+                    Game1.smallFont,
                     themeName,
                     new Vector2(nameX, y + ScaleUiValue(SettingsListNameYOffsetBase)),
                     Color.Black);
@@ -440,7 +443,7 @@ namespace Smartphone
                     hoverText: themeReadmeText,
                     texture: Game1.mouseCursors,
                     sourceRect: rect,
-                    scale: ScaleUiValue(5f)
+                    scale: ScaleUiValue(4.3f)
                 );
 
                 phoneThemeButton[themeName] = selectButton;
@@ -576,6 +579,13 @@ namespace Smartphone
                     if (!option.Value.Contains(x, y))
                         continue;
 
+                    if (option.Key == SettingMenuOptionReorderApp)
+                    {
+                        Game1.playSound("smallSelect");
+                        EnterReorderMode();
+                        return;
+                    }
+
                     if (option.Key == SettingMenuOptionPhoneSetting)
                     {
                         var configMenu = ModEntry.SHelper?.ModRegistry?.GetApi<Smartphone.Data.IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
@@ -678,7 +688,7 @@ namespace Smartphone
                 _ => 0
             };
 
-            int totalHeight = itemCount * spacing;
+            int totalHeight = itemCount * listSpacing;
             int viewportHeight = ScaleUiValue(665);
             return Math.Max(0f, totalHeight - viewportHeight);
         }

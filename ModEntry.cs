@@ -66,10 +66,10 @@ namespace Smartphone
             Texture2D iconTexture,
             Action onClick,
             bool closePhoneOnLaunch = true,
-            int sortOrder = 0,
             Rectangle? sourceRect = null,
             Func<bool>? isVisible = null,
-            Func<int>? getBadgeCount = null)
+            Func<int>? getBadgeCount = null,
+            List<AppSize>? supportedSizes = null)
         {
             return ModEntry.RegisterPhoneAppInternal(
                 ownerModId,
@@ -78,10 +78,10 @@ namespace Smartphone
                 iconTexture,
                 onClick,
                 closePhoneOnLaunch,
-                sortOrder,
                 sourceRect,
                 isVisible,
-                getBadgeCount);
+                getBadgeCount,
+                supportedSizes);
         }
 
         public bool UnregisterPhoneApp(string ownerModId, string appId)
@@ -89,72 +89,12 @@ namespace Smartphone
             return ModEntry.UnregisterPhoneAppInternal(ownerModId, appId);
         }
 
-        public bool RegisterPhoneAppGroup(
-            string ownerModId,
-            string groupId,
-            string displayName,
-            Texture2D iconTexture,
-            int sortOrder = 0,
-            Rectangle? sourceRect = null,
-            Func<bool>? isVisible = null,
-            Func<int>? getBadgeCount = null)
-        {
-            return ModEntry.RegisterPhoneAppGroupInternal(
-                ownerModId,
-                groupId,
-                displayName,
-                iconTexture,
-                sortOrder,
-                sourceRect,
-                isVisible,
-                getBadgeCount);
-        }
 
-        public bool UnregisterPhoneAppGroup(string ownerModId, string groupId)
-        {
-            return ModEntry.UnregisterPhoneAppGroupInternal(ownerModId, groupId);
-        }
 
-        public bool RegisterPhoneAppGroupItem(
-            string ownerModId,
-            string groupId,
-            string itemId,
-            string displayName,
-            Texture2D iconTexture,
-            Action onClick,
-            bool closePhoneOnLaunch = true,
-            int sortOrder = 0,
-            Rectangle? sourceRect = null,
-            Func<bool>? isVisible = null,
-            Func<int>? getBadgeCount = null)
-        {
-            return ModEntry.RegisterPhoneAppGroupItemInternal(
-                ownerModId,
-                groupId,
-                itemId,
-                displayName,
-                iconTexture,
-                onClick,
-                closePhoneOnLaunch,
-                sortOrder,
-                sourceRect,
-                isVisible,
-                getBadgeCount);
-        }
-
-        public bool UnregisterPhoneAppGroupItem(string ownerModId, string groupId, string itemId)
-        {
-            return ModEntry.UnregisterPhoneAppGroupItemInternal(ownerModId, groupId, itemId);
-        }
 
         public bool OpenPhoneHomeScreen()
         {
             return ModEntry.OpenPhoneHomeScreenInternal();
-        }
-
-        public bool OpenPhoneAppGroup(string ownerModId, string groupId)
-        {
-            return ModEntry.OpenPhoneAppGroupInternal(ownerModId, groupId);
         }
 
         public bool RegisterChatQuickActionButton(

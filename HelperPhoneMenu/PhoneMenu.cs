@@ -85,8 +85,8 @@ namespace Smartphone
         private const string BuiltinAppPhotoId = "builtin:photo";
         private const string BuiltinAppSettingId = "builtin:setting";
         private const string BuiltinAppCalendarId = "builtin:calendar";
-        private const string ExternalGroupAppState = "appExternalGroup";
 
+        // Legacy paging constants (kept for lock screen and other legacy uses)
         private const int HomeAppsPerPage = 20;
         private const int HomeAppsColumns = 4;
         private const int HomeAppStartX = 80;
@@ -97,14 +97,6 @@ namespace Smartphone
         private const float AppLabelFontScale = 0.8f;
         private const float AppLabelMarqueePixelsPerSecond = 45f;
 
-        private const int ExternalGroupColumns = 3;
-        private const int ExternalGroupStartX = 140;
-        private const int ExternalGroupStartY = 250;
-        private const int ExternalGroupSpacingX = 120;
-        private const int ExternalGroupSpacingY = 120;
-
-
-
         private readonly Dictionary<string, Rectangle> homeAppClickBounds = new();
         private Rectangle homeAppPrevPageBounds = Rectangle.Empty;
         private Rectangle homeAppNextPageBounds = Rectangle.Empty;
@@ -112,9 +104,8 @@ namespace Smartphone
         private double appLabelMarqueeElapsedSeconds = 0d;
         private readonly RasterizerState appLabelScissorRasterizer = new() { ScissorTestEnable = true };
 
-        private readonly Dictionary<string, Rectangle> externalGroupItemClickBounds = new();
-        private string currentExternalGroupId = "";
-        private string currentExternalGroupName = "";
+        // iOS-style layout manager
+        private PhoneAppLayoutManager layoutManager = null!;
 
 
         private List<string> capturedImages;
@@ -273,6 +264,9 @@ namespace Smartphone
             ApplyPhoneBackground(ModEntry.currentPhoneBackground);
             EnsureFreeControllerCursor();
 
+            // Initialize the iOS-style grid layout manager
+            layoutManager = new PhoneAppLayoutManager(this);
+            layoutManager.LoadLayout(BuildHomeAppsSnapshotPublic());
         }
 
         protected override void cleanupBeforeExit()
@@ -349,27 +343,6 @@ namespace Smartphone
                 homeButton.draw(b, Color.Tan, 1f);
 
             }
-            else if (currentApp == ExternalGroupAppState)
-            {
-                b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
-                DrawPhoneScreenBackground(b, xOffset: 0, applyBackgroundImage: true);
-                DrawPhoneFrame(b);
-                backButton.draw(b, Color.Tan, 1f);
-                lockButton.draw(b, Color.Tan, 1f);
-                homeButton.draw(b, Color.Tan, 1f);
-
-                string title = string.IsNullOrWhiteSpace(currentExternalGroupName)
-                    ? "App Group"
-                    : currentExternalGroupName;
-                DrawPhoneText(
-                    b,
-                    Game1.dialogueFont,
-                    title,
-                    new Vector2(xPositionOnScreen + ScaleUiValue(105), yPositionOnScreen + ScaleUiValue(125)),
-                    Color.Black);
-
-                DrawExternalGroupItems(b);
-            }
             else if (currentApp == "appCamera")
             {
                 DrawCameraApp(b);
@@ -406,6 +379,12 @@ namespace Smartphone
         public override void releaseLeftClick(int x, int y)
         {
             base.releaseLeftClick(x, y);
+
+            // Release drag/clicks in layout manager
+            if (currentApp == null && layoutManager != null)
+            {
+                layoutManager.ReleaseLeftClick(x, y);
+            }
 
             if (!hasTouchScrolled && currentApp == appAtClickStart)
             {
@@ -473,6 +452,12 @@ namespace Smartphone
                 UpdateSettingApp(time);
             }
 
+            // Update layout manager (for jiggle animation and drag state)
+            if (currentApp == null && IsHomeLandingInteractive())
+                layoutManager?.Update(time);
+            else if (currentApp == null && layoutManager?.IsReorderMode == true)
+                layoutManager?.Update(time);
+
 
         }
         public override void leftClickHeld(int x, int y)
@@ -483,6 +468,13 @@ namespace Smartphone
             {
                 isDragging = false;
                 isScrolling = false;
+                return;
+            }
+
+            // Layout manager drag (reorder mode)
+            if (currentApp == null && layoutManager?.IsReorderMode == true)
+            {
+                layoutManager.ReceiveLeftClickHeld(x, y);
                 return;
             }
 
@@ -535,41 +527,18 @@ namespace Smartphone
 
             if (IsHomeLandingInteractive())
             {
-                if (homeAppPrevPageBounds.Contains(x, y) && TryChangeHomeAppPage(-1))
-                {
-                    Game1.playSound("shwip");
+                // Delegate to layout manager for iOS grid handling
+                if (layoutManager != null && layoutManager.ReceiveLeftClick(x, y))
                     return;
-                }
-
-                if (homeAppNextPageBounds.Contains(x, y) && TryChangeHomeAppPage(1))
-                {
-                    Game1.playSound("shwip");
-                    return;
-                }
-
-                foreach (KeyValuePair<string, Rectangle> app in homeAppClickBounds)
-                {
-                    if (!app.Value.Contains(x, y))
-                        continue;
-
-                    bool opened = TryHandleHomeAppClick(app.Key);
-                    Game1.playSound(opened ? "smallSelect" : "cancel");
-                    return;
-                }
             }
-
-            if (currentApp == ExternalGroupAppState)
+            else if (currentApp == null && layoutManager?.IsReorderMode == true)
             {
-                foreach (KeyValuePair<string, Rectangle> item in externalGroupItemClickBounds)
-                {
-                    if (!item.Value.Contains(x, y))
-                        continue;
-
-                    bool opened = ModEntry.TryInvokeRegisteredPhoneAppGroupItem(currentExternalGroupId, item.Key, this);
-                    Game1.playSound(opened ? "smallSelect" : "cancel");
+                // In reorder mode, still on home screen
+                if (layoutManager.ReceiveLeftClick(x, y))
                     return;
-                }
             }
+
+
 
             if (IsBackButtonPressed(x, y))
             {
@@ -627,9 +596,9 @@ namespace Smartphone
 
         public override void receiveScrollWheelAction(int direction)
         {
-            if (IsHomeLandingInteractive())
+            if (IsHomeLandingInteractive() || (currentApp == null && layoutManager?.IsReorderMode == true))
             {
-                if (TryChangeHomeAppPage(direction > 0 ? -1 : 1))
+                if (layoutManager != null && layoutManager.TryChangePageScroll(direction > 0 ? -1 : 1))
                     Game1.playSound("shwip");
             }
             else if (currentApp == "appSetting")
@@ -995,22 +964,16 @@ namespace Smartphone
             if (!drawApps)
                 return;
 
-            if (xOffset == 0)
+            if (xOffset != 0)
             {
-                DrawHomeApps(b);
+                int originalX = xPositionOnScreen;
+                xPositionOnScreen = originalX + xOffset;
+                try { layoutManager?.DrawHomeScreen(b); }
+                finally { xPositionOnScreen = originalX; }
                 return;
             }
 
-            int originalX = xPositionOnScreen;
-            xPositionOnScreen = originalX + xOffset;
-            try
-            {
-                DrawHomeApps(b);
-            }
-            finally
-            {
-                xPositionOnScreen = originalX;
-            }
+            layoutManager?.DrawHomeScreen(b);
         }
 
 
@@ -1073,131 +1036,94 @@ namespace Smartphone
             return apps;
         }
 
+        /// <summary>Public accessor for layout manager to call back into snapshot building.</summary>
+        internal List<HomeAppEntryProxy> BuildHomeAppsSnapshotPublic()
+        {
+            var apps = new List<HomeAppEntryProxy>
+            {
+                new HomeAppEntryProxy
+                {
+                    Id = BuiltinAppNotificationId,
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.notification.name"),
+                    IconTexture = textureAppNotification,
+                    GetBadgeCount = () => Math.Max(0, NotificationManager.GetUnreadNotification())
+                },
+                new HomeAppEntryProxy
+                {
+                    Id = BuiltinAppStoreId,
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.appstore.name"),
+                    IconTexture = textureAppAppStore
+                },
+                new HomeAppEntryProxy
+                {
+                    Id = BuiltinAppCameraId,
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.camera.name"),
+                    IconTexture = textureAppCamera
+                },
+                new HomeAppEntryProxy
+                {
+                    Id = BuiltinAppPhotoId,
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.photos.name"),
+                    IconTexture = textureAppPhoto
+                },
+                new HomeAppEntryProxy
+                {
+                    Id = BuiltinAppSettingId,
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.settings.name"),
+                    IconTexture = textureAppSetting
+                },
+                new HomeAppEntryProxy
+                {
+                    Id = BuiltinAppCalendarId,
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.calendar.name"),
+                    IconTexture = textureAppCalendar
+                }
+            };
+
+            foreach (RegisteredPhoneApp app in ModEntry.GetRegisteredPhoneAppsSnapshot())
+            {
+                apps.Add(new HomeAppEntryProxy
+                {
+                    Id = app.CompositeId,
+                    DisplayName = app.DisplayName,
+                    IconTexture = app.IconTexture,
+                    SourceRect = app.SourceRect,
+                    GetBadgeCount = () => GetRegisteredAppBadgeCount(app)
+                });
+            }
+
+            return apps;
+        }
+
+        /// <summary>Public bridge for layout manager to launch apps.</summary>
+        internal void TryHandleHomeAppClickPublic(string appId)
+        {
+            bool opened = TryHandleHomeAppClick(appId);
+            Game1.playSound(opened ? "smallSelect" : "cancel");
+        }
+
+        /// <summary>Public bridge for layout manager to get current text color.</summary>
+        internal Color GetHomeTextColorPublic() => GetCurrentHomeTextColor();
+
+        /// <summary>Enter reorder mode from the settings app.</summary>
+        internal void EnterReorderMode()
+        {
+            currentApp = null;
+            rootLandingState = RootLandingState.Home;
+            layoutManager?.EnterReorderMode();
+        }
+
         // Notification sizing/scrolling moved to partial class
 
         private void DrawHomeApps(SpriteBatch b)
         {
+            // Legacy stub — layout manager now handles drawing via DrawHomeLandingScreen
             homeAppClickBounds.Clear();
             homeAppPrevPageBounds = Rectangle.Empty;
             homeAppNextPageBounds = Rectangle.Empty;
-
-            List<HomeAppEntry> apps = BuildHomeAppsSnapshot();
-            if (apps.Count == 0)
-            {
-                homeAppPage = 0;
-                return;
-            }
-
-            int totalPages = (int)Math.Ceiling(apps.Count / (double)HomeAppsPerPage);
-            homeAppPage = Math.Clamp(homeAppPage, 0, Math.Max(0, totalPages - 1));
-
-            List<HomeAppEntry> pageApps = apps
-                .Skip(homeAppPage * HomeAppsPerPage)
-                .Take(HomeAppsPerPage)
-                .ToList();
-
-            for (int i = 0; i < pageApps.Count; i++)
-            {
-                HomeAppEntry app = pageApps[i];
-                int col = i % HomeAppsColumns;
-                int row = i / HomeAppsColumns;
-
-                Rectangle appBounds = new Rectangle(
-                    xPositionOnScreen + ScaleUiValue(HomeAppStartX + col * HomeAppSpacingX),
-                    yPositionOnScreen + ScaleUiValue(HomeAppStartY + row * HomeAppSpacingY),
-                    ScaleUiValue(84),
-                    ScaleUiValue(84));
-
-                DrawAppIcon(b, app.IconTexture, appBounds, app.SourceRect);
-                DrawAppLabel(b, appBounds, app.DisplayName);
-                homeAppClickBounds[app.Id] = appBounds;
-
-                int badgeCount = GetHomeAppBadgeCount(app);
-                if (badgeCount > 0)
-                    DrawAppBadge(b, appBounds, badgeCount);
-            }
-
-            if (totalPages <= 1)
-                return;
-
-            homeAppPrevPageBounds = new Rectangle(
-                xPositionOnScreen + ScaleUiValue(40),
-                yPositionOnScreen + ScaleUiValue(790),
-                ScaleUiValue(64),
-                ScaleUiValue(64));
-            homeAppNextPageBounds = new Rectangle(
-                xPositionOnScreen + ScaleUiValue(496),
-                yPositionOnScreen + ScaleUiValue(790),
-                ScaleUiValue(64),
-                ScaleUiValue(64));
-
-            if (homeAppPage > 0)
-            {
-                b.Draw(
-                    Game1.mouseCursors,
-                    homeAppPrevPageBounds,
-                    Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 44),
-                    Color.White);
-            }
-
-            if (homeAppPage < totalPages - 1)
-            {
-                b.Draw(
-                    Game1.mouseCursors,
-                    homeAppNextPageBounds,
-                    Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 33),
-                    Color.White);
-            }
-
-            string pageText = $"{homeAppPage + 1}/{totalPages}";
-            Vector2 pageTextSize = MeasurePhoneText(Game1.smallFont, pageText);
-            Vector2 pageTextPosition = new Vector2(
-                xPositionOnScreen + ScaleUiValue(300) - pageTextSize.X / 2f,
-                yPositionOnScreen + ScaleUiValue(812) - pageTextSize.Y / 2f);
-            DrawPhoneText(b, Game1.smallFont, pageText, pageTextPosition, GetCurrentHomeTextColor());
         }
 
-        private void DrawExternalGroupItems(SpriteBatch b)
-        {
-            externalGroupItemClickBounds.Clear();
 
-            if (string.IsNullOrWhiteSpace(currentExternalGroupId))
-                return;
-
-            List<RegisteredPhoneAppGroupItem> items = ModEntry.GetRegisteredPhoneAppGroupItemsSnapshot(currentExternalGroupId);
-            if (items.Count == 0)
-            {
-                DrawPhoneText(
-                    b,
-                    Game1.smallFont,
-                    "No app in this group yet.",
-                    new Vector2(xPositionOnScreen + ScaleUiValue(110), yPositionOnScreen + ScaleUiValue(260)),
-                    Color.Black);
-                return;
-            }
-
-            int visibleCount = Math.Min(9, items.Count);
-            for (int i = 0; i < visibleCount; i++)
-            {
-                RegisteredPhoneAppGroupItem item = items[i];
-                int col = i % ExternalGroupColumns;
-                int row = i / ExternalGroupColumns;
-
-                Rectangle itemBounds = new Rectangle(
-                    xPositionOnScreen + ScaleUiValue(ExternalGroupStartX + col * ExternalGroupSpacingX),
-                    yPositionOnScreen + ScaleUiValue(ExternalGroupStartY + row * ExternalGroupSpacingY),
-                    ScaleUiValue(84),
-                    ScaleUiValue(84));
-
-                DrawAppIcon(b, item.IconTexture, itemBounds, item.SourceRect);
-                DrawAppLabel(b, itemBounds, item.DisplayName);
-                externalGroupItemClickBounds[item.CompositeId] = itemBounds;
-
-                int badgeCount = GetRegisteredGroupItemBadgeCount(item);
-                if (badgeCount > 0)
-                    DrawAppBadge(b, itemBounds, badgeCount);
-            }
-        }
 
         private bool TryHandleHomeAppClick(string appId)
         {
@@ -1380,12 +1306,7 @@ namespace Smartphone
             {
                 return HandleCameraAppBackButton();
             }
-            if (currentApp == ExternalGroupAppState)
-            {
-                ClearCurrentExternalGroup();
-                currentApp = null;
-                return true;
-            }
+
             if (currentApp != null)
             {
                 currentApp = null;
@@ -1558,21 +1479,7 @@ namespace Smartphone
             }
         }
 
-        private int GetRegisteredGroupItemBadgeCount(RegisteredPhoneAppGroupItem item)
-        {
-            if (item.GetBadgeCount == null)
-                return 0;
 
-            try
-            {
-                return Math.Max(0, item.GetBadgeCount.Invoke());
-            }
-            catch (Exception ex)
-            {
-                ModEntry.SMonitor.Log($"Badge callback failed for smartphone app-group item '{item.CompositeId}': {ex.Message}", LogLevel.Warn);
-                return 0;
-            }
-        }
 
         private bool TryChangeHomeAppPage(int delta)
         {
@@ -1591,9 +1498,6 @@ namespace Smartphone
 
         public void OpenHomeScreen()
         {
-            if (currentApp == ExternalGroupAppState)
-                ClearCurrentExternalGroup();
-
             settingScrollOffset = 0f;
             settingScrollTarget = 0f;
             homeAppPage = 0;
@@ -1606,6 +1510,13 @@ namespace Smartphone
             lockScreenInitializationProgressPercent = 0;
             lockScreenInitializationElapsedSeconds = 0d;
             lockScreenInitializationNextTickSeconds = 0d;
+
+            // Ensure layout manager is ready
+            if (layoutManager == null)
+            {
+                layoutManager = new PhoneAppLayoutManager(this);
+                layoutManager.LoadLayout(BuildHomeAppsSnapshotPublic());
+            }
         }
 
         public void OpenLockScreen()
@@ -1621,25 +1532,7 @@ namespace Smartphone
             rootLandingState = RootLandingState.LockScreen;
         }
 
-        public void OpenRegisteredAppGroup(string groupCompositeId, string displayName)
-        {
-            if (string.IsNullOrWhiteSpace(groupCompositeId))
-                return;
 
-            currentExternalGroupId = groupCompositeId;
-            currentExternalGroupName = (displayName?.Length > 8)
-                ? displayName.Substring(0, 8) + "..."
-                : (displayName ?? "");
-            currentApp = ExternalGroupAppState;
-            externalGroupItemClickBounds.Clear();
-        }
-
-        private void ClearCurrentExternalGroup()
-        {
-            currentExternalGroupId = "";
-            currentExternalGroupName = "";
-            externalGroupItemClickBounds.Clear();
-        }
 
         public void ClosePhoneMenu()
         {
@@ -1657,8 +1550,7 @@ namespace Smartphone
             lockScreenInitializationElapsedSeconds = 0d;
             lockScreenInitializationNextTickSeconds = 0d;
 
-            if (currentApp == ExternalGroupAppState)
-                ClearCurrentExternalGroup();
+
 
             currentApp = null;
 

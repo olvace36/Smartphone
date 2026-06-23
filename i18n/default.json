@@ -118,6 +118,7 @@
   "ui.setting.text_color": "Text Color",
   "ui.setting.theme": "Theme",
   "ui.setting.phone_setting": "Phone setting",
+  "ui.setting.reorder_app": "Reorder app",
   "ui.message.good_morning": "Good morning {{name}}",
   "ui.message.good_afternoon": "Good afternoon {{name}}",
   "ui.message.good_evening": "Good evening {{name}}",
@@ -160,5 +161,11 @@
   "ui.appstore.sort.installed": "Installed",
   "ui.appstore.type.app": "App",
   "ui.appstore.type.theme": "Theme",
-  "ui.appstore.type.translation": "Translation"
+  "ui.appstore.type.translation": "Translation",
+  "ui.reorder.done": "Done",
+  "ui.reorder.back": "← Back",
+  "ui.reorder.close": "Cancel",
+  "ui.reorder.change_size": "Change Size",
+  "ui.reorder.add_to_dock": "Add to Dock",
+  "ui.reorder.remove_from_dock": "Remove from Dock"
 }
