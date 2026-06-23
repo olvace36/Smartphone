@@ -12,6 +12,7 @@ namespace Smartphone
         public static Texture2D PhoneBackground;
         public static Texture2D PhoneEmpty;
         public static Texture2D Background;
+        public static Texture2D GroupBackground;
 
         public static Texture2D AppCamera;
         public static Texture2D AppPhoto;
@@ -35,6 +36,7 @@ namespace Smartphone
                 PhoneEmpty = TryLoadWithFallback(Path.Combine(phonePath, "default.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "default.png"));
                 PhoneBackground = TryLoadWithFallback(Path.Combine(phonePath, "default_background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "default_background.png"));
                 Background = TryLoadWithFallback(Path.Combine(phonePath, "background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "background.png"));
+                GroupBackground = TryLoadWithFallback(Path.Combine(phonePath, "group_background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "group_background.png"));
 
                 // Pre-populate standard 1x1 slots
                 AppCamera = GetAppTexture("builtin:camera", AppSize.Size1x1);

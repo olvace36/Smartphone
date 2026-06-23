@@ -673,7 +673,6 @@ namespace Smartphone
                 exitThisMenu();
                 return;
             }
-
             else if (currentApp == "appPhoto")
             {
                 if (HandlePhotoAlbumNameKeyPress(key))
@@ -1084,42 +1083,48 @@ namespace Smartphone
                     DisplayName = ModEntry.SHelper.Translation.Get("app.notification.name"),
                     IconTexture = textureAppNotification,
                     GetBadgeCount = () => Math.Max(0, NotificationManager.GetUnreadNotification()),
-                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppNotificationId, rect, size)
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppNotificationId, rect, size),
+                    SupportedSizes = new List<AppSize> { AppSize.Size1x1, AppSize.Size2x2 }
                 },
                 new HomeAppEntryProxy
                 {
                     Id = BuiltinAppStoreId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.appstore.name"),
                     IconTexture = textureAppAppStore,
-                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppStoreId, rect, size)
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppStoreId, rect, size),
+                    SupportedSizes = new List<AppSize> { AppSize.Size1x1, AppSize.Size2x2 }
                 },
                 new HomeAppEntryProxy
                 {
                     Id = BuiltinAppCameraId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.camera.name"),
                     IconTexture = textureAppCamera,
-                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppCameraId, rect, size)
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppCameraId, rect, size),
+                    SupportedSizes = new List<AppSize> { AppSize.Size1x1, AppSize.Size2x2 }
                 },
                 new HomeAppEntryProxy
                 {
                     Id = BuiltinAppPhotoId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.photos.name"),
                     IconTexture = textureAppPhoto,
-                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppPhotoId, rect, size)
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppPhotoId, rect, size),
+                    SupportedSizes = new List<AppSize> { AppSize.Size1x1, AppSize.Size2x2, AppSize.Size4x4 }
                 },
                 new HomeAppEntryProxy
                 {
                     Id = BuiltinAppSettingId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.settings.name"),
                     IconTexture = textureAppSetting,
-                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppSettingId, rect, size)
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppSettingId, rect, size),
+                    SupportedSizes = new List<AppSize> { AppSize.Size1x1, AppSize.Size2x2 }
                 },
                 new HomeAppEntryProxy
                 {
                     Id = BuiltinAppCalendarId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.calendar.name"),
                     IconTexture = textureAppCalendar,
-                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppCalendarId, rect, size)
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppCalendarId, rect, size),
+                    SupportedSizes = new List<AppSize> { AppSize.Size1x1, AppSize.Size2x2, AppSize.Size4x2 }
                 }
             };
 

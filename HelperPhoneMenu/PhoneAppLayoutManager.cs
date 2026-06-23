@@ -623,6 +623,10 @@ namespace Smartphone
                 {
                     _folderNameBuffer = _folderNameBuffer.Substring(0, _folderNameBuffer.Length - 1);
                 }
+                else
+                {
+                    HandleTextInput(((char)key));
+                }
             }
         }
 
@@ -766,15 +770,21 @@ namespace Smartphone
             _dock.Clear();
             _pages.Clear();
 
-            _dock.Add("builtin:calendar");
+            // Populate the docked menu with App Store, Notification, and Setting
+            _dock.Add("builtin:appstore");
+            _dock.Add("builtin:notification");
             _dock.Add("builtin:setting");
 
             List<LayoutItem> page1 = new List<LayoutItem>();
 
-            page1.Add(new LayoutItem { AppId = "builtin:appstore", Size = AppSize.Size2x2, GridCol = 0, GridRow = 0 });
-            page1.Add(new LayoutItem { AppId = "builtin:camera", Size = AppSize.Size1x1, GridCol = 2, GridRow = 0 });
-            page1.Add(new LayoutItem { AppId = "builtin:photo", Size = AppSize.Size1x1, GridCol = 3, GridRow = 0 });
-            page1.Add(new LayoutItem { AppId = "builtin:notification", Size = AppSize.Size1x1, GridCol = 2, GridRow = 1 });
+            // Calendar 4x2: Occupies Columns 0 to 3, Rows 0 & 1
+            page1.Add(new LayoutItem { AppId = "builtin:calendar", Size = AppSize.Size4x2, GridCol = 0, GridRow = 0 });
+
+            // Photo 2x2: Occupies Columns 0 & 1, Rows 2 & 3
+            page1.Add(new LayoutItem { AppId = "builtin:photo", Size = AppSize.Size2x2, GridCol = 0, GridRow = 2 });
+
+            // Camera 1x1: Occupies Column 2, Row 2
+            page1.Add(new LayoutItem { AppId = "builtin:camera", Size = AppSize.Size1x1, GridCol = 2, GridRow = 2 });
 
             _pages.Add(page1);
 
@@ -1059,8 +1069,16 @@ namespace Smartphone
                 Math.Max(1, cellRect.Width - ScaleUi(GridIconPadding * 2)),
                 Math.Max(1, cellRect.Height - ScaleUi(GridIconPadding * 2)));
 
-            b.Draw(Game1.staminaRect, innerRect, Color.Black * 0.25f);
-            b.Draw(Game1.staminaRect, innerRect, Color.White * 0.15f);
+            // Draw custom themed group background if available; fallback to shapes safely
+            if (Textures.GroupBackground != null)
+            {
+                b.Draw(Textures.GroupBackground, innerRect, Color.White);
+            }
+            else
+            {
+                b.Draw(Game1.staminaRect, innerRect, Color.Black * 0.25f);
+                b.Draw(Game1.staminaRect, innerRect, Color.White * 0.15f);
+            }
 
             int miniGridPadding = ScaleUi(4);
             int miniCellSize = (innerRect.Width - (miniGridPadding * 4)) / 3;
@@ -1200,8 +1218,15 @@ namespace Smartphone
 
             if (_dragAppId == FolderAppId)
             {
-                b.Draw(Game1.staminaRect, gRect, Color.Black * 0.35f);
-                b.Draw(Game1.staminaRect, gRect, Color.White * 0.15f);
+                if (Textures.GroupBackground != null)
+                {
+                    b.Draw(Textures.GroupBackground, gRect, Color.White * 0.8f);
+                }
+                else
+                {
+                    b.Draw(Game1.staminaRect, gRect, Color.Black * 0.35f);
+                    b.Draw(Game1.staminaRect, gRect, Color.White * 0.15f);
+                }
                 return;
             }
 
@@ -1217,33 +1242,55 @@ namespace Smartphone
             if (_openFolder == null) return;
             Rectangle phoneContent = _menu.GetPhoneContentBounds();
 
+            // Draw dark backdrop screen blur dimming layer
             b.Draw(Game1.staminaRect, phoneContent, Color.Black * 0.65f);
 
             _folderOverlayBounds = new Rectangle(phoneContent.X + ScaleUi(40), phoneContent.Y + ScaleUi(140), ScaleUi(440), ScaleUi(440));
 
-            b.Draw(Game1.staminaRect, _folderOverlayBounds, Color.Black * 0.2f);
-            b.Draw(Game1.staminaRect, _folderOverlayBounds, Color.White * 0.75f);
+            // Apply the background texture asset directly on the overlay footprint
+            if (Textures.GroupBackground != null)
+            {
+                b.Draw(Textures.GroupBackground, _folderOverlayBounds, Color.White);
+            }
+            else
+            {
+                b.Draw(Game1.staminaRect, _folderOverlayBounds, Color.Black * 0.2f);
+                b.Draw(Game1.staminaRect, _folderOverlayBounds, Color.White * 0.75f);
+            }
 
+            // --- MOVE GROUP NAME OUTSIDE THE BOX ---
             string title = _isEditingFolderName ? (_folderNameBuffer + "|") : (_openFolder.FolderName ?? "Folder");
             Vector2 titleSize = Game1.dialogueFont.MeasureString(title) * 0.8f;
-            Vector2 titlePos = new Vector2(_folderOverlayBounds.X + (_folderOverlayBounds.Width - titleSize.X) / 2f, _folderOverlayBounds.Y + ScaleUi(20));
-            b.DrawString(Game1.dialogueFont, title, titlePos, Color.Black, 0f, Vector2.Zero, 0.8f, SpriteEffects.None, 1f);
 
+            // Placed ScaleUi(45) pixels above the upper boundary edge of the group container box
+            Vector2 titlePos = new Vector2(_folderOverlayBounds.X + (_folderOverlayBounds.Width - titleSize.X) / 2f, _folderOverlayBounds.Y - ScaleUi(45));
+
+            // Render text in White/LightGray to make it pop against the dark screen overlay background tint
+            b.DrawString(Game1.dialogueFont, title, titlePos, Color.White, 0f, Vector2.Zero, 0.8f, SpriteEffects.None, 1f);
+
+            // Re-bind click hitbox bounds to the new elevated title positioning coordinates
             _folderRenameBoxBounds = new Rectangle((int)titlePos.X - ScaleUi(10), (int)titlePos.Y - ScaleUi(5), (int)titleSize.X + ScaleUi(20), (int)titleSize.Y + ScaleUi(10));
 
             if (IsReorderMode && !_isEditingFolderName)
             {
-                b.Draw(Game1.staminaRect, new Rectangle(_folderRenameBoxBounds.Right, _folderRenameBoxBounds.Y + ScaleUi(4), ScaleUi(6), ScaleUi(14)), Color.Gray);
+                b.Draw(Game1.staminaRect, new Rectangle(_folderRenameBoxBounds.Right, _folderRenameBoxBounds.Y + ScaleUi(6), ScaleUi(6), ScaleUi(14)), Color.White * 0.75f);
             }
 
             _folderItemBounds.Clear();
 
+            // --- REDUCE ITEM GAPS & OPTIMIZE ENTIRE AREA FOR GRID ONLY ---
             int folderCols = 3;
             int innerCellSize = ScaleUi(96);
-            int padX = ScaleUi(24);
-            int padY = ScaleUi(16);
-            int startX = _folderOverlayBounds.X + ScaleUi(52);
-            int startY = _folderOverlayBounds.Y + ScaleUi(80);
+            int padX = ScaleUi(20); // Reduced from 24 to 20 to bring outer items inward
+            int padY = ScaleUi(10); // Reduced from 16 to 10 to tighten vertical layout gaps
+
+            // Dynamically calculate the total content layout bounds to achieve perfect centering symmetry
+            int totalGridW = 3 * innerCellSize + 2 * padX;
+            int rowStepY = innerCellSize + padY + ScaleUi(14);
+            int totalGridH = 2 * rowStepY + innerCellSize + ScaleUi(14);
+
+            int startX = _folderOverlayBounds.X + (_folderOverlayBounds.Width - totalGridW) / 2;
+            int startY = _folderOverlayBounds.Y + (_folderOverlayBounds.Height - totalGridH) / 2;
 
             int startIdx = _currentFolderPage * 9;
 
@@ -1274,7 +1321,6 @@ namespace Smartphone
                         DrawIconWithJiggle(b, childApp, iconBounds, jiggle);
 
                         Vector2 labelSz = Game1.smallFont.MeasureString(childApp.DisplayName) * 0.55f;
-                        // REDUCED GAP (Group Menu): Pulled text up closer into the box footprint margin boundaries
                         b.DrawString(Game1.smallFont, childApp.DisplayName, new Vector2(itemBounds.X + (itemBounds.Width - labelSz.X) / 2f, itemBounds.Bottom - ScaleUi(4)), Color.Black, 0f, Vector2.Zero, 0.55f, SpriteEffects.None, 1f);
                     }
                 }
@@ -1284,17 +1330,18 @@ namespace Smartphone
                 }
             }
 
+            // Draw pagination dot index indicators at the bottom margin area
             int folderTotalPages = (int)Math.Ceiling(_openFolder.FolderItems.Count / 9.0);
             if (folderTotalPages > 1)
             {
                 int dotSize = ScaleUi(6), dotSpacing = ScaleUi(12);
                 int totalDotW = folderTotalPages * dotSpacing;
                 int dotStartX = _folderOverlayBounds.X + (_folderOverlayBounds.Width - totalDotW) / 2;
-                int dotY = _folderOverlayBounds.Bottom - ScaleUi(20);
+                int dotY = _folderOverlayBounds.Bottom - ScaleUi(22);
 
                 for (int p = 0; p < folderTotalPages; p++)
                 {
-                    b.Draw(Game1.staminaRect, new Rectangle(dotStartX + p * dotSpacing, dotY, dotSize, dotSize), p == _currentFolderPage ? Color.Black : Color.Black * 0.3f);
+                    b.Draw(Game1.staminaRect, new Rectangle(dotStartX + p * dotSpacing, dotY, dotSize, dotSize), p == _currentFolderPage ? Color.Black * 0.7f : Color.Black * 0.2f);
                 }
             }
 
@@ -1336,33 +1383,40 @@ namespace Smartphone
             int itemH = ScaleUi(32), itemW = ScaleUi(140);
             int x = anchorBounds.X, y = anchorBounds.Bottom + ScaleUi(4);
 
-            // Master lookup sheet defining maps between sizes and layout options
             List<(AppSize size, DropdownOption option, string label)> allOptions = new()
             {
-                (AppSize.Size1x1, DropdownOption.ChangeSize1x1, "1×1 Size"),
-                (AppSize.Size2x1, DropdownOption.ChangeSize2x1, "2×1 Size"),
-                (AppSize.Size2x2, DropdownOption.ChangeSize2x2, "2×2 Size"),
-                (AppSize.Size3x2, DropdownOption.ChangeSize3x2, "3×2 Size"),
-                (AppSize.Size4x2, DropdownOption.ChangeSize4x2, "4×2 Size"),
-                (AppSize.Size4x3, DropdownOption.ChangeSize4x3, "4×3 Size"),
-                (AppSize.Size4x4, DropdownOption.ChangeSize4x4, "4×4 Size")
+                (AppSize.Size1x1, DropdownOption.ChangeSize1x1, "1×1"),
+                (AppSize.Size2x1, DropdownOption.ChangeSize2x1, "2×1"),
+                (AppSize.Size2x2, DropdownOption.ChangeSize2x2, "2×2"),
+                (AppSize.Size3x2, DropdownOption.ChangeSize3x2, "3×2"),
+                (AppSize.Size4x2, DropdownOption.ChangeSize4x2, "4×2"),
+                (AppSize.Size4x3, DropdownOption.ChangeSize4x3, "4×3"),
+                (AppSize.Size4x4, DropdownOption.ChangeSize4x4, "4×4")
             };
 
             List<(DropdownOption option, string label)> options = new();
 
-            // Check if it's a built-in system app (like settings or calendar) or custom mod app
-            bool isBuiltIn = app == null || app.Id.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase);
+            bool hasExplicitSizes = app?.SupportedSizes != null && app.SupportedSizes.Count > 0;
 
             foreach (var opt in allOptions)
             {
-                // Allow if it's a system app, or if the custom app's registration explicitly whitelists the size
-                if (isBuiltIn || (app?.SupportedSizes != null && app.SupportedSizes.Contains(opt.size)))
+                if (hasExplicitSizes)
                 {
-                    options.Add((opt.option, opt.label));
+                    if (app!.SupportedSizes.Contains(opt.size))
+                    {
+                        options.Add((opt.option, opt.label));
+                    }
+                }
+                else
+                {
+                    bool isBuiltIn = app == null || app.Id.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase);
+                    if (isBuiltIn || opt.size == AppSize.Size1x1)
+                    {
+                        options.Add((opt.option, opt.label));
+                    }
                 }
             }
 
-            // Safety fallback: if no valid sizes were captured, at least offer standard 1x1 layout
             if (options.Count == 0)
             {
                 options.Add((DropdownOption.ChangeSize1x1, "1×1 Size"));
