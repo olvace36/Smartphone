@@ -609,7 +609,19 @@ namespace Smartphone
             }
         }
 
-        public void HandleKeyPress(Keys key)
+        // Expose editing state to the core PhoneMenu text subscriber loop
+        public bool IsEditingFolderName => _isEditingFolderName;
+
+        // Allows Android keyboard or direct input snapshots to set the string safely
+        internal void SetFolderNameBuffer(string value)
+        {
+            _folderNameBuffer = value ?? "";
+            if (_folderNameBuffer.Length > 15)
+                _folderNameBuffer = _folderNameBuffer.Substring(0, 15);
+        }
+
+        // Changed from void to bool to let PhoneMenu know when a key is swallowed/consumed
+        public bool HandleKeyPress(Keys key)
         {
             if (_openFolder != null && _isEditingFolderName)
             {
@@ -618,16 +630,16 @@ namespace Smartphone
                     _isEditingFolderName = false;
                     _openFolder.FolderName = string.IsNullOrWhiteSpace(_folderNameBuffer) ? "Folder" : _folderNameBuffer;
                     SaveLayout();
+                    return true;
                 }
                 else if (key == Keys.Back && _folderNameBuffer.Length > 0)
                 {
                     _folderNameBuffer = _folderNameBuffer.Substring(0, _folderNameBuffer.Length - 1);
+                    return true;
                 }
-                else
-                {
-                    HandleTextInput(((char)key));
-                }
+                return true; // Swallow all other alphanumeric inputs while typing to prevent Escape or other triggers
             }
+            return false;
         }
 
         public void HandleTextInput(char character)

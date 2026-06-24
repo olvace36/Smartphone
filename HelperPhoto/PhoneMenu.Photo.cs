@@ -127,7 +127,8 @@ namespace Smartphone
         private enum EditableTextFieldKind
         {
             None,
-            PhotoAlbumName
+            PhotoAlbumName,
+            FolderGroupName
         }
 
         private sealed class PhoneTextInputSubscriber : IKeyboardSubscriber
@@ -191,6 +192,9 @@ namespace Smartphone
             if (currentApp == "appPhoto" && photoAlbumCreationOpen)
                 return EditableTextFieldKind.PhotoAlbumName;
 
+            if (currentApp == null && layoutManager != null && layoutManager.IsEditingFolderName)
+                return EditableTextFieldKind.FolderGroupName;
+
             return EditableTextFieldKind.None;
         }
 
@@ -216,6 +220,7 @@ namespace Smartphone
             return field switch
             {
                 EditableTextFieldKind.PhotoAlbumName => currentApp == "appPhoto" && photoAlbumCreationOpen,
+                EditableTextFieldKind.FolderGroupName => currentApp == null && layoutManager != null && layoutManager.IsEditingFolderName,
                 _ => false
             };
         }
@@ -251,6 +256,16 @@ namespace Smartphone
                         ref photoNewAlbumNameCursorIndex,
                         ref photoNewAlbumNameSelectionAnchorIndex,
                         insertionText);
+                    return true;
+
+                case EditableTextFieldKind.FolderGroupName:
+                    if (layoutManager != null)
+                    {
+                        foreach (char c in insertionText)
+                        {
+                            layoutManager.HandleTextInput(c);
+                        }
+                    }
                     return true;
 
                 default:
@@ -384,6 +399,13 @@ namespace Smartphone
                     photoNewAlbumName = safeText;
                     photoNewAlbumNameCursorIndex = safeCursorIndex;
                     photoNewAlbumNameSelectionAnchorIndex = safeSelectionAnchorIndex;
+                    break;
+
+                case EditableTextFieldKind.FolderGroupName:
+                    if (layoutManager != null)
+                    {
+                        layoutManager.SetFolderNameBuffer(safeText);
+                    }
                     break;
             }
 
@@ -1588,7 +1610,7 @@ namespace Smartphone
                                 string ts = m?.TimeString ?? string.Empty;
                                 if (string.IsNullOrEmpty(ts))
                                 {
-                                    try { ts = File.GetCreationTime(path).ToString("yyyy-MM-dd HH:mm:ss"); } catch {}
+                                    try { ts = File.GetCreationTime(path).ToString("yyyy-MM-dd HH:mm:ss"); } catch { }
                                 }
                                 result.Timestamp = ts;
                             }

@@ -4,6 +4,8 @@ using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
+using StardewValley;
+using StardewValley.Menus;
 
 namespace Smartphone
 {
@@ -13,6 +15,7 @@ namespace Smartphone
         public static Texture2D PhoneEmpty;
         public static Texture2D Background;
         public static Texture2D GroupBackground;
+        public static Texture2D CardTexture; // Universal UI card element background texture
 
         public static Texture2D AppCamera;
         public static Texture2D AppPhoto;
@@ -37,6 +40,7 @@ namespace Smartphone
                 PhoneBackground = TryLoadWithFallback(Path.Combine(phonePath, "default_background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "default_background.png"));
                 Background = TryLoadWithFallback(Path.Combine(phonePath, "background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "background.png"));
                 GroupBackground = TryLoadWithFallback(Path.Combine(phonePath, "group_background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "group_background.png"));
+                CardTexture = TryLoadWithFallback(Path.Combine(phonePath, "card_texture.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "card_texture.png"));
 
                 // Pre-populate standard 1x1 slots
                 AppCamera = GetAppTexture("builtin:camera", AppSize.Size1x1);
@@ -50,6 +54,68 @@ namespace Smartphone
             {
                 ModEntry.SMonitor?.Log($"Error resolving core smartphone graphic updates: {ex.Message}", LogLevel.Error);
             }
+        }
+
+        public static void DrawCard(SpriteBatch b, int x, int y, int width, int height, Color color, float scale = 1f, bool drawShadow = false, float draw_layer = -1f)
+        {
+            // Fallback to vanilla menu asset if no theme texture is loaded
+            Texture2D texture = CardTexture ?? Game1.menuTexture;
+
+            // If using vanilla texture, match its exact source region (0, 256, 60, 60)
+            Rectangle sourceRect = CardTexture != null ? CardTexture.Bounds : new Rectangle(0, 256, 60, 60);
+
+            // Exact game formula: cuts the asset into 3 equal columns/rows
+            int num = sourceRect.Width / 3;
+
+            // Exact game layer-depth calculation for sorting loops
+            float layerDepth = draw_layer - 0.03f;
+            if (draw_layer < 0f)
+            {
+                draw_layer = 0.8f - (float)y * 1E-06f;
+                layerDepth = 0.77f;
+            }
+
+            // --- 1. DRAW VANILLA DROP SHADOW LAYER ---
+            if (drawShadow)
+            {
+                Color shadowColor = Color.Black * 0.4f;
+
+                // Corners Shadows
+                b.Draw(texture, new Vector2(x + width - (int)((float)num * scale) - 8, y + 8), new Rectangle(sourceRect.X + num * 2, sourceRect.Y, num, num), shadowColor, 0f, Vector2.Zero, scale, SpriteEffects.None, layerDepth);
+                b.Draw(texture, new Vector2(x - 8, y + height - (int)((float)num * scale) + 8), new Rectangle(sourceRect.X, num * 2 + sourceRect.Y, num, num), shadowColor, 0f, Vector2.Zero, scale, SpriteEffects.None, layerDepth);
+                b.Draw(texture, new Vector2(x + width - (int)((float)num * scale) - 8, y + height - (int)((float)num * scale) + 8), new Rectangle(sourceRect.X + num * 2, num * 2 + sourceRect.Y, num, num), shadowColor, 0f, Vector2.Zero, scale, SpriteEffects.None, layerDepth);
+
+                // Edge Shadows
+                b.Draw(texture, new Rectangle(x + (int)((float)num * scale) - 8, y + 8, width - (int)((float)num * scale) * 2, (int)((float)num * scale)), new Rectangle(sourceRect.X + num, sourceRect.Y, num, num), shadowColor, 0f, Vector2.Zero, SpriteEffects.None, layerDepth);
+                b.Draw(texture, new Rectangle(x + (int)((float)num * scale) - 8, y + height - (int)((float)num * scale) + 8, width - (int)((float)num * scale) * 2, (int)((float)num * scale)), new Rectangle(sourceRect.X + num, num * 2 + sourceRect.Y, num, num), shadowColor, 0f, Vector2.Zero, SpriteEffects.None, layerDepth);
+                b.Draw(texture, new Rectangle(x - 8, y + (int)((float)num * scale) + 8, (int)((float)num * scale), height - (int)((float)num * scale) * 2), new Rectangle(sourceRect.X, num + sourceRect.Y, num, num), shadowColor, 0f, Vector2.Zero, SpriteEffects.None, layerDepth);
+                b.Draw(texture, new Rectangle(x + width - (int)((float)num * scale) - 8, y + (int)((float)num * scale) + 8, (int)((float)num * scale), height - (int)((float)num * scale) * 2), new Rectangle(sourceRect.X + num * 2, num + sourceRect.Y, num, num), shadowColor, 0f, Vector2.Zero, SpriteEffects.None, layerDepth);
+
+                // Center Fill Shadow
+                b.Draw(texture, new Rectangle((int)((float)num * scale / 2f) + x - 8, (int)((float)num * scale / 2f) + y + 8, width - (int)((float)num * scale), height - (int)((float)num * scale)), new Rectangle(num + sourceRect.X, num + sourceRect.Y, num, num), shadowColor, 0f, Vector2.Zero, SpriteEffects.None, layerDepth);
+            }
+
+            // --- 2. DRAW MAIN FOREGROUND CARD BOX ---
+            // Center Fill
+            b.Draw(texture, new Rectangle((int)((float)num * scale) + x, (int)((float)num * scale) + y, width - (int)((float)num * scale * 2f), height - (int)((float)num * scale * 2f)), new Rectangle(num + sourceRect.X, num + sourceRect.Y, num, num), color, 0f, Vector2.Zero, SpriteEffects.None, draw_layer);
+
+            // Corners
+            b.Draw(texture, new Vector2(x, y), new Rectangle(sourceRect.X, sourceRect.Y, num, num), color, 0f, Vector2.Zero, scale, SpriteEffects.None, draw_layer);
+            b.Draw(texture, new Vector2(x + width - (int)((float)num * scale), y), new Rectangle(sourceRect.X + num * 2, sourceRect.Y, num, num), color, 0f, Vector2.Zero, scale, SpriteEffects.None, draw_layer);
+            b.Draw(texture, new Vector2(x, y + height - (int)((float)num * scale)), new Rectangle(sourceRect.X, num * 2 + sourceRect.Y, num, num), color, 0f, Vector2.Zero, scale, SpriteEffects.None, draw_layer);
+            b.Draw(texture, new Vector2(x + width - (int)((float)num * scale), y + height - (int)((float)num * scale)), new Rectangle(sourceRect.X + num * 2, num * 2 + sourceRect.Y, num, num), color, 0f, Vector2.Zero, scale, SpriteEffects.None, draw_layer);
+
+            // Edges
+            b.Draw(texture, new Rectangle(x + (int)((float)num * scale), y, width - (int)((float)num * scale) * 2, (int)((float)num * scale)), new Rectangle(sourceRect.X + num, sourceRect.Y, num, num), color, 0f, Vector2.Zero, SpriteEffects.None, draw_layer);
+            b.Draw(texture, new Rectangle(x + (int)((float)num * scale), y + height - (int)((float)num * scale), width - (int)((float)num * scale) * 2, (int)((float)num * scale)), new Rectangle(sourceRect.X + num, num * 2 + sourceRect.Y, num, num), color, 0f, Vector2.Zero, SpriteEffects.None, draw_layer);
+            b.Draw(texture, new Rectangle(x, y + (int)((float)num * scale), (int)((float)num * scale), height - (int)((float)num * scale) * 2), new Rectangle(sourceRect.X, num + sourceRect.Y, num, num), color, 0f, Vector2.Zero, SpriteEffects.None, draw_layer);
+            b.Draw(texture, new Rectangle(x + width - (int)((float)num * scale), y + (int)((float)num * scale), (int)((float)num * scale), height - (int)((float)num * scale) * 2), new Rectangle(sourceRect.X + num * 2, num + sourceRect.Y, num, num), color, 0f, Vector2.Zero, SpriteEffects.None, draw_layer);
+        }
+
+        // Convenient overload signature for passing standard Rectangle bounding layout blocks directly
+        public static void DrawCard(SpriteBatch b, Rectangle bounds, Color color)
+        {
+            DrawCard(b, bounds.X, bounds.Y, bounds.Width, bounds.Height, color, 1f, false, -1f);
         }
 
         private static Texture2D TryLoadWithFallback(string primaryPath, string fallbackPath)

@@ -656,7 +656,8 @@ namespace Smartphone
         {
             if (currentApp == null && layoutManager != null && layoutManager.IsReorderMode)
             {
-                layoutManager.HandleKeyPress(key);
+                if (layoutManager.HandleKeyPress(key))
+                    return;
             }
 
             if (currentApp == "appPhoto" && HandlePhotoAlbumNameKeyPress(key))

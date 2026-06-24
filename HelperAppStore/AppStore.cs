@@ -246,7 +246,7 @@ namespace Smartphone
                 int sortButtonY = pageY; // Match baseline a bit with text
 
                 appStoreSortButtonRect = new Rectangle(sortButtonX, sortButtonY, sortButtonWidth, sortButtonHeight);
-                IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), appStoreSortButtonRect.X, appStoreSortButtonRect.Y, appStoreSortButtonRect.Width, appStoreSortButtonRect.Height, new Color(255, 255, 255, 220), 1f, false);
+                Textures.DrawCard(b, appStoreSortButtonRect, new Color(255, 255, 255, 220));
                 DrawPhoneText(b, Game1.smallFont, sortButtonText, new Vector2(appStoreSortButtonRect.X + ScaleUiValue(10), appStoreSortButtonRect.Y + ScaleUiValue(8)), Color.Black);
 
                 if (appStoreDropdownOpen)
@@ -259,7 +259,7 @@ namespace Smartphone
                     }
                     int dropY = appStoreSortButtonRect.Top - appStoreSortOptions.Length * sortButtonHeight;
 
-                    IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), appStoreSortButtonRect.X, dropY, maxOptionWidth, appStoreSortOptions.Length * sortButtonHeight, Color.White, 1f, false);
+                    Textures.DrawCard(b, appStoreSortButtonRect.X, dropY, maxOptionWidth, appStoreSortOptions.Length * sortButtonHeight, Color.White);
                     for (int i = 0; i < appStoreSortOptions.Length; i++)
                     {
                         DrawPhoneText(b, Game1.smallFont, ModEntry.SHelper.Translation.Get("ui.appstore.sort." + appStoreSortOptions[i].ToLower()), new Vector2(appStoreSortButtonRect.X + ScaleUiValue(10), dropY + i * sortButtonHeight + ScaleUiValue(8)), Color.Black);
@@ -275,7 +275,7 @@ namespace Smartphone
                 int typeButtonY = PhoneY(65);
 
                 appStoreTypeButtonRect = new Rectangle(typeButtonX, typeButtonY, typeButtonWidth, typeButtonHeight);
-                IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), appStoreTypeButtonRect.X, appStoreTypeButtonRect.Y, appStoreTypeButtonRect.Width, appStoreTypeButtonRect.Height, new Color(255, 255, 255, 220), 1f, false);
+                Textures.DrawCard(b, appStoreTypeButtonRect, new Color(255, 255, 255, 220));
                 DrawPhoneText(b, Game1.smallFont, typeButtonText, new Vector2(appStoreTypeButtonRect.X + ScaleUiValue(10), appStoreTypeButtonRect.Y + ScaleUiValue(8)), Color.Black);
 
                 if (appStoreTypeDropdownOpen)
@@ -288,7 +288,7 @@ namespace Smartphone
                         if (optW > maxOptionWidth) maxOptionWidth = optW;
                     }
 
-                    IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), appStoreTypeButtonRect.X, dropY, maxOptionWidth, appStoreTypeOptions.Length * typeButtonHeight, Color.White, 1f, false);
+                    Textures.DrawCard(b, appStoreTypeButtonRect.X, dropY, maxOptionWidth, appStoreTypeOptions.Length * typeButtonHeight, Color.White);
                     for (int i = 0; i < appStoreTypeOptions.Length; i++)
                     {
                         DrawPhoneText(b, Game1.smallFont, ModEntry.SHelper.Translation.Get("ui.appstore.type." + appStoreTypeOptions[i].ToLower()), new Vector2(appStoreTypeButtonRect.X + ScaleUiValue(10), dropY + i * typeButtonHeight + ScaleUiValue(8)), Color.Black);
@@ -445,7 +445,7 @@ namespace Smartphone
                 int buttonY = PhoneY(65);
 
                 appStoreGoToModButtonRect = new Rectangle(buttonX, buttonY, buttonWidth, buttonHeight);
-                IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), appStoreGoToModButtonRect.X, appStoreGoToModButtonRect.Y, appStoreGoToModButtonRect.Width, appStoreGoToModButtonRect.Height, new Color(255, 255, 255, 220), 1f, false);
+                Textures.DrawCard(b, appStoreGoToModButtonRect, new Color(255, 255, 255, 220));
                 DrawPhoneText(b, Game1.smallFont, goToModText, new Vector2(appStoreGoToModButtonRect.X + ScaleUiValue(10), appStoreGoToModButtonRect.Y + ScaleUiValue(8)), Color.Black);
             }
         }
