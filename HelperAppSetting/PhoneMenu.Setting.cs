@@ -26,7 +26,7 @@ namespace Smartphone
         private float settingScrollOffset = 0f;
         private float settingScrollTarget = 0f;
         private int mainSpacing => Math.Max(1, ScaleUiValue(74));
-        private int listSpacing => Math.Max(1, ScaleUiValue(50));
+        private int listSpacing => Math.Max(1, ScaleUiValue(60));
 
         private const string SettingMenuMainState = "settingMain";
         private const string SettingMenuSoundState = "settingSound";
@@ -48,11 +48,11 @@ namespace Smartphone
             "phone", "app_appstore", "app_calendar", "app_camera", "app_notification", "app_photo", "app_setting"
         };
 
-        private const int SettingsTitleXOffsetBase = 105;
-        private const int SettingsTitleYOffsetBase = 67;
-        private const int SettingsMainOptionsStartYBase = 130;
-        private const int SettingsListStartYBase = 150;
-        private const int SettingsOptionRowXOffsetBase = 90;
+        private const int SettingsTitleXOffsetBase = 155;
+        private const int SettingsTitleYOffsetBase = 117;
+        private const int SettingsMainOptionsStartYBase = 180;
+        private const int SettingsListStartYBase = 200;
+        private const int SettingsOptionRowXOffsetBase = 140;
         private const int SettingsOptionRowWidthBase = 430;
         private const int SettingsOptionRowHeightBase = 58;
         private const int SettingsOptionTextXPaddingBase = 20;
@@ -60,18 +60,18 @@ namespace Smartphone
         private const int SettingsOptionArrowSizeBase = 32;
         private const int SettingsOptionArrowRightPaddingBase = 42;
         private const int SettingsOptionArrowYOffsetBase = 13;
-        private const int SettingsListNameXOffsetBase = 100;
-        private const int SettingsListNameYOffsetBase = 13;
+        private const int SettingsListNameXOffsetBase = 150;
+        private const int SettingsListNameYOffsetBase = 63;
         private const int SettingsColorPreviewXOffsetBase = 220;
-        private const int SettingsColorPreviewYOffsetBase = 15;
+        private const int SettingsColorPreviewYOffsetBase = 65;
         private const int SettingsColorPreviewOuterWidthBase = 40;
         private const int SettingsColorPreviewOuterHeightBase = 20;
         private const int SettingsColorPreviewInnerXOffsetBase = 2;
         private const int SettingsColorPreviewInnerYOffsetBase = 2;
         private const int SettingsColorPreviewInnerWidthBase = 36;
         private const int SettingsColorPreviewInnerHeightBase = 16;
-        private const int SettingsCheckboxXOffsetBase = 370;
-        private const int SettingsCheckboxYOffsetBase = 10;
+        private const int SettingsCheckboxXOffsetBase = 420;
+        private const int SettingsCheckboxYOffsetBase = 60;
         private const int SettingsCheckboxSizeBase = 30;
         private const int SettingsThemeHoverXOffsetBase = -8;
         private const int SettingsThemeHoverYOffsetBase = 3;
@@ -118,13 +118,13 @@ namespace Smartphone
                 SettingMenuThemeState => ModEntry.SHelper.Translation.Get("ui.setting.theme"),
                 SettingMenuThemeComponentListState => currentSelectedThemeComponent switch
                 {
-                    "phone" => "Shell & Layout",
-                    "app_appstore" => "AppStore Theme",
-                    "app_calendar" => "Calendar Theme",
-                    "app_camera" => "Camera Theme",
-                    "app_notification" => "Notif Theme",
-                    "app_photo" => "Photos Theme",
-                    "app_setting" => "Settings Theme",
+                    "phone" => "Phone",
+                    "app_appstore" => "AppStore",
+                    "app_calendar" => "Calendar",
+                    "app_camera" => "Camera",
+                    "app_notification" => "Notification",
+                    "app_photo" => "Photos",
+                    "app_setting" => "Settings",
                     _ => "Pick Theme"
                 },
                 _ => ModEntry.SHelper.Translation.Get("ui.setting.title")
@@ -257,17 +257,17 @@ namespace Smartphone
                 int nameX = PhoneX(SettingsListNameXOffsetBase);
                 string friendlyName = compKey switch
                 {
-                    "phone" => "Phone Shell & Background",
-                    "app_appstore" => "App Store Icon",
-                    "app_calendar" => "Calendar Icon",
-                    "app_camera" => "Camera Icon",
-                    "app_notification" => "Notification Icon",
-                    "app_photo" => "Photos Icon",
-                    "app_setting" => "Settings Icon",
+                    "phone" => "Phone",
+                    "app_appstore" => "AppStore",
+                    "app_calendar" => "Calendar",
+                    "app_camera" => "Camera",
+                    "app_notification" => "Notification",
+                    "app_photo" => "Photos",
+                    "app_setting" => "Settings",
                     _ => compKey
                 };
 
-                Rectangle rowBounds = new Rectangle(nameX - ScaleUiValue(10), y + ScaleUiValue(4), ScaleUiValue(380), ScaleUiValue(42));
+                Rectangle rowBounds = new Rectangle(nameX - ScaleUiValue(10), y + ScaleUiValue(54), ScaleUiValue(380), ScaleUiValue(55));
                 themeComponentRowBounds[compKey] = rowBounds;
 
                 IClickableMenu.drawTextureBox(

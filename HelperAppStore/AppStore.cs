@@ -58,11 +58,11 @@ namespace Smartphone
                 int totalPages = (int)Math.Ceiling((double)AppStoreManager.Mods.Count / appStoreItemsPerPage);
 
                 // Draw Mods List
-                int currentY = PhoneY(130);
+                int currentY = PhoneY(180);
 
                 int scaledItemHeight = ScaleUiValue(appStoreItemHeight);
-                int scaledSlotWidth = width - ScaleUiValue(50);
-                int slotX = PhoneX(35);
+                int scaledSlotWidth = width - ScaleUiValue(160);
+                int slotX = PhoneX(85);
 
                 string appStoreHoverText = null;
                 int mouseX = Game1.getMouseX();
@@ -130,7 +130,7 @@ namespace Smartphone
                     }
 
                     // Determine icon dimensions
-                    int rightPadding = ScaleUiValue(25);
+                    int rightPadding = ScaleUiValue(20);
                     int iconW = 0;
                     Rectangle iconSourceRect = Rectangle.Empty;
 
@@ -196,7 +196,7 @@ namespace Smartphone
                     currentY += scaledItemHeight;
                 }
 
-                int pageY = yPositionOnScreen + height - ScaleUiValue(120);
+                int pageY = yPositionOnScreen + height - ScaleUiValue(170);
 
                 // Draw Pagination Controls
                 if (totalPages > 1)
@@ -242,7 +242,7 @@ namespace Smartphone
                 Vector2 sortButtonSize = MeasurePhoneText(Game1.smallFont, sortButtonText);
                 int sortButtonWidth = (int)sortButtonSize.X + ScaleUiValue(20);
                 int sortButtonHeight = (int)sortButtonSize.Y + ScaleUiValue(10);
-                int sortButtonX = PhoneX(75);
+                int sortButtonX = PhoneX(125);
                 int sortButtonY = pageY; // Match baseline a bit with text
 
                 appStoreSortButtonRect = new Rectangle(sortButtonX, sortButtonY, sortButtonWidth, sortButtonHeight);
@@ -271,8 +271,8 @@ namespace Smartphone
                 Vector2 typeButtonSize = MeasurePhoneText(Game1.smallFont, typeButtonText);
                 int typeButtonWidth = (int)typeButtonSize.X + ScaleUiValue(20);
                 int typeButtonHeight = (int)typeButtonSize.Y + ScaleUiValue(10);
-                int typeButtonX = PhoneX(110);
-                int typeButtonY = PhoneY(65);
+                int typeButtonX = PhoneX(160);
+                int typeButtonY = PhoneY(115);
 
                 appStoreTypeButtonRect = new Rectangle(typeButtonX, typeButtonY, typeButtonWidth, typeButtonHeight);
                 Textures.DrawCard(b, appStoreTypeButtonRect, new Color(255, 255, 255, 220));
@@ -310,8 +310,8 @@ namespace Smartphone
 
                 int initialDetailY = phoneContentBounds.Y + ScaleUiValue(20);
                 int detailY = initialDetailY - appStoreDetailScrollOffset;
-                int paddingX = PhoneX(50);
-                int contentWidth = width - ScaleUiValue(100);
+                int paddingX = PhoneX(100);
+                int contentWidth = width - ScaleUiValue(200);
 
                 // NOTE: button will be drawn outside the scissored region later so it remains static
 
@@ -441,8 +441,8 @@ namespace Smartphone
                 Vector2 goToModSize = MeasurePhoneText(Game1.smallFont, goToModText);
                 int buttonWidth = (int)goToModSize.X + ScaleUiValue(20);
                 int buttonHeight = (int)goToModSize.Y + ScaleUiValue(10);
-                int buttonX = PhoneX(110);
-                int buttonY = PhoneY(65);
+                int buttonX = PhoneX(160);
+                int buttonY = PhoneY(115);
 
                 appStoreGoToModButtonRect = new Rectangle(buttonX, buttonY, buttonWidth, buttonHeight);
                 Textures.DrawCard(b, appStoreGoToModButtonRect, new Color(255, 255, 255, 220));
@@ -609,10 +609,10 @@ namespace Smartphone
                 int endIndex = Math.Min(startIndex + appStoreItemsPerPage, AppStoreManager.Mods.Count);
                 int pageItemCount = endIndex - startIndex;
 
-                int currentY = PhoneY(130);
+                int currentY = PhoneY(180);
                 int scaledItemHeight = ScaleUiValue(appStoreItemHeight);
-                int scaledSlotWidth = width - ScaleUiValue(50);
-                int slotX = PhoneX(25);
+                int scaledSlotWidth = width - ScaleUiValue(150);
+                int slotX = PhoneX(75);
 
                 for (int i = appStoreScrollOffset; i < Math.Min(appStoreScrollOffset + appStoreMaxVisibleItems, pageItemCount); i++)
                 {

@@ -14,10 +14,10 @@ namespace Smartphone
         private float notificationScrollTarget = 0f;
         private ClickableTextureComponent removeButton;
 
-        private const int NotificationViewportYOffsetBase = 126;
+        private const int NotificationViewportYOffsetBase = 176;
         private const int NotificationViewportHeightBase = 800;
         private const int NotificationBubbleTextWrapWidthBase = 485;
-        private const int NotificationBubbleXOffsetBase = 50;
+        private const int NotificationBubbleXOffsetBase = 100;
         private const int NotificationBubbleTextLeftPaddingBase = 10;
         private const int NotificationBubbleTextTopPaddingBase = 15;
         private const int NotificationBubbleHorizontalPaddingBase = 20;
@@ -53,8 +53,8 @@ namespace Smartphone
                     ScaleUiValue(1.7f));
             }
             removeButton.bounds = new Rectangle(
-                this.xPositionOnScreen + ScaleUiValue(335),
-                this.yPositionOnScreen + ScaleUiValue(66),
+                this.xPositionOnScreen + ScaleUiValue(385),
+                this.yPositionOnScreen + ScaleUiValue(116),
                 ScaleUiValue(32),
                 ScaleUiValue(26 * 2));
 

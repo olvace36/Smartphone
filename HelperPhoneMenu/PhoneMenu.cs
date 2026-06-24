@@ -283,48 +283,48 @@ namespace Smartphone
 
         private void UpdateSystemButtonsBounds()
         {
-            int buttonY = this.yPositionOnScreen + ScaleUiValue(925);
+            int buttonY = this.yPositionOnScreen + ScaleUiValue(975);
             int buttonSize = ScaleUiValue(64);
 
             if (backButton == null)
             {
                 backButton = new ClickableTextureComponent(
-                    new Rectangle(this.xPositionOnScreen + ScaleUiValue(132), buttonY, buttonSize, buttonSize),
+                    new Rectangle(this.xPositionOnScreen + ScaleUiValue(182), buttonY, buttonSize, buttonSize),
                     null,
                     Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 44),
                     ScaleUiValue(1f));
             }
             else
             {
-                backButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(132), buttonY, buttonSize, buttonSize);
+                backButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(182), buttonY, buttonSize, buttonSize);
                 backButton.scale = ScaleUiValue(1f);
             }
 
             if (lockButton == null)
             {
                 lockButton = new ClickableTextureComponent(
-                    new Rectangle(this.xPositionOnScreen + ScaleUiValue(405), buttonY, buttonSize, buttonSize),
+                    new Rectangle(this.xPositionOnScreen + ScaleUiValue(455), buttonY, buttonSize, buttonSize),
                     null,
                     Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 44),
                     ScaleUiValue(1f));
             }
             else
             {
-                lockButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(405), buttonY, buttonSize, buttonSize);
+                lockButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(455), buttonY, buttonSize, buttonSize);
                 lockButton.scale = ScaleUiValue(1f);
             }
 
             if (homeButton == null)
             {
                 homeButton = new ClickableTextureComponent(
-                    new Rectangle(this.xPositionOnScreen + ScaleUiValue(265), buttonY, buttonSize, buttonSize),
+                    new Rectangle(this.xPositionOnScreen + ScaleUiValue(315), buttonY, buttonSize, buttonSize),
                     null,
                     Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 33),
                     ScaleUiValue(1.3f));
             }
             else
             {
-                homeButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(265), buttonY, buttonSize, buttonSize);
+                homeButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(315), buttonY, buttonSize, buttonSize);
                 homeButton.scale = ScaleUiValue(1.3f);
             }
         }

@@ -39,12 +39,12 @@ namespace Smartphone
     /// <summary>The mod entry point.</summary>
     public partial class ModEntry
     {
-        internal const int PhoneFrameBaseWidth = 600;
-        internal const int PhoneFrameBaseHeight = 1000;
-        internal const int PhoneDefaultMenuOffsetX = 400;
-        internal const int PhoneDefaultMenuOffsetY = 500;
-        internal const int PhoneFrameContentOffsetX = 40;
-        internal const int PhoneFrameContentOffsetY = 116;
+        internal const int PhoneFrameBaseWidth = 700;
+        internal const int PhoneFrameBaseHeight = 1100;
+        internal const int PhoneDefaultMenuOffsetX = 450;
+        internal const int PhoneDefaultMenuOffsetY = 550;
+        internal const int PhoneFrameContentOffsetX = 90;
+        internal const int PhoneFrameContentOffsetY = 166;
         internal const float PhoneSmallUiScale = 0.75f;
 
         private const int CameraViewportOffsetX = PhoneFrameContentOffsetX;
@@ -58,8 +58,8 @@ namespace Smartphone
         private const int HudPhoneBottomMargin = 12;
         private const int HudPhoneAboveEnergyOffset = 188;
         private const int HudPhoneBadgeMinimumSize = 20;
-        private const int HudPhoneFrameContentOffsetX = 40;
-        private const int HudPhoneFrameContentOffsetY = 116;
+        private const int HudPhoneFrameContentOffsetX = 90;
+        private const int HudPhoneFrameContentOffsetY = 166;
         private string hudPhoneBackgroundImagePath = string.Empty;
         private Texture2D? hudPhoneBackgroundImage;
         private int hudPhoneBackgroundImageTargetWidth = 0;
