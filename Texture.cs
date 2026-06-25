@@ -15,7 +15,8 @@ namespace Smartphone
         public static Texture2D PhoneEmpty;
         public static Texture2D Background;
         public static Texture2D GroupBackground;
-        public static Texture2D CardTexture; // Universal UI card element background texture
+        public static Texture2D CardTexture;
+        public static Texture2D DockedMenuBackground;
 
         public static Texture2D AppCamera;
         public static Texture2D AppPhoto;
@@ -25,7 +26,7 @@ namespace Smartphone
         public static Texture2D AppCalendar;
 
         // In-memory cache to keep CPU/RAM footprint flat and eliminate draw-loop lag
-        private static readonly Dictionary<string, Texture2D> AppTextureCache = new(StringComparer.OrdinalIgnoreCase);
+        public static readonly Dictionary<string, Texture2D> AppTextureCache = new(StringComparer.OrdinalIgnoreCase);
 
         public static void LoadTextures()
         {
@@ -41,6 +42,7 @@ namespace Smartphone
                 Background = TryLoadWithFallback(Path.Combine(phonePath, "background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "background.png"));
                 GroupBackground = TryLoadWithFallback(Path.Combine(phonePath, "group_background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "group_background.png"));
                 CardTexture = TryLoadWithFallback(Path.Combine(phonePath, "card_texture.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "card_texture.png"));
+                DockedMenuBackground = TryLoadWithFallback(Path.Combine(phonePath, "docked_menu.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "docked_menu.png"));
 
                 // Pre-populate standard 1x1 slots
                 AppCamera = GetAppTexture("builtin:camera", AppSize.Size1x1);

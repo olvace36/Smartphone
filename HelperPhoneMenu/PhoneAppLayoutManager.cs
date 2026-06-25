@@ -43,7 +43,8 @@ namespace Smartphone
         ChangeSize3x2,
         ChangeSize4x2,
         ChangeSize4x3,
-        ChangeSize4x4
+        ChangeSize4x4,
+        SelectTheme
     }
 
     internal sealed class PhoneAppLayoutManager
@@ -52,17 +53,17 @@ namespace Smartphone
 
         // Grid Geometry
         private const int GridCols = 4;
-        private const int GridRows = 5;
+        private const int GridRows = 6;
         private const int GridCellSize = 114;
-        private const int GridStartX = 23;
-        private const int GridStartY = 50;
-        private const int GridPadding = 6;
+        private const int GridStartX = 32;
+        private const int GridStartY = 3;
+        private const int GridPadding = 0;
 
         // Dock Geometry
         private const int DockCellSize = 96;
         private const int DockPadding = 8;
         private const int DockCols = 4;
-        private const int DockStartY = 702;
+        private const int DockStartY = 708;
 
         private const int GridIconPadding = 14;
         private const int DockIconPadding = 4;
@@ -72,12 +73,12 @@ namespace Smartphone
 
         // UI Header Controls
         private const int DoneButtonX = 350;
-        private const int DoneButtonY = 12;
+        private const int DoneButtonY = 0;
         private const int DoneButtonW = 115;
         private const int DoneButtonH = 36;
 
         private const int ResetButtonX = 55;
-        private const int ResetButtonY = 12;
+        private const int ResetButtonY = 0;
         private const int ResetButtonW = 115;
         private const int ResetButtonH = 36;
 
@@ -98,6 +99,9 @@ namespace Smartphone
         private AppSize _dragAppSize;
         private int _dragMouseX, _dragMouseY;
         private LayoutItem? _draggedItem;
+
+        // theme option
+        private bool _isDropdownShowingThemes;
 
         private bool _hoverIsOnIcon;
         private bool _hoverIsOnGap;
@@ -159,6 +163,7 @@ namespace Smartphone
             _dropdownOpen = false;
             _openFolder = null;
             _isEditingFolderName = false;
+            _isDropdownShowingThemes = false;
         }
 
         public void ExitReorderMode()
@@ -389,7 +394,34 @@ namespace Smartphone
                 }
                 else
                 {
+                    // Check if the user is clicking the EXACT same app icon that the dropdown is open for
+                    if (_dropdownForMainIndex >= 0 && _currentPage >= 0 && _currentPage < _pages.Count)
+                    {
+                        var page = _pages[_currentPage];
+                        if (_dropdownForMainIndex < page.Count)
+                        {
+                            var item = page[_dropdownForMainIndex];
+                            // Check if the cursor coordinates are inside the app icon's bounding hitbox
+                            if (_mainClickBounds.TryGetValue(item.AppId + "_" + _dropdownForMainIndex, out Rectangle appBounds) && appBounds.Contains(x, y))
+                            {
+                                // If we aren't already viewing themes, transition to the texture selection view
+                                if (!_isDropdownShowingThemes)
+                                {
+                                    _isDropdownShowingThemes = true;
+                                    List<HomeAppEntryProxy> allApps = BuildAllAppsSnapshot();
+                                    HomeAppEntryProxy? app = FindApp(allApps, item.AppId);
+
+                                    BuildThemeDropdownItems(appBounds, app);
+                                    Game1.playSound("smallSelect");
+                                    return true; // Consume the click and remain open
+                                }
+                            }
+                        }
+                    }
+
+                    // Otherwise, clicking completely outside closes the menu entirely
                     _dropdownOpen = false;
+                    _isDropdownShowingThemes = false;
                 }
                 return true;
             }
@@ -968,8 +1000,16 @@ namespace Smartphone
         private void DrawDock(SpriteBatch b, List<HomeAppEntryProxy> allApps)
         {
             Rectangle contentRect = _menu.GetPhoneContentBounds();
-            Rectangle dockBgRect = new Rectangle(contentRect.X, contentRect.Y + ScaleUi(690), contentRect.Width, ScaleUi(120));
-            b.Draw(Game1.staminaRect, dockBgRect, new Color(80, 80, 80, 180));
+            Rectangle dockBgRect = new Rectangle(contentRect.X, contentRect.Y + ScaleUi(702), contentRect.Width, ScaleUi(108));
+
+            if (Textures.DockedMenuBackground != null)
+            {
+                b.Draw(Textures.DockedMenuBackground, dockBgRect, Color.White);
+            }
+            else
+            {
+                b.Draw(Game1.staminaRect, dockBgRect, new Color(80, 80, 80, 180));
+            }
 
             int count = _dock.Count;
             int displayCount = Math.Max(1, count);
@@ -1460,10 +1500,43 @@ namespace Smartphone
                 if (item.option == DropdownOption.ChangeSize4x3) ApplySize(AppSize.Size4x3);
                 if (item.option == DropdownOption.ChangeSize4x4) ApplySize(AppSize.Size4x4);
 
+                // Handle texture sub-theme choice execution
+                if (item.option == DropdownOption.SelectTheme)
+                {
+                    ApplyTheme(_dropdownAppId!, item.label);
+                    _dropdownOpen = false;
+                    _isDropdownShowingThemes = false;
+                    return;
+                }
+
                 _dropdownOpen = false;
                 Game1.playSound("smallSelect");
                 return;
             }
+        }
+
+        private string GetThemeComponentForApp(string appId)
+        {
+            if (appId.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase))
+            {
+                return "app_" + appId.Substring("builtin:".Length);
+            }
+            return "app_" + appId.Replace(":", "_");
+        }
+
+        private void ApplyTheme(string appId, string themeName)
+        {
+            if (string.IsNullOrEmpty(appId)) return;
+            string component = GetThemeComponentForApp(appId);
+
+            // Save choice to component_themes json data manifest
+            AssetHelper.SetComponentTheme(component, themeName);
+
+            // Clear the active in-memory cache to terminate old textures references completely
+            Textures.AppTextureCache?.Clear();
+
+            // Re-bind graphics pointers immediately across the screen context
+            _menu.ReloadThemeTextures();
         }
 
         private void ApplySize(AppSize newSize)
@@ -1677,7 +1750,6 @@ namespace Smartphone
 
             if (_dragFromDock && _dragSourceIndex == _hoverDockIndex && _hoverIsOnIcon && _openFolder == null)
             {
-                _dock.Insert(Math.Clamp(_dragSourceIndex, 0, _dock.Count), _dragAppId);
                 _hoverMainIndex = -1; _hoverDockIndex = -1; _hoverCellCol = -1; _hoverCellRow = -1;
                 return;
             }
@@ -2056,6 +2128,46 @@ namespace Smartphone
         {
             if (string.IsNullOrEmpty(id)) return null;
             return apps.FirstOrDefault(a => string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
+        }
+
+
+
+        private void BuildThemeDropdownItems(Rectangle anchorBounds, HomeAppEntryProxy? app)
+        {
+            _dropdownItems.Clear();
+            if (app == null) return;
+
+            string component = GetThemeComponentForApp(app.Id);
+            List<string> themes = new() { "default" };
+
+            // Scan your phone_themes folder for any component-specific styles
+            string themeComponentDir = Path.Combine(ModEntry.Instance.Helper.DirectoryPath, "phone_themes", component);
+            if (Directory.Exists(themeComponentDir))
+            {
+                foreach (string dir in Directory.GetDirectories(themeComponentDir))
+                {
+                    string name = Path.GetFileName(dir);
+                    if (!string.Equals(name, "default", StringComparison.OrdinalIgnoreCase))
+                    {
+                        themes.Add(name);
+                    }
+                }
+            }
+
+            int itemH = ScaleUi(32), itemW = ScaleUi(140);
+            int x = anchorBounds.X, y = anchorBounds.Bottom + ScaleUi(4);
+
+            // Dynamic viewport bounding protection so choices don't bleed past the bottom phone edge
+            Rectangle contentBounds = _menu.GetPhoneContentBounds();
+            if (y + themes.Count * (itemH + ScaleUi(2)) > contentBounds.Bottom)
+            {
+                y = anchorBounds.Top - themes.Count * (itemH + ScaleUi(2)) - ScaleUi(4);
+            }
+
+            for (int i = 0; i < themes.Count; i++)
+            {
+                _dropdownItems.Add((DropdownOption.SelectTheme, new Rectangle(x, y + i * (itemH + ScaleUi(2)), itemW, itemH), themes[i]));
+            }
         }
     }
 
