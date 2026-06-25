@@ -36,8 +36,8 @@ namespace Smartphone
             {
                 string phonePath = AssetHelper.GetComponentThemeFolderPath("phone");
 
-                PhoneEmpty = TryLoadWithFallback(Path.Combine(phonePath, "default.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "default.png"));
-                PhoneBackground = TryLoadWithFallback(Path.Combine(phonePath, "default_background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "default_background.png"));
+                PhoneEmpty = TryLoadWithFallback(Path.Combine(phonePath, "phone_edge.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "phone_edge.png"));
+                PhoneBackground = TryLoadWithFallback(Path.Combine(phonePath, "phone_screen.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "phone_screen.png"));
                 Background = TryLoadWithFallback(Path.Combine(phonePath, "background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "background.png"));
                 GroupBackground = TryLoadWithFallback(Path.Combine(phonePath, "group_background.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "group_background.png"));
                 CardTexture = TryLoadWithFallback(Path.Combine(phonePath, "card_texture.png"), Path.Combine(AssetHelper.GetPhoneThemesRootPath(), "phone", "default", "card_texture.png"));

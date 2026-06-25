@@ -170,8 +170,8 @@ public class AssetHelper
 
     public class ImagesConstants
     {
-        public const string PhoneBackground = "default_background.png";
-        public const string PhoneEmpty = "default.png";
+        public const string PhoneBackground = "phone_screen.png";
+        public const string PhoneEmpty = "phone_edge.png";
         public const string Background = "background.png";
 
         public const string AppCamera = "1x1.png";
