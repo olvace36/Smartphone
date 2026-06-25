@@ -132,65 +132,71 @@ namespace Smartphone
             int centerBandBottom = Math.Clamp(phoneRect.Bottom, 0, viewportHeight);
             int centerBandHeight = Math.Max(0, centerBandBottom - centerBandY);
 
-            if (topShadeHeight > 0)
-                b.Draw(Game1.staminaRect, new Rectangle(0, 0, viewportWidth, topShadeHeight), Color.Black * 0.4f);
-            if (bottomShadeHeight > 0)
-                b.Draw(Game1.staminaRect, new Rectangle(0, bottomShadeY, viewportWidth, bottomShadeHeight), Color.Black * 0.4f);
-            if (leftShadeWidth > 0 && centerBandHeight > 0)
-                b.Draw(Game1.staminaRect, new Rectangle(0, centerBandY, leftShadeWidth, centerBandHeight), Color.Black * 0.4f);
-            if (rightShadeWidth > 0 && centerBandHeight > 0)
-                b.Draw(Game1.staminaRect, new Rectangle(rightShadeX, centerBandY, rightShadeWidth, centerBandHeight), Color.Black * 0.4f);
-
-            Rectangle topShade = Rectangle.Intersect(
-                new Rectangle(phoneRect.X, phoneRect.Y, phoneRect.Width, Math.Max(0, captureRect.Y - phoneRect.Y)),
-                phoneRect);
-            Rectangle bottomShade = Rectangle.Intersect(
-                new Rectangle(phoneRect.X, captureRect.Bottom, phoneRect.Width, Math.Max(0, phoneRect.Bottom - captureRect.Bottom)),
-                phoneRect);
-            Rectangle leftCaptureShade = Rectangle.Intersect(
-                new Rectangle(phoneRect.X, captureRect.Y, Math.Max(0, captureRect.X - phoneRect.X), captureRect.Height),
-                phoneRect);
-            Rectangle rightCaptureShade = Rectangle.Intersect(
-                new Rectangle(captureRect.Right, captureRect.Y, Math.Max(0, phoneRect.Right - captureRect.Right), captureRect.Height),
-                phoneRect);
-
-            if (topShade.Width > 0 && topShade.Height > 0)
-                b.Draw(Game1.staminaRect, topShade, Color.Black * 0.35f);
-            if (bottomShade.Width > 0 && bottomShade.Height > 0)
-                b.Draw(Game1.staminaRect, bottomShade, Color.Black * 0.35f);
-            if (leftCaptureShade.Width > 0 && leftCaptureShade.Height > 0)
-                b.Draw(Game1.staminaRect, leftCaptureShade, Color.Black * 0.35f);
-            if (rightCaptureShade.Width > 0 && rightCaptureShade.Height > 0)
-                b.Draw(Game1.staminaRect, rightCaptureShade, Color.Black * 0.35f);
-
-            if (ModEntry.cameraLandscapeMode)
+            if (!hideCameraOverlayButtons)
             {
-                Matrix landscapeTransform = CreateCameraLandscapeRotationMatrix();
+                if (topShadeHeight > 0)
+                    b.Draw(Game1.staminaRect, new Rectangle(0, 0, viewportWidth, topShadeHeight), Color.Black * 0.4f);
+                if (bottomShadeHeight > 0)
+                    b.Draw(Game1.staminaRect, new Rectangle(0, bottomShadeY, viewportWidth, bottomShadeHeight), Color.Black * 0.4f);
+                if (leftShadeWidth > 0 && centerBandHeight > 0)
+                    b.Draw(Game1.staminaRect, new Rectangle(0, centerBandY, leftShadeWidth, centerBandHeight), Color.Black * 0.4f);
+                if (rightShadeWidth > 0 && centerBandHeight > 0)
+                    b.Draw(Game1.staminaRect, new Rectangle(rightShadeX, centerBandY, rightShadeWidth, centerBandHeight), Color.Black * 0.4f);
 
-                b.End();
-                b.Begin(
-                    SpriteSortMode.Deferred,
-                    BlendState.AlphaBlend,
-                    SamplerState.PointClamp,
-                    null,
-                    null,
-                    null,
-                    landscapeTransform);
+                Rectangle topShade = Rectangle.Intersect(
+                    new Rectangle(phoneRect.X, phoneRect.Y, phoneRect.Width, Math.Max(0, captureRect.Y - phoneRect.Y)),
+                    phoneRect);
+                Rectangle bottomShade = Rectangle.Intersect(
+                    new Rectangle(phoneRect.X, captureRect.Bottom, phoneRect.Width, Math.Max(0, phoneRect.Bottom - captureRect.Bottom)),
+                    phoneRect);
+                Rectangle leftCaptureShade = Rectangle.Intersect(
+                    new Rectangle(phoneRect.X, captureRect.Y, Math.Max(0, captureRect.X - phoneRect.X), captureRect.Height),
+                    phoneRect);
+                Rectangle rightCaptureShade = Rectangle.Intersect(
+                    new Rectangle(captureRect.Right, captureRect.Y, Math.Max(0, phoneRect.Right - captureRect.Right), captureRect.Height),
+                    phoneRect);
 
-                DrawPhoneFrame(b);
-                backButton.draw(b, Color.Tan, 1f);
-                lockButton.draw(b, Color.Tan, 1f);
-                homeButton.draw(b, Color.Tan, 1f);
-
-                b.End();
-                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+                if (topShade.Width > 0 && topShade.Height > 0)
+                    b.Draw(Game1.staminaRect, topShade, Color.Black * 0.35f);
+                if (bottomShade.Width > 0 && bottomShade.Height > 0)
+                    b.Draw(Game1.staminaRect, bottomShade, Color.Black * 0.35f);
+                if (leftCaptureShade.Width > 0 && leftCaptureShade.Height > 0)
+                    b.Draw(Game1.staminaRect, leftCaptureShade, Color.Black * 0.35f);
+                if (rightCaptureShade.Width > 0 && rightCaptureShade.Height > 0)
+                    b.Draw(Game1.staminaRect, rightCaptureShade, Color.Black * 0.35f);
             }
-            else
+
+            if (!hideCameraOverlayButtons)
             {
-                DrawPhoneFrame(b);
-                backButton.draw(b, Color.Tan, 1f);
-                lockButton.draw(b, Color.Tan, 1f);
-                homeButton.draw(b, Color.Tan, 1f);
+                if (ModEntry.cameraLandscapeMode)
+                {
+                    Matrix landscapeTransform = CreateCameraLandscapeRotationMatrix();
+
+                    b.End();
+                    b.Begin(
+                        SpriteSortMode.Deferred,
+                        BlendState.AlphaBlend,
+                        SamplerState.PointClamp,
+                        null,
+                        null,
+                        null,
+                        landscapeTransform);
+
+                    DrawPhoneFrame(b);
+                    backButton.draw(b, Color.Tan, 1f);
+                    lockButton.draw(b, Color.Tan, 1f);
+                    homeButton.draw(b, Color.Tan, 1f);
+
+                    b.End();
+                    b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+                }
+                else
+                {
+                    DrawPhoneFrame(b);
+                    backButton.draw(b, Color.Tan, 1f);
+                    lockButton.draw(b, Color.Tan, 1f);
+                    homeButton.draw(b, Color.Tan, 1f);
+                }
             }
 
             if (!hideCameraOverlayButtons)
@@ -206,7 +212,11 @@ namespace Smartphone
                 DrawCameraControlButton(b, cameraSquareButtonBounds, CameraSquareButtonLabel, ModEntry.cameraSquareMode);
             }
 
-            DrawCaptureOutline(b, captureRect, new Color(255, 255, 255, 220));
+            if (!hideCameraOverlayButtons)
+            {
+                DrawCaptureOutline(b, captureRect, new Color(255, 255, 255, 220));
+            }
+
             DrawCameraCaptureFlash(b, phoneRect);
         }
 

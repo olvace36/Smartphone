@@ -105,10 +105,10 @@ namespace Smartphone
             try
             {
                 // 4. Compute UI-scale adaptive metrics using native font scale limits
-                float baseTextScale = GetPhoneTextScale();
-                float textScaleDate = GetPhoneTextScale(0.90f);
-                float textScaleSub = GetPhoneTextScale(0.8f);
-                float textScaleEvent = GetPhoneTextScale(0.7f);
+                float baseTextScale = GetPhoneTextScale() * phoneUiScale;
+                float textScaleDate = GetPhoneTextScale(0.90f) * phoneUiScale;
+                float textScaleSub = GetPhoneTextScale(0.8f) * phoneUiScale;
+                float textScaleEvent = GetPhoneTextScale(0.7f) * phoneUiScale;
 
                 float spacing = 3f * baseTextScale;
                 float paddingRight = 22f * baseTextScale;

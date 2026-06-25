@@ -197,18 +197,19 @@ namespace Smartphone
             b.Draw(photoWidgetRenderTarget, rect, new Rectangle(0, 0, width, height), Color.White);
         }
 
-        /// <summary>Draws a beautifully centered, solid black notification string inside the widget boundaries.</summary>
         private static void DrawNoPhotoText(SpriteBatch b, Rectangle rect)
         {
             string message = "No photo yet";
-            Vector2 textSize = Game1.smallFont.MeasureString(message);
+            float uiScale = ModEntry.GetActivePhoneUiScale();
+            float scale = 1.0f * uiScale;
+            Vector2 textSize = Game1.smallFont.MeasureString(message) * scale;
 
             Vector2 position = new Vector2(
                 rect.X + (rect.Width - textSize.X) / 2f,
                 rect.Y + (rect.Height - textSize.Y) / 2f
             );
 
-            b.DrawString(Game1.smallFont, message, position, Color.Black);
+            b.DrawString(Game1.smallFont, message, position, Color.Black, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
         }
 
         /// <summary>
