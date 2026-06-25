@@ -480,5 +480,26 @@ namespace Smartphone
             phoneMenu.OpenPhotoApp();
             Game1.activeClickableMenu = phoneMenu;
         }
+
+        public static async void LaunchNpcPhoneDialogue(NPC npc)
+        {
+            var dialogueStack = npc.CurrentDialogue;
+
+            if (dialogueStack != null && dialogueStack.Count > 0)
+            {
+                while (dialogueStack.Count > 0)
+                {
+                    if (Game1.activeClickableMenu == null)
+                    {
+                        Game1.drawDialogue(npc);
+                    }
+                    await System.Threading.Tasks.Task.Delay(50);
+                }
+            }
+            else
+            {
+                Game1.activeClickableMenu = new DialogueBox($"{npc.displayName}: Hello! Thanks for calling.");
+            }
+        }
     }
 }

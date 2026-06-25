@@ -8,7 +8,6 @@ using Microsoft.Xna.Framework.Input;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
-using StardewValley.GameData.Shops;
 
 namespace Smartphone
 {
@@ -509,61 +508,13 @@ namespace Smartphone
                 NPC targetNpc = Game1.getCharacterFromName(name);
                 if (targetNpc != null)
                 {
-                    if (name == "Robin" || name == "Clint" || name == "Pierre" || name == "Marnie" || name == "Gus" || name == "Marlon")
-                    {
-                        List<Response> options = new List<Response>
-                        {
-                            new Response("chat", "Chat"),
-                            new Response("shop", "Check Store Inventory"),
-                            new Response("hang", "Hang Up")
-                        };
-                        // Fix 1: Evaluated lower-case npc.displayName localization mapping property
-                        Game1.currentLocation.createQuestionDialogue($"Calling {targetNpc.displayName}...", options.ToArray(), (farmer, answer) =>
-                        {
-                            if (answer == "chat")
-                            {
-                                LaunchNpcPhoneDialogue(targetNpc);
-                            }
-                            else if (answer == "shop")
-                            {
-                                string stringShopId = name switch
-                                {
-                                    "Robin" => "Carpenter",
-                                    "Clint" => "Blacksmith",
-                                    "Marnie" => "AnimalShop",
-                                    "Gus" => "Saloon",
-                                    "Marlon" => "AdventureGuild",
-                                    _ => "SeedShop"
-                                };
-
-                                // Fix 2: Loaded dynamic Data/Shops assets using DataLoader matching vanilla 1.6 definitions 
-                                var shops = DataLoader.Shops(Game1.content);
-                                if (shops != null && shops.TryGetValue(stringShopId, out var shopData))
-                                {
-                                    var ownerData = (shopData.Owners != null && shopData.Owners.Count > 0) ? shopData.Owners[0] : null;
-                                    Game1.activeClickableMenu = new ShopMenu(stringShopId, shopData, ownerData, targetNpc);
-                                }
-                            }
-                        });
-                    }
-                    else
-                    {
-                        LaunchNpcPhoneDialogue(targetNpc);
-                    }
+                    ModEntry.LaunchNpcPhoneDialogue(targetNpc);
                 }
             }
             else
             {
                 Game1.activeClickableMenu = new DialogueBox($"Calling {name} ({number})... No answer available.");
             }
-        }
-
-        private void LaunchNpcPhoneDialogue(NPC npc)
-        {
-            // if (npc.CurrentDialogue.Count == 0) npc.loadCurrentDialogue();
-            if (npc.CurrentDialogue.Count > 0) Game1.drawDialogue(npc);
-            // Fix 1: Evaluated lower-case npc.displayName localization mapping property
-            else Game1.activeClickableMenu = new DialogueBox($"{npc.displayName}: Hello! Thanks for calling.");
         }
 
         public void ReceiveScrollWheelActionPhoneApp(int direction)
