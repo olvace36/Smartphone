@@ -65,6 +65,7 @@ namespace Smartphone
         private int hudPhoneBackgroundImageTargetWidth = 0;
         private int hudPhoneBackgroundImageTargetHeight = 0;
 
+        private NPC lastSpeaker = null;
         // *************************** ENTRY ***************************
         //
 
@@ -88,6 +89,7 @@ namespace Smartphone
             helper.Events.GameLoop.GameLaunched += OnGameLauched;
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
             helper.Events.GameLoop.Saving += OnSaving;
+            helper.Events.Display.MenuChanged += OnMenuChanged;
             helper.Events.GameLoop.TimeChanged += OnTimeChange;
             helper.Events.GameLoop.DayStarted += OnDayStarted;
             helper.Events.GameLoop.ReturnedToTitle += OnReturnedToTitle;
@@ -103,6 +105,45 @@ namespace Smartphone
         }
 
 
+
+        private void OnMenuChanged(object sender, MenuChangedEventArgs e)
+        {
+            // Check if the newly opened menu is a Dialogue Box
+            if (e.NewMenu is DialogueBox dialogueBox)
+            {
+                NPC speaker = Game1.currentSpeaker;
+                if (speaker == null) return;
+                lastSpeaker = speaker;
+
+            }
+
+            if (e.OldMenu is DialogueBox && lastSpeaker != null)
+            {
+
+
+                string npcName = lastSpeaker.Name;
+
+                NPC speaker = lastSpeaker;
+
+                int requiredHearts = 4;
+                int currentHearts = Game1.player.getFriendshipLevelForNPC(npcName);
+
+                string phoneFlag = $"YourModID_HasPhone_{npcName}";
+
+                if (currentHearts >= requiredHearts && !Game1.player.mailReceived.Contains(phoneFlag) && !speaker.CurrentDialogue.Any())
+                {
+                    Game1.chatBox.addErrorMessage("added");
+                    Game1.player.mailReceived.Add(phoneFlag);
+
+                    string customDialogue = $"Hey {Game1.player.Name}! Since we're becoming such good friends, here is my phone number. Feel free to call me anytime! #$e#";
+
+                    speaker.CurrentDialogue.Push(new Dialogue(speaker, "asd", customDialogue));
+
+                    // 4. Force the dialogue box to refresh and show your new text
+                    Game1.activeClickableMenu = new DialogueBox(speaker.CurrentDialogue.Pop());
+                }
+            }
+        }
 
 
 

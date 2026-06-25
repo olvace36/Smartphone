@@ -88,6 +88,7 @@ namespace Smartphone
         private const string BuiltinAppPhotoId = "builtin:photo";
         private const string BuiltinAppSettingId = "builtin:setting";
         private const string BuiltinAppCalendarId = "builtin:calendar";
+        private const string BuiltinAppPhoneId = "builtin:phone";
 
         // Legacy paging constants (kept for lock screen and other legacy uses)
         private const int HomeAppsPerPage = 20;
@@ -367,6 +368,10 @@ namespace Smartphone
             {
                 DrawNotificationApp(b);
             }
+            else if (currentApp == "appPhone")
+            {
+                DrawPhoneApp(b);
+            }
 
 
             // base
@@ -597,29 +602,24 @@ namespace Smartphone
                 ReceiveLeftClickCameraApp(x, y);
                 return;
             }
-
-            if (currentApp == "appPhoto")
+            else if (currentApp == "appPhoto")
             {
                 ReceiveLeftClickPhotoApp(x, y);
                 return;
             }
-
-
             else if (currentApp == "appNotification")
             {
                 if (ReceiveLeftClickNotificationApp(x, y))
                     return;
             }
-
-
-
-
-
-
-
             else if (currentApp == "appSetting")
             {
                 ReceiveLeftClickSettingApp(x, y);
+                return;
+            }
+            else if (currentApp == "appPhone")
+            {
+                ReceiveLeftClickPhoneApp(x, y);
                 return;
             }
 
@@ -648,6 +648,10 @@ namespace Smartphone
             else if (currentApp == "appNotification")
             {
                 ReceiveScrollWheelActionNotificationApp(direction);
+            }
+            else if (currentApp == "appPhone")
+            {
+                ReceiveScrollWheelActionPhoneApp(direction);
             }
         }
 
@@ -678,6 +682,12 @@ namespace Smartphone
             {
                 if (HandlePhotoAlbumNameKeyPress(key))
                     return;
+            }
+
+            if (currentApp == "appPhone")
+            {
+                HandlePhoneAppKeyPress(key);
+                return;
             }
         }
 
@@ -1055,6 +1065,12 @@ namespace Smartphone
                     Id = BuiltinAppCalendarId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.calendar.name"),
                     IconTexture = textureAppCalendar
+                },
+                new HomeAppEntry
+                {
+                    Id = BuiltinAppPhoneId,
+                    DisplayName = "Phone",
+                    IconTexture = Textures.GetAppTexture(BuiltinAppPhoneId, AppSize.Size1x1)
                 }
             };
 
@@ -1126,6 +1142,14 @@ namespace Smartphone
                     IconTexture = textureAppCalendar,
                     OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppCalendarId, rect, size),
                     SupportedSizes = new List<AppSize> { AppSize.Size1x1, AppSize.Size2x2, AppSize.Size4x2 }
+                },
+                new HomeAppEntryProxy
+                {
+                    Id = BuiltinAppPhoneId,
+                    DisplayName = "Phone",
+                    IconTexture = Textures.GetAppTexture(BuiltinAppPhoneId, AppSize.Size1x1),
+                    OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppPhoneId, rect, size),
+                    SupportedSizes = new List<AppSize> { AppSize.Size1x1, AppSize.Size2x2 }
                 }
             };
 
@@ -1227,7 +1251,12 @@ namespace Smartphone
                     ClosePhoneMenu();
                     Game1.activeClickableMenu = new Billboard();
                     return true;
-
+                case BuiltinAppPhoneId:
+                    phoneAppCurrentTab = 0; // Default landing: Contacts
+                    phoneAppIsAddingContact = false;
+                    phoneAppKeypadBuffer = "";
+                    currentApp = "appPhone";
+                    return true;
                 default:
                     return ModEntry.TryInvokeRegisteredPhoneApp(appId, this);
             }
@@ -1380,6 +1409,17 @@ namespace Smartphone
 
             if (currentApp != null)
             {
+                currentApp = null;
+                return true;
+            }
+            if (currentApp == "appPhone")
+            {
+                if (phoneAppIsAddingContact)
+                {
+                    phoneAppIsAddingContact = false;
+                    Game1.playSound("cancel");
+                    return true;
+                }
                 currentApp = null;
                 return true;
             }
