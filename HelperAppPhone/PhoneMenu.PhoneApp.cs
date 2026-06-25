@@ -18,11 +18,20 @@ namespace Smartphone
         private int phoneAppContactsScroll = 0;
         private int phoneAppRecentsScroll = 0;
         private string phoneAppKeypadBuffer = "";
+
+        // Form & Configuration Navigation States
         private bool phoneAppIsAddingContact = false;
+        private bool phoneAppIsEditingContacts = false;
+        private bool phoneAppIsEditingExistingContact = false;
+        private bool phoneAppIsConfirmingDelete = false;
+
+        private int phoneAppEditingContactIndex = -1;
+        private int phoneAppDeletingContactIndex = -1;
+        private int phoneAppActiveField = 0; // 0 = Name, 1 = Number
         private string phoneAppNewContactName = "";
 
         private List<RecentCall> phoneAppRecentCalls = new();
-        private List<CustomContact> phoneAppCustomContacts = new();
+        private List<Contact> phoneAppContacts = new();
         private bool phoneAppDataLoaded = false;
 
         public class RecentCall
@@ -32,7 +41,7 @@ namespace Smartphone
             public string TimeText { get; set; } = "";
         }
 
-        public class CustomContact
+        public class Contact
         {
             public string Name { get; set; } = "";
             public string Number { get; set; } = "";
@@ -43,6 +52,7 @@ namespace Smartphone
             public string Name { get; set; } = "";
             public string Number { get; set; } = "";
             public bool IsNpc { get; set; }
+            public Contact OriginalContact { get; set; }
         }
 
         private void EnsurePhoneAppDataLoaded()
@@ -62,8 +72,11 @@ namespace Smartphone
 
                     if (data["RecentCalls"] != null)
                         phoneAppRecentCalls = data["RecentCalls"].ToObject<List<RecentCall>>() ?? new();
-                    if (data["CustomContacts"] != null)
-                        phoneAppCustomContacts = data["CustomContacts"].ToObject<List<CustomContact>>() ?? new();
+
+                    if (data["Contacts"] != null)
+                        phoneAppContacts = data["Contacts"].ToObject<List<Contact>>() ?? new();
+                    else if (data["CustomContacts"] != null)
+                        phoneAppContacts = data["CustomContacts"].ToObject<List<Contact>>() ?? new();
                 }
             }
             catch (Exception ex)
@@ -80,7 +93,7 @@ namespace Smartphone
                 Directory.CreateDirectory(folderPath);
                 string filePath = Path.Combine(folderPath, "phone_app_data.json");
 
-                var data = new { RecentCalls = phoneAppRecentCalls, CustomContacts = phoneAppCustomContacts };
+                var data = new { RecentCalls = phoneAppRecentCalls, Contacts = phoneAppContacts };
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(data, Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(filePath, json);
             }
@@ -95,23 +108,31 @@ namespace Smartphone
             EnsurePhoneAppDataLoaded();
             var list = new List<ContactItem>();
 
-            foreach (var contact in phoneAppCustomContacts)
+            foreach (var contact in phoneAppContacts)
             {
-                list.Add(new ContactItem { Name = contact.Name, Number = contact.Number, IsNpc = false });
+                bool isNpc = ModEntry.NpcNumbers.ContainsKey(contact.Number);
+                list.Add(new ContactItem
+                {
+                    Name = contact.Name,
+                    Number = contact.Number,
+                    IsNpc = isNpc,
+                    OriginalContact = contact
+                });
             }
 
-            foreach (var npc in Utility.getAllCharacters())
+            return list.OrderBy(c =>
             {
-                if (npc != null && npc.CanSocialize && !string.IsNullOrWhiteSpace(npc.Name))
+                string nameText = c.Name;
+                if (c.IsNpc && ModEntry.NpcNumbers.TryGetValue(c.Number, out string npcInternal))
                 {
-                    if (!list.Any(i => i.IsNpc && i.Name == npc.Name))
+                    if (string.Equals(c.Name, npcInternal, StringComparison.OrdinalIgnoreCase))
                     {
-                        list.Add(new ContactItem { Name = npc.Name, Number = npc.Name, IsNpc = true });
+                        var character = Game1.getCharacterFromName(npcInternal);
+                        if (character != null) nameText = character.displayName;
                     }
                 }
-            }
-
-            return list.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                return nameText;
+            }, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         public void DrawPhoneApp(SpriteBatch b)
@@ -119,10 +140,7 @@ namespace Smartphone
             EnsurePhoneAppDataLoaded();
             Rectangle bounds = GetPhoneContentBounds();
 
-            // Guarantee background black overlay transparency matrix context matching vanilla
             b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.45f);
-
-            // Draw baseline screen backgrounds
             DrawPhoneScreenBackground(b, 0, applyBackgroundImage: true);
 
             int headerHeight = ScaleUiValue(60);
@@ -131,13 +149,25 @@ namespace Smartphone
             int contentHeight = bounds.Height - headerHeight - tabHeight - ScaleUiValue(10);
             Rectangle clipArea = new Rectangle(bounds.X, contentY, bounds.Width, contentHeight);
 
-            // --- HEADER ---
+            // --- HEADER TITLE PROCESSING ---
             string title = phoneAppCurrentTab == 0 ? "Contacts" : (phoneAppCurrentTab == 1 ? "Recents" : "Keypad");
             if (phoneAppIsAddingContact) title = "New Contact";
+            if (phoneAppIsEditingExistingContact) title = "Edit Contact";
 
             Vector2 titleSize = Game1.dialogueFont.MeasureString(title) * 0.55f;
             b.DrawString(Game1.dialogueFont, title, new Vector2(bounds.X + (bounds.Width - titleSize.X) / 2, bounds.Y + ScaleUiValue(12)), Color.Black, 0f, Vector2.Zero, 0.55f, SpriteEffects.None, 1f);
             b.Draw(Game1.staminaRect, new Rectangle(bounds.X, bounds.Y + headerHeight, bounds.Width, ScaleUiValue(2)), Color.LightGray);
+
+            // --- HEADERS ACTION DRAW BUTTONS ---
+            Rectangle editToggleBtn = new Rectangle(bounds.Right - ScaleUiValue(85), bounds.Y + ScaleUiValue(12), ScaleUiValue(70), ScaleUiValue(35));
+            if (phoneAppCurrentTab == 0 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact && !phoneAppIsConfirmingDelete)
+            {
+                Color btnColor = phoneAppIsEditingContacts ? Color.LightGreen : Color.LightGray;
+                Textures.DrawCard(b, editToggleBtn.X, editToggleBtn.Y, editToggleBtn.Width, editToggleBtn.Height, btnColor);
+                string btnText = phoneAppIsEditingContacts ? "Done" : "Edit";
+                Vector2 sz = Game1.smallFont.MeasureString(btnText) * 0.75f;
+                b.DrawString(Game1.smallFont, btnText, new Vector2(editToggleBtn.X + (editToggleBtn.Width - sz.X) / 2, editToggleBtn.Y + (editToggleBtn.Height - sz.Y) / 2), Color.Black, 0f, Vector2.Zero, 0.75f, SpriteEffects.None, 1f);
+            }
 
             // --- BOTTOM TAB BAR LAYOUT ---
             Rectangle tabBackground = new Rectangle(bounds.X, bounds.Y + bounds.Height - tabHeight, bounds.Width, tabHeight);
@@ -162,75 +192,157 @@ namespace Smartphone
 
             if (phoneAppCurrentTab == 0 || phoneAppCurrentTab == 1)
             {
-                // Hardware Scissor Viewport Restriction Matrix Processing Layers
-                Rectangle originalScissor = b.GraphicsDevice.ScissorRectangle;
-                b.End();
-
-                RasterizerState scissorState = new RasterizerState { ScissorTestEnable = true };
-                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, scissorState);
-                b.GraphicsDevice.ScissorRectangle = Rectangle.Intersect(originalScissor, clipArea);
-
-                if (phoneAppCurrentTab == 0) // Contacts View
+                if (phoneAppIsConfirmingDelete)
                 {
-                    var contacts = GetSortedContacts();
-                    int currentY = contentY - phoneAppContactsScroll;
-                    foreach (var contact in contacts)
-                    {
-                        Rectangle cardRect = new Rectangle(bounds.X + ScaleUiValue(15), currentY, bounds.Width - ScaleUiValue(30), rowHeight);
-                        Textures.DrawCard(b, cardRect.X, cardRect.Y, cardRect.Width, cardRect.Height, Color.White * 0.85f);
+                    Rectangle confBox = new Rectangle(bounds.X + ScaleUiValue(20), contentY + ScaleUiValue(50), bounds.Width - ScaleUiValue(40), ScaleUiValue(200));
+                    Textures.DrawCard(b, confBox.X, confBox.Y, confBox.Width, confBox.Height, Color.White);
 
-                        string displayNameStr = contact.Name;
-                        if (contact.IsNpc)
-                        {
-                            var character = Game1.getCharacterFromName(contact.Name);
-                            // Fix 1: Evaluated lower-case npc.displayName localization mapping property
-                            if (character != null) displayNameStr = character.displayName;
-                        }
+                    string confText = "Delete this contact?";
+                    Vector2 txSz = Game1.smallFont.MeasureString(confText);
+                    b.DrawString(Game1.smallFont, confText, new Vector2(confBox.X + (confBox.Width - txSz.X) / 2, confBox.Y + ScaleUiValue(30)), Color.Black);
 
-                        b.DrawString(Game1.smallFont, displayNameStr, new Vector2(cardRect.X + ScaleUiValue(15), cardRect.Y + (cardRect.Height - Game1.smallFont.LineSpacing * 0.85f) / 2), Color.Black, 0f, Vector2.Zero, 0.85f, SpriteEffects.None, 1f);
+                    Rectangle btnYes = new Rectangle(confBox.X + ScaleUiValue(20), confBox.Y + ScaleUiValue(110), confBox.Width / 2 - ScaleUiValue(30), ScaleUiValue(50));
+                    Rectangle btnNo = new Rectangle(confBox.X + confBox.Width / 2 + ScaleUiValue(10), confBox.Y + ScaleUiValue(110), confBox.Width / 2 - ScaleUiValue(30), ScaleUiValue(50));
 
-                        if (!contact.IsNpc)
-                        {
-                            Vector2 labelSize = Game1.smallFont.MeasureString(contact.Number) * 0.65f;
-                            b.DrawString(Game1.smallFont, contact.Number, new Vector2(cardRect.Right - labelSize.X - ScaleUiValue(15), cardRect.Y + (cardRect.Height - labelSize.Y) / 2), Color.Gray, 0f, Vector2.Zero, 0.65f, SpriteEffects.None, 1f);
-                        }
-                        currentY += rowHeight + ScaleUiValue(6);
-                    }
+                    Textures.DrawCard(b, btnYes.X, btnYes.Y, btnYes.Width, btnYes.Height, Color.LightCoral);
+                    Textures.DrawCard(b, btnNo.X, btnNo.Y, btnNo.Width, btnNo.Height, Color.LightGray);
+
+                    Vector2 ySz = Game1.smallFont.MeasureString("Yes") * 0.9f;
+                    Vector2 nSz = Game1.smallFont.MeasureString("No") * 0.9f;
+
+                    b.DrawString(Game1.smallFont, "Yes", new Vector2(btnYes.X + (btnYes.Width - ySz.X) / 2, btnYes.Y + (btnYes.Height - ySz.Y) / 2), Color.Black, 0f, Vector2.Zero, 0.9f, SpriteEffects.None, 1f);
+                    b.DrawString(Game1.smallFont, "No", new Vector2(btnNo.X + (btnNo.Width - nSz.X) / 2, btnNo.Y + (btnNo.Height - nSz.Y) / 2), Color.Black, 0f, Vector2.Zero, 0.9f, SpriteEffects.None, 1f);
                 }
-                else // Recents View
+                else if (phoneAppIsEditingExistingContact)
                 {
-                    int currentY = contentY - phoneAppRecentsScroll;
-                    foreach (var call in phoneAppRecentCalls)
-                    {
-                        Rectangle cardRect = new Rectangle(bounds.X + ScaleUiValue(15), currentY, bounds.Width - ScaleUiValue(30), rowHeight);
-                        Textures.DrawCard(b, cardRect.X, cardRect.Y, cardRect.Width, cardRect.Height, Color.White * 0.85f);
+                    int fX = bounds.X + ScaleUiValue(30);
+                    int fW = bounds.Width - ScaleUiValue(60);
 
-                        string nameText = call.Name;
-                        var character = Game1.getCharacterFromName(call.Name);
-                        // Fix 1: Evaluated lower-case npc.displayName localization mapping property
-                        if (character != null) nameText = character.displayName;
+                    b.DrawString(Game1.smallFont, "Edit Contact Name:", new Vector2(fX, contentY + ScaleUiValue(20)), Color.Black, 0f, Vector2.Zero, 0.95f, SpriteEffects.None, 1f);
+                    Rectangle nameFieldRect = new Rectangle(fX, contentY + ScaleUiValue(50), fW, ScaleUiValue(45));
+                    Textures.DrawCard(b, nameFieldRect.X, nameFieldRect.Y, nameFieldRect.Width, nameFieldRect.Height, phoneAppActiveField == 0 ? Color.LightCyan : Color.White);
 
-                        b.DrawString(Game1.smallFont, nameText, new Vector2(cardRect.X + ScaleUiValue(15), cardRect.Y + ScaleUiValue(6)), Color.Black, 0f, Vector2.Zero, 0.85f, SpriteEffects.None, 1f);
-                        b.DrawString(Game1.smallFont, call.TimeText, new Vector2(cardRect.X + ScaleUiValue(15), cardRect.Y + ScaleUiValue(30)), Color.Gray, 0f, Vector2.Zero, 0.65f, SpriteEffects.None, 1f);
+                    string printableName = phoneAppNewContactName;
+                    if (phoneAppActiveField == 0 && (DateTime.UtcNow.Millisecond / 500) % 2 == 0) printableName += "|";
+                    b.DrawString(Game1.smallFont, printableName, new Vector2(nameFieldRect.X + ScaleUiValue(10), nameFieldRect.Y + ScaleUiValue(12)), Color.Black, 0f, Vector2.Zero, 0.9f, SpriteEffects.None, 1f);
 
-                        if (!string.IsNullOrEmpty(call.Number) && call.Number != call.Name)
-                        {
-                            Vector2 numSize = Game1.smallFont.MeasureString(call.Number) * 0.7f;
-                            b.DrawString(Game1.smallFont, call.Number, new Vector2(cardRect.Right - numSize.X - ScaleUiValue(15), cardRect.Y + (cardRect.Height - numSize.Y) / 2), Color.DimGray, 0f, Vector2.Zero, 0.7f, SpriteEffects.None, 1f);
-                        }
-                        currentY += rowHeight + ScaleUiValue(6);
-                    }
+                    b.DrawString(Game1.smallFont, "Edit Contact Number:", new Vector2(fX, contentY + ScaleUiValue(115)), Color.Black, 0f, Vector2.Zero, 0.95f, SpriteEffects.None, 1f);
+                    Rectangle numFieldRect = new Rectangle(fX, contentY + ScaleUiValue(145), fW, ScaleUiValue(45));
+                    Textures.DrawCard(b, numFieldRect.X, numFieldRect.Y, numFieldRect.Width, numFieldRect.Height, phoneAppActiveField == 1 ? Color.LightCyan : Color.White);
 
-                    if (phoneAppRecentCalls.Count == 0)
-                    {
-                        Vector2 noCallSz = Game1.smallFont.MeasureString("No Recent Calls");
-                        b.DrawString(Game1.smallFont, "No Recent Calls", new Vector2(bounds.X + (bounds.Width - noCallSz.X) / 2, contentY + ScaleUiValue(60)), Color.Gray, 0f, Vector2.Zero, 1f, SpriteEffects.None, 1f);
-                    }
+                    string printableNum = phoneAppKeypadBuffer;
+                    if (phoneAppActiveField == 1 && (DateTime.UtcNow.Millisecond / 500) % 2 == 0) printableNum += "|";
+                    b.DrawString(Game1.smallFont, printableNum, new Vector2(numFieldRect.X + ScaleUiValue(10), numFieldRect.Y + ScaleUiValue(12)), Color.Black, 0f, Vector2.Zero, 0.9f, SpriteEffects.None, 1f);
+
+                    Rectangle btnSave = new Rectangle(fX, contentY + ScaleUiValue(225), fW / 2 - ScaleUiValue(8), ScaleUiValue(45));
+                    Rectangle btnCancel = new Rectangle(fX + fW / 2 + ScaleUiValue(8), contentY + ScaleUiValue(225), fW / 2 - ScaleUiValue(8), ScaleUiValue(45));
+
+                    Textures.DrawCard(b, btnSave.X, btnSave.Y, btnSave.Width, btnSave.Height, Color.PaleGreen);
+                    Textures.DrawCard(b, btnCancel.X, btnCancel.Y, btnCancel.Width, btnCancel.Height, Color.LightCoral);
+
+                    Vector2 sSz = Game1.smallFont.MeasureString("Save") * 0.9f;
+                    Vector2 cSz = Game1.smallFont.MeasureString("Cancel") * 0.9f;
+                    b.DrawString(Game1.smallFont, "Save", new Vector2(btnSave.X + (btnSave.Width - sSz.X) / 2, btnSave.Y + (btnSave.Height - sSz.Y) / 2), Color.Black, 0f, Vector2.Zero, 0.9f, SpriteEffects.None, 1f);
+                    b.DrawString(Game1.smallFont, "Cancel", new Vector2(btnCancel.X + (btnCancel.Width - cSz.X) / 2, btnCancel.Y + (btnCancel.Height - cSz.Y) / 2), Color.Black, 0f, Vector2.Zero, 0.9f, SpriteEffects.None, 1f);
                 }
+                else
+                {
+                    Rectangle originalScissor = b.GraphicsDevice.ScissorRectangle;
+                    b.End();
 
-                b.End();
-                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, null);
-                b.GraphicsDevice.ScissorRectangle = originalScissor;
+                    RasterizerState scissorState = new RasterizerState { ScissorTestEnable = true };
+                    b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, scissorState);
+                    b.GraphicsDevice.ScissorRectangle = Rectangle.Intersect(originalScissor, clipArea);
+
+                    if (phoneAppCurrentTab == 0) // Contacts View
+                    {
+                        var contacts = GetSortedContacts();
+                        int currentY = contentY - phoneAppContactsScroll;
+                        foreach (var contact in contacts)
+                        {
+                            Rectangle cardRect = new Rectangle(bounds.X + ScaleUiValue(15), currentY, bounds.Width - ScaleUiValue(30), rowHeight);
+                            Textures.DrawCard(b, cardRect.X, cardRect.Y, cardRect.Width, cardRect.Height, Color.White * 0.85f);
+
+                            string displayNameStr = contact.Name;
+                            if (contact.IsNpc && ModEntry.NpcNumbers.TryGetValue(contact.Number, out string npcInternalName))
+                            {
+                                if (string.Equals(contact.Name, npcInternalName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    var character = Game1.getCharacterFromName(npcInternalName);
+                                    if (character != null) displayNameStr = character.displayName;
+                                }
+                            }
+
+                            b.DrawString(Game1.smallFont, displayNameStr, new Vector2(cardRect.X + ScaleUiValue(15), cardRect.Y + (cardRect.Height - Game1.smallFont.LineSpacing * 0.85f) / 2), Color.Black, 0f, Vector2.Zero, 0.85f, SpriteEffects.None, 1f);
+
+                            if (phoneAppIsEditingContacts)
+                            {
+                                Rectangle delBtn = new Rectangle(cardRect.Right - ScaleUiValue(75), cardRect.Y + ScaleUiValue(8), ScaleUiValue(65), cardRect.Height - ScaleUiValue(16));
+                                Textures.DrawCard(b, delBtn.X, delBtn.Y, delBtn.Width, delBtn.Height, Color.Tomato);
+                                Vector2 delSz = Game1.smallFont.MeasureString("Delete") * 0.7f;
+                                b.DrawString(Game1.smallFont, "Delete", new Vector2(delBtn.X + (delBtn.Width - delSz.X) / 2, delBtn.Y + (delBtn.Height - delSz.Y) / 2), Color.White, 0f, Vector2.Zero, 0.7f, SpriteEffects.None, 1f);
+                            }
+                            else
+                            {
+                                Vector2 labelSize = Game1.smallFont.MeasureString(contact.Number) * 0.65f;
+                                b.DrawString(Game1.smallFont, contact.Number, new Vector2(cardRect.Right - labelSize.X - ScaleUiValue(15), cardRect.Y + (cardRect.Height - labelSize.Y) / 2), Color.Gray, 0f, Vector2.Zero, 0.65f, SpriteEffects.None, 1f);
+                            }
+                            currentY += rowHeight + ScaleUiValue(6);
+                        }
+
+                        if (contacts.Count == 0)
+                        {
+                            Vector2 noContactSz = Game1.smallFont.MeasureString("No Contacts Added");
+                            b.DrawString(Game1.smallFont, "No Contacts Added", new Vector2(bounds.X + (bounds.Width - noContactSz.X) / 2, contentY + ScaleUiValue(60)), Color.Gray, 0f, Vector2.Zero, 1f, SpriteEffects.None, 1f);
+                        }
+                    }
+                    else // Recents View
+                    {
+                        int currentY = contentY - phoneAppRecentsScroll;
+                        foreach (var call in phoneAppRecentCalls)
+                        {
+                            Rectangle cardRect = new Rectangle(bounds.X + ScaleUiValue(15), currentY, bounds.Width - ScaleUiValue(30), rowHeight);
+                            Textures.DrawCard(b, cardRect.X, cardRect.Y, cardRect.Width, cardRect.Height, Color.White * 0.85f);
+
+                            string nameText = call.Name;
+                            var existingContact = phoneAppContacts.FirstOrDefault(c => c.Number == call.Number);
+                            if (existingContact != null)
+                            {
+                                nameText = existingContact.Name;
+                                if (ModEntry.NpcNumbers.TryGetValue(call.Number, out string npcInternal) && string.Equals(existingContact.Name, npcInternal, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    var character = Game1.getCharacterFromName(npcInternal);
+                                    if (character != null) nameText = character.displayName;
+                                }
+                            }
+                            else if (ModEntry.NpcNumbers.TryGetValue(call.Number, out string npcName))
+                            {
+                                var character = Game1.getCharacterFromName(npcName);
+                                if (character != null) nameText = character.displayName;
+                            }
+
+                            b.DrawString(Game1.smallFont, nameText, new Vector2(cardRect.X + ScaleUiValue(15), cardRect.Y + ScaleUiValue(6)), Color.Black, 0f, Vector2.Zero, 0.85f, SpriteEffects.None, 1f);
+                            b.DrawString(Game1.smallFont, call.TimeText, new Vector2(cardRect.X + ScaleUiValue(15), cardRect.Y + ScaleUiValue(30)), Color.Gray, 0f, Vector2.Zero, 0.65f, SpriteEffects.None, 1f);
+
+                            if (!string.IsNullOrEmpty(call.Number) && call.Number != call.Name)
+                            {
+                                Vector2 numSize = Game1.smallFont.MeasureString(call.Number) * 0.7f;
+                                b.DrawString(Game1.smallFont, call.Number, new Vector2(cardRect.Right - numSize.X - ScaleUiValue(15), cardRect.Y + (cardRect.Height - numSize.Y) / 2), Color.DimGray, 0f, Vector2.Zero, 0.7f, SpriteEffects.None, 1f);
+                            }
+                            currentY += rowHeight + ScaleUiValue(6);
+                        }
+
+                        if (phoneAppRecentCalls.Count == 0)
+                        {
+                            Vector2 noCallSz = Game1.smallFont.MeasureString("No Recent Calls");
+                            b.DrawString(Game1.smallFont, "No Recent Calls", new Vector2(bounds.X + (bounds.Width - noCallSz.X) / 2, contentY + ScaleUiValue(60)), Color.Gray, 0f, Vector2.Zero, 1f, SpriteEffects.None, 1f);
+                        }
+                    }
+
+                    b.End();
+                    b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, null);
+                    b.GraphicsDevice.ScissorRectangle = originalScissor;
+                }
             }
             else if (phoneAppCurrentTab == 2) // Keypad Grid & Adding
             {
@@ -240,7 +352,6 @@ namespace Smartphone
                     int fW = bounds.Width - ScaleUiValue(60);
 
                     b.DrawString(Game1.smallFont, "Contact Name:", new Vector2(fX, contentY + ScaleUiValue(20)), Color.Black, 0f, Vector2.Zero, 0.95f, SpriteEffects.None, 1f);
-
                     Rectangle fieldRect = new Rectangle(fX, contentY + ScaleUiValue(50), fW, ScaleUiValue(45));
                     Textures.DrawCard(b, fieldRect.X, fieldRect.Y, fieldRect.Width, fieldRect.Height, Color.White);
 
@@ -280,21 +391,21 @@ namespace Smartphone
                     int btnSize = ScaleUiValue(65);
                     int spaceX = ScaleUiValue(35);
                     int spaceY = ScaleUiValue(15);
-
                     int totalGridWidth = (3 * btnSize) + (2 * spaceX);
                     int keyStartX = bounds.X + (bounds.Width - totalGridWidth) / 2;
                     int keyStartY = dispBox.Bottom + ScaleUiValue(20);
-
-                    string[,] numbers = { { "1", "2", "3" }, { "4", "5", "6" }, { "7", "8", "9" }, { "*", "0", "#" } };
+                    string[,] numbers = { { "1", "2", "3" }, { "4", "5", "6" }, { "7", "8", "9" }, { "", "0", "+" } };
 
                     for (int r = 0; r < 4; r++)
                     {
                         for (int c = 0; c < 3; c++)
                         {
+                            string textVal = numbers[r, c];
+                            if (string.IsNullOrWhiteSpace(textVal))
+                                continue;
                             Rectangle keyRect = new Rectangle(keyStartX + c * (btnSize + spaceX), keyStartY + r * (btnSize + spaceY), btnSize, btnSize);
                             Textures.DrawCard(b, keyRect.X, keyRect.Y, keyRect.Width, keyRect.Height, Color.LightGray * 0.75f);
 
-                            string textVal = numbers[r, c];
                             Vector2 keySz = Game1.dialogueFont.MeasureString(textVal) * 0.6f;
                             b.DrawString(Game1.dialogueFont, textVal, new Vector2(keyRect.X + (keyRect.Width - keySz.X) / 2, keyRect.Y + (keyRect.Height - keySz.Y) / 2), Color.Black, 0f, Vector2.Zero, 0.6f, SpriteEffects.None, 1f);
                         }
@@ -316,7 +427,6 @@ namespace Smartphone
                 }
             }
 
-            // Draw outer phone empty hardware bezel asset shell securely over current viewport matrix context
             Texture2D frameTex = Textures.PhoneEmpty;
             if (frameTex != null && !frameTex.IsDisposed)
             {
@@ -337,6 +447,8 @@ namespace Smartphone
                 {
                     phoneAppCurrentTab = clickedIndex;
                     phoneAppIsAddingContact = false;
+                    phoneAppIsEditingExistingContact = false;
+                    phoneAppIsConfirmingDelete = false;
                     Game1.playSound("shwip");
                 }
                 return;
@@ -347,17 +459,129 @@ namespace Smartphone
             int contentHeight = bounds.Height - headerHeight - tabHeight - ScaleUiValue(10);
             Rectangle clipArea = new Rectangle(bounds.X, contentY, bounds.Width, contentHeight);
 
-            if (phoneAppCurrentTab == 0) // Contacts Click Actions
+            if (phoneAppCurrentTab == 0) // Contacts Screen Handlers
             {
+                if (phoneAppIsConfirmingDelete)
+                {
+                    Rectangle confBox = new Rectangle(bounds.X + ScaleUiValue(20), contentY + ScaleUiValue(50), bounds.Width - ScaleUiValue(40), ScaleUiValue(200));
+                    Rectangle btnYes = new Rectangle(confBox.X + ScaleUiValue(20), confBox.Y + ScaleUiValue(110), confBox.Width / 2 - ScaleUiValue(30), ScaleUiValue(50));
+                    Rectangle btnNo = new Rectangle(confBox.X + confBox.Width / 2 + ScaleUiValue(10), confBox.Y + ScaleUiValue(110), confBox.Width / 2 - ScaleUiValue(30), ScaleUiValue(50));
+
+                    if (btnYes.Contains(x, y))
+                    {
+                        if (phoneAppDeletingContactIndex >= 0 && phoneAppDeletingContactIndex < phoneAppContacts.Count)
+                        {
+                            phoneAppContacts.RemoveAt(phoneAppDeletingContactIndex);
+                            SavePhoneAppData();
+                            Game1.playSound("trashcan");
+                        }
+                        phoneAppIsConfirmingDelete = false;
+                        phoneAppDeletingContactIndex = -1;
+                        return;
+                    }
+                    if (btnNo.Contains(x, y))
+                    {
+                        phoneAppIsConfirmingDelete = false;
+                        phoneAppDeletingContactIndex = -1;
+                        Game1.playSound("cancel");
+                        return;
+                    }
+                    return;
+                }
+
+                if (phoneAppIsEditingExistingContact)
+                {
+                    int fX = bounds.X + ScaleUiValue(30);
+                    int fW = bounds.Width - ScaleUiValue(60);
+                    Rectangle nameFieldRect = new Rectangle(fX, contentY + ScaleUiValue(50), fW, ScaleUiValue(45));
+                    Rectangle numFieldRect = new Rectangle(fX, contentY + ScaleUiValue(145), fW, ScaleUiValue(45));
+                    Rectangle btnSave = new Rectangle(fX, contentY + ScaleUiValue(225), fW / 2 - ScaleUiValue(8), ScaleUiValue(45));
+                    Rectangle btnCancel = new Rectangle(fX + fW / 2 + ScaleUiValue(8), contentY + ScaleUiValue(225), fW / 2 - ScaleUiValue(8), ScaleUiValue(45));
+
+                    if (nameFieldRect.Contains(x, y))
+                    {
+                        phoneAppActiveField = 0;
+                        Game1.playSound("smallSelect");
+                        return;
+                    }
+                    if (numFieldRect.Contains(x, y))
+                    {
+                        phoneAppActiveField = 1;
+                        Game1.playSound("smallSelect");
+                        return;
+                    }
+                    if (btnSave.Contains(x, y))
+                    {
+                        if (!string.IsNullOrWhiteSpace(phoneAppNewContactName) && !string.IsNullOrWhiteSpace(phoneAppKeypadBuffer))
+                        {
+                            if (phoneAppEditingContactIndex >= 0 && phoneAppEditingContactIndex < phoneAppContacts.Count)
+                            {
+                                phoneAppContacts[phoneAppEditingContactIndex].Name = phoneAppNewContactName.Trim();
+                                phoneAppContacts[phoneAppEditingContactIndex].Number = phoneAppKeypadBuffer.Trim();
+                                SavePhoneAppData();
+                                Game1.playSound("coin");
+                            }
+                            phoneAppIsEditingExistingContact = false;
+                            phoneAppEditingContactIndex = -1;
+                        }
+                        else Game1.playSound("cancel");
+                        return;
+                    }
+                    if (btnCancel.Contains(x, y))
+                    {
+                        phoneAppIsEditingExistingContact = false;
+                        phoneAppEditingContactIndex = -1;
+                        Game1.playSound("cancel");
+                        return;
+                    }
+                    return;
+                }
+
+                Rectangle editToggleBtn = new Rectangle(bounds.Right - ScaleUiValue(85), bounds.Y + ScaleUiValue(12), ScaleUiValue(70), ScaleUiValue(35));
+                if (editToggleBtn.Contains(x, y))
+                {
+                    phoneAppIsEditingContacts = !phoneAppIsEditingContacts;
+                    Game1.playSound("shwip");
+                    return;
+                }
+
                 var list = GetSortedContacts();
                 int currentY = contentY - phoneAppContactsScroll;
-                foreach (var contact in list)
+                foreach (var item in list)
                 {
                     Rectangle rowRect = new Rectangle(bounds.X + ScaleUiValue(15), currentY, bounds.Width - ScaleUiValue(30), ScaleUiValue(55));
                     if (clipArea.Contains(x, y) && rowRect.Contains(x, y))
                     {
-                        Game1.playSound("bigSelect");
-                        ExecuteCallAction(contact.Name, contact.Number, contact.IsNpc);
+                        int origIdx = phoneAppContacts.IndexOf(item.OriginalContact);
+                        if (phoneAppIsEditingContacts)
+                        {
+                            Rectangle delBtn = new Rectangle(rowRect.Right - ScaleUiValue(75), rowRect.Y + ScaleUiValue(8), ScaleUiValue(65), rowRect.Height - ScaleUiValue(16));
+                            if (delBtn.Contains(x, y))
+                            {
+                                if (origIdx >= 0)
+                                {
+                                    phoneAppIsConfirmingDelete = true;
+                                    phoneAppDeletingContactIndex = origIdx;
+                                    Game1.playSound("smallSelect");
+                                }
+                                return;
+                            }
+
+                            if (origIdx >= 0)
+                            {
+                                phoneAppIsEditingExistingContact = true;
+                                phoneAppEditingContactIndex = origIdx;
+                                phoneAppNewContactName = item.OriginalContact.Name;
+                                phoneAppKeypadBuffer = item.OriginalContact.Number;
+                                phoneAppActiveField = 0;
+                                Game1.playSound("bigSelect");
+                            }
+                        }
+                        else
+                        {
+                            Game1.playSound("bigSelect");
+                            ExecuteCallAction(item.Name, item.Number, item.IsNpc);
+                        }
                         return;
                     }
                     currentY += ScaleUiValue(55) + ScaleUiValue(6);
@@ -372,14 +596,14 @@ namespace Smartphone
                     if (clipArea.Contains(x, y) && rowRect.Contains(x, y))
                     {
                         Game1.playSound("bigSelect");
-                        bool isNpc = Utility.getAllCharacters().Any(npc => npc != null && npc.Name == call.Name);
+                        bool isNpc = ModEntry.NpcNumbers.ContainsKey(call.Number);
                         ExecuteCallAction(call.Name, call.Number, isNpc);
                         return;
                     }
                     currentY += ScaleUiValue(55) + ScaleUiValue(6);
                 }
             }
-            else if (phoneAppCurrentTab == 2) // Keypad Matrix Clicks
+            else if (phoneAppCurrentTab == 2) // Keypad Dialer Click Controls
             {
                 if (phoneAppIsAddingContact)
                 {
@@ -392,7 +616,7 @@ namespace Smartphone
                     {
                         if (!string.IsNullOrWhiteSpace(phoneAppNewContactName))
                         {
-                            phoneAppCustomContacts.Add(new CustomContact { Name = phoneAppNewContactName.Trim(), Number = phoneAppKeypadBuffer });
+                            phoneAppContacts.Add(new Contact { Name = phoneAppNewContactName.Trim(), Number = phoneAppKeypadBuffer });
                             SavePhoneAppData();
                             phoneAppIsAddingContact = false;
                             phoneAppCurrentTab = 0;
@@ -418,7 +642,19 @@ namespace Smartphone
                         if (btnAdd.Contains(x, y))
                         {
                             phoneAppIsAddingContact = true;
-                            phoneAppNewContactName = "";
+                            phoneAppActiveField = 0;
+
+                            // Pre-populate box with NPC name if number matches an NPC, while leaving it customizable
+                            if (ModEntry.NpcNumbers.TryGetValue(phoneAppKeypadBuffer, out string npcName))
+                            {
+                                var character = Game1.getCharacterFromName(npcName);
+                                phoneAppNewContactName = character != null ? character.displayName : npcName;
+                            }
+                            else
+                            {
+                                phoneAppNewContactName = "";
+                            }
+
                             Game1.playSound("smallSelect");
                             return;
                         }
@@ -427,11 +663,10 @@ namespace Smartphone
                     int btnSize = ScaleUiValue(65);
                     int spaceX = ScaleUiValue(35);
                     int spaceY = ScaleUiValue(15);
-
                     int totalGridWidth = (3 * btnSize) + (2 * spaceX);
                     int keyStartX = bounds.X + (bounds.Width - totalGridWidth) / 2;
                     int keyStartY = dispBox.Bottom + ScaleUiValue(20);
-                    string[,] numbers = { { "1", "2", "3" }, { "4", "5", "6" }, { "7", "8", "9" }, { "*", "0", "#" } };
+                    string[,] numbers = { { "1", "2", "3" }, { "4", "5", "6" }, { "7", "8", "9" }, { "", "0", "+" } };
 
                     for (int r = 0; r < 4; r++)
                     {
@@ -458,18 +693,17 @@ namespace Smartphone
                         {
                             Game1.playSound("bigSelect");
                             string destinationName = phoneAppKeypadBuffer;
-                            bool isNpcCall = false;
+                            var customMatch = phoneAppContacts.FirstOrDefault(cc => cc.Number == phoneAppKeypadBuffer);
+                            bool isNpcCall = ModEntry.NpcNumbers.TryGetValue(phoneAppKeypadBuffer, out string npcName);
 
-                            var npcMatch = Utility.getAllCharacters().FirstOrDefault(n => n != null && string.Equals(n.Name, phoneAppKeypadBuffer, StringComparison.OrdinalIgnoreCase));
-                            if (npcMatch != null)
+                            if (customMatch != null)
                             {
-                                destinationName = npcMatch.Name;
-                                isNpcCall = true;
+                                destinationName = customMatch.Name;
                             }
-                            else
+                            else if (isNpcCall)
                             {
-                                var customMatch = phoneAppCustomContacts.FirstOrDefault(cc => cc.Number == phoneAppKeypadBuffer);
-                                if (customMatch != null) destinationName = customMatch.Name;
+                                var character = Game1.getCharacterFromName(npcName);
+                                destinationName = character != null ? character.displayName : npcName;
                             }
 
                             ExecuteCallAction(destinationName, phoneAppKeypadBuffer, isNpcCall);
@@ -497,15 +731,18 @@ namespace Smartphone
             string readableSeason = rawSeason.Length > 0 ? char.ToUpper(rawSeason[0]) + rawSeason.Substring(1) : "";
             string timestamp = $"{readableSeason} {Game1.dayOfMonth}, {Game1.getTimeOfDayString(Game1.timeOfDay)}";
 
-            phoneAppRecentCalls.Insert(0, new RecentCall { Name = name, Number = number, TimeText = timestamp });
+            bool reallyNpc = ModEntry.NpcNumbers.TryGetValue(number, out string npcInternalName);
+            string savedName = reallyNpc ? npcInternalName : name;
+
+            phoneAppRecentCalls.Insert(0, new RecentCall { Name = savedName, Number = number, TimeText = timestamp });
             if (phoneAppRecentCalls.Count > 40) phoneAppRecentCalls.RemoveAt(phoneAppRecentCalls.Count - 1);
             SavePhoneAppData();
 
             ClosePhoneMenu();
 
-            if (isNpc)
+            if (reallyNpc)
             {
-                NPC targetNpc = Game1.getCharacterFromName(name);
+                NPC targetNpc = Game1.getCharacterFromName(npcInternalName);
                 if (targetNpc != null)
                 {
                     ModEntry.LaunchNpcPhoneDialogue(targetNpc);
@@ -534,30 +771,84 @@ namespace Smartphone
 
         public void HandlePhoneAppKeyPress(Keys key)
         {
-            if (!phoneAppIsAddingContact) return;
+            if (!phoneAppIsAddingContact && !phoneAppIsEditingExistingContact) return;
 
             if (key == Keys.Back)
             {
-                if (phoneAppNewContactName.Length > 0)
+                if (phoneAppActiveField == 0 && phoneAppNewContactName.Length > 0)
                 {
                     phoneAppNewContactName = phoneAppNewContactName.Substring(0, phoneAppNewContactName.Length - 1);
+                    Game1.playSound("thudStep");
+                }
+                else if (phoneAppActiveField == 1 && phoneAppKeypadBuffer.Length > 0)
+                {
+                    phoneAppKeypadBuffer = phoneAppKeypadBuffer.Substring(0, phoneAppKeypadBuffer.Length - 1);
                     Game1.playSound("thudStep");
                 }
                 return;
             }
 
             string character = key.ToString();
-            if (character.Length == 1 && phoneAppNewContactName.Length < 15)
+            if (key >= Keys.D0 && key <= Keys.D9) character = (key - Keys.D0).ToString();
+            else if (key >= Keys.NumPad0 && key <= Keys.NumPad9) character = (key - Keys.NumPad0).ToString();
+
+            if (character.Length == 1)
             {
-                bool isShift = Game1.oldKBState.IsKeyDown(Keys.LeftShift) || Game1.oldKBState.IsKeyDown(Keys.RightShift);
-                phoneAppNewContactName += isShift ? character.ToUpper() : character.ToLower();
-                Game1.playSound("cowboy_monster_hit");
+                if (phoneAppActiveField == 0 && phoneAppNewContactName.Length < 15)
+                {
+                    bool isShift = Game1.oldKBState.IsKeyDown(Keys.LeftShift) || Game1.oldKBState.IsKeyDown(Keys.RightShift);
+                    phoneAppNewContactName += isShift ? character.ToUpper() : character.ToLower();
+                    Game1.playSound("cowboy_monster_hit");
+                }
+                else if (phoneAppActiveField == 1 && phoneAppKeypadBuffer.Length < 15)
+                {
+                    phoneAppKeypadBuffer += character;
+                    Game1.playSound("cowboy_monster_hit");
+                }
             }
-            else if (key == Keys.Space && phoneAppNewContactName.Length < 15)
+            else if (key == Keys.Space && phoneAppActiveField == 0 && phoneAppNewContactName.Length < 15)
             {
                 phoneAppNewContactName += " ";
                 Game1.playSound("cowboy_monster_hit");
             }
+        }
+
+        public static void AssignNpcNumber()
+        {
+            // Clear and fully re-build static NPC speed tracking cache context
+            ModEntry.NpcNumbers.Clear();
+            HashSet<string> existingNumbers = new HashSet<string>();
+
+            Utility.ForEachVillager(npc =>
+            {
+                if (npc != null && npc.CanSocialize && npc.modData.TryGetValue("d5a1lamdtd.Smartphone.PhoneNumber", out string existingNum) && !string.IsNullOrWhiteSpace(existingNum))
+                {
+                    existingNumbers.Add(existingNum);
+                    ModEntry.NpcNumbers[existingNum] = npc.Name;
+                }
+                return true;
+            });
+
+            Random rand = new Random();
+            Utility.ForEachVillager(npc =>
+            {
+                if (npc != null && npc.CanSocialize)
+                {
+                    if (!npc.modData.ContainsKey("d5a1lamdtd.Smartphone.PhoneNumber") || string.IsNullOrWhiteSpace(npc.modData["d5a1lamdtd.Smartphone.PhoneNumber"]))
+                    {
+                        string newNumber;
+                        do
+                        {
+                            newNumber = "0" + rand.Next(0, 100000).ToString("D5");
+                        } while (existingNumbers.Contains(newNumber));
+
+                        existingNumbers.Add(newNumber);
+                        npc.modData["d5a1lamdtd.Smartphone.PhoneNumber"] = newNumber;
+                        ModEntry.NpcNumbers[newNumber] = npc.Name;
+                    }
+                }
+                return true;
+            });
         }
     }
 }

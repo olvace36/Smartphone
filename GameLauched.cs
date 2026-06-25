@@ -66,6 +66,7 @@ namespace Smartphone
         private int hudPhoneBackgroundImageTargetHeight = 0;
 
         private NPC lastSpeaker = null;
+        public static Dictionary<string, string> NpcNumbers = new(StringComparer.OrdinalIgnoreCase);
         // *************************** ENTRY ***************************
         //
 
@@ -108,8 +109,7 @@ namespace Smartphone
 
         private void OnMenuChanged(object sender, MenuChangedEventArgs e)
         {
-            // Check if the newly opened menu is a Dialogue Box
-            if (e.NewMenu is DialogueBox dialogueBox)
+            if (e.NewMenu is DialogueBox)
             {
                 NPC speaker = Game1.currentSpeaker;
                 if (speaker == null) return;
@@ -119,28 +119,26 @@ namespace Smartphone
 
             if (e.OldMenu is DialogueBox && lastSpeaker != null)
             {
-
-
                 string npcName = lastSpeaker.Name;
-
-                NPC speaker = lastSpeaker;
 
                 int requiredHearts = 4;
                 int currentHearts = Game1.player.getFriendshipLevelForNPC(npcName);
 
-                string phoneFlag = $"YourModID_HasPhone_{npcName}";
+                string phoneFlag = $"d5a1lamdtd.Smartphone_HasPhone_{npcName}";
 
-                if (currentHearts >= requiredHearts && !Game1.player.mailReceived.Contains(phoneFlag) && !speaker.CurrentDialogue.Any())
+                if (currentHearts >= requiredHearts && !Game1.player.mailReceived.Contains(phoneFlag) && !lastSpeaker.CurrentDialogue.Any())
                 {
-                    Game1.chatBox.addErrorMessage("added");
                     Game1.player.mailReceived.Add(phoneFlag);
 
-                    string customDialogue = $"Hey {Game1.player.Name}! Since we're becoming such good friends, here is my phone number. Feel free to call me anytime! #$e#";
+                    string npcPhone = lastSpeaker.modData.TryGetValue("d5a1lamdtd.Smartphone.PhoneNumber", out string num) ? num : "000000";
 
-                    speaker.CurrentDialogue.Push(new Dialogue(speaker, "asd", customDialogue));
+                    string customDialogue = $"Hey {Game1.player.Name}! Since we're becoming such good friends, here is my phone number: {npcPhone}. Feel free to call me anytime! #$e#";
 
-                    // 4. Force the dialogue box to refresh and show your new text
-                    Game1.activeClickableMenu = new DialogueBox(speaker.CurrentDialogue.Pop());
+                    Game1.chatBox.addInfoMessage($"{npcName}'s phone number is {npcPhone}. I should save it before I lost it!");
+
+                    lastSpeaker.CurrentDialogue.Push(new Dialogue(lastSpeaker, "key", customDialogue));
+
+                    Game1.activeClickableMenu = new DialogueBox(lastSpeaker.CurrentDialogue.Pop());
                 }
             }
         }
@@ -148,7 +146,7 @@ namespace Smartphone
 
 
         //
-        // ***************************  END OF ENTRY ***************************
+        // *************************** END OF ENTRY ***************************
         //
 
         private void OnGameLauched(object sender, StardewModdingAPI.Events.GameLaunchedEventArgs e)
@@ -258,20 +256,9 @@ namespace Smartphone
         {
             NotificationManager.LoadNotificationData();
             PhoneMenu.RefreshCalendarData();
-        }
 
-
-
-        private void ApplySavedPhoneTheme()
-        {
-            string resolvedThemeName = AssetHelper.ResolvePhoneThemeName(ModEntry.currentPhoneTheme);
-            ModEntry.currentPhoneTheme = resolvedThemeName;
-
-            AssetHelper.SetCurrentPhoneTheme(resolvedThemeName);
-            Textures.LoadTextures();
-
-            if (phoneMenu != null)
-                phoneMenu.ReloadThemeTextures();
+            if (Game1.IsMasterGame)
+                PhoneMenu.AssignNpcNumber();
         }
 
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
