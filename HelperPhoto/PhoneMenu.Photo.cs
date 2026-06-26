@@ -128,7 +128,8 @@ namespace Smartphone
         {
             None,
             PhotoAlbumName,
-            FolderGroupName
+            FolderGroupName,
+            PhoneAppInput
         }
 
         private sealed class PhoneTextInputSubscriber : IKeyboardSubscriber
@@ -194,6 +195,16 @@ namespace Smartphone
 
             if (currentApp == null && layoutManager != null && layoutManager.IsEditingFolderName)
                 return EditableTextFieldKind.FolderGroupName;
+
+            if (currentApp == "appPhone")
+            {
+                bool isSearching = phoneAppCurrentTab == 0 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact && !phoneAppIsConfirmingDelete;
+                bool isEditing = phoneAppIsAddingContact || phoneAppIsEditingExistingContact;
+                bool isDialing = phoneAppCurrentTab == 2 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact;
+
+                if (isSearching || isEditing || isDialing)
+                    return EditableTextFieldKind.PhoneAppInput;
+            }
 
             return EditableTextFieldKind.None;
         }

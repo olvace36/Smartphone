@@ -851,7 +851,7 @@ namespace Smartphone
 
         public void HandlePhoneAppKeyPress(Keys key)
         {
-            // Capture keyboard strokes directly for Contacts search box when viewing the main listing
+            // 1. Capture keyboard strokes directly for Contacts search box
             if (phoneAppCurrentTab == 0 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact && !phoneAppIsConfirmingDelete)
             {
                 if (key == Keys.Back)
@@ -885,6 +885,69 @@ namespace Smartphone
                 return;
             }
 
+            // 2. Capture keyboard strokes directly for the Keypad dialer
+            if (phoneAppCurrentTab == 2 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact)
+            {
+                if (key == Keys.Enter)
+                {
+                    if (phoneAppKeypadBuffer.Length > 0)
+                    {
+                        Game1.playSound("bigSelect");
+                        string destinationName = phoneAppKeypadBuffer;
+                        var customMatch = phoneAppContacts.FirstOrDefault(cc => cc.Number == phoneAppKeypadBuffer);
+                        bool isNpcCall = ModEntry.NpcNumbers.TryGetValue(phoneAppKeypadBuffer, out string npcName);
+
+                        if (customMatch != null)
+                        {
+                            destinationName = customMatch.Name;
+                        }
+                        else if (isNpcCall)
+                        {
+                            var character = Game1.getCharacterFromName(npcName);
+                            destinationName = character != null ? character.displayName : npcName;
+                        }
+
+                        ExecuteCallAction(destinationName, phoneAppKeypadBuffer, isNpcCall);
+                    }
+                    else
+                    {
+                        Game1.playSound("cancel");
+                    }
+                    return;
+                }
+
+                if (key == Keys.Back)
+                {
+                    if (phoneAppKeypadBuffer.Length > 0)
+                    {
+                        phoneAppKeypadBuffer = phoneAppKeypadBuffer.Substring(0, phoneAppKeypadBuffer.Length - 1);
+                        Game1.playSound("thudStep");
+                    }
+                    return;
+                }
+
+                string inputChar = "";
+                if (key >= Keys.D0 && key <= Keys.D9) inputChar = (key - Keys.D0).ToString();
+                else if (key >= Keys.NumPad0 && key <= Keys.NumPad9) inputChar = (key - Keys.NumPad0).ToString();
+                else if (key == Keys.OemPlus || key == Keys.Add) inputChar = "+";
+
+                // Bonus: Support typing * and # if the user holds shift
+                bool isShift = Game1.oldKBState.IsKeyDown(Keys.LeftShift) || Game1.oldKBState.IsKeyDown(Keys.RightShift);
+                if (isShift && key == Keys.D8) inputChar = "*";
+                if (isShift && key == Keys.D3) inputChar = "#";
+
+                if (inputChar.Length == 1)
+                {
+                    if (phoneAppKeypadBuffer.Length < 15)
+                    {
+                        phoneAppKeypadBuffer += inputChar;
+                        Game1.playSound("clank");
+                    }
+                }
+                return;
+            }
+
+            // 3. Existing Add/Edit contact fields logic
             if (!phoneAppIsAddingContact && !phoneAppIsEditingExistingContact) return;
 
             if (key == Keys.Back)
@@ -902,21 +965,22 @@ namespace Smartphone
                 return;
             }
 
-            string inputChar = key.ToString();
-            if (key >= Keys.D0 && key <= Keys.D9) inputChar = (key - Keys.D0).ToString();
-            else if (key >= Keys.NumPad0 && key <= Keys.NumPad9) inputChar = (key - Keys.NumPad0).ToString();
+            string inputCharForEdit = key.ToString();
+            if (key >= Keys.D0 && key <= Keys.D9) inputCharForEdit = (key - Keys.D0).ToString();
+            else if (key >= Keys.NumPad0 && key <= Keys.NumPad9) inputCharForEdit = (key - Keys.NumPad0).ToString();
+            else if (key == Keys.OemPlus || key == Keys.Add) inputCharForEdit = "+"; // Allow typing + in the number edit field too!
 
-            if (inputChar.Length == 1)
+            if (inputCharForEdit.Length == 1)
             {
                 if (phoneAppActiveField == 0 && phoneAppNewContactName.Length < 15)
                 {
                     bool isShift = Game1.oldKBState.IsKeyDown(Keys.LeftShift) || Game1.oldKBState.IsKeyDown(Keys.RightShift);
-                    phoneAppNewContactName += isShift ? inputChar.ToUpper() : inputChar.ToLower();
+                    phoneAppNewContactName += isShift ? inputCharForEdit.ToUpper() : inputCharForEdit.ToLower();
                     Game1.playSound("cowboy_monster_hit");
                 }
                 else if (phoneAppActiveField == 1 && phoneAppKeypadBuffer.Length < 15)
                 {
-                    phoneAppKeypadBuffer += inputChar;
+                    phoneAppKeypadBuffer += inputCharForEdit;
                     Game1.playSound("cowboy_monster_hit");
                 }
             }

@@ -585,5 +585,19 @@ namespace Smartphone
         {
             return captureButton?.bounds.Contains(x, y) == true;
         }
+
+        public void HandleCameraAppKeyPress(Keys key)
+        {
+            if (key == Keys.Space || key == Keys.Enter)
+            {
+                bool hideCameraOverlayButtons = ModEntry.IsPlayerCaptureCursorHidden();
+                if (!hideCameraOverlayButtons)
+                {
+                    ModEntry.QueuePlayerPhotoCapture(ModEntry.GetPlayerPhotoCaptureBounds(xPositionOnScreen, yPositionOnScreen));
+                    Game1.playSound("cameraNoise");
+                    TriggerCameraCaptureFlash();
+                }
+            }
+        }
     }
 }

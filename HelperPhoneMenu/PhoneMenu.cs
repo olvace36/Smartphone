@@ -694,6 +694,12 @@ namespace Smartphone
                     return;
             }
 
+            if (currentApp == "appCamera")
+            {
+                HandleCameraAppKeyPress(key);
+                return;
+            }
+
             if (currentApp == "appPhone")
             {
                 HandlePhoneAppKeyPress(key);
