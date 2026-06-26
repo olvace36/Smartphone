@@ -734,6 +734,8 @@ namespace Smartphone
                         DelayedAction.playSoundAfterDelay(button.name, 0);
                         DelayedAction.playSoundAfterDelay(button.name, 1500);
                         ModEntry.currentPhoneSound = button.name;
+
+                        AssetHelper.SaveSettings(); // <--- Add this line here
                         return;
                     }
                 }
@@ -745,6 +747,8 @@ namespace Smartphone
                             continue;
 
                         ModEntry.currentPhoneTextColor = button.name;
+
+                        AssetHelper.SaveSettings(); // <--- Add this line here
                         Game1.playSound("smallSelect");
                         return;
                     }

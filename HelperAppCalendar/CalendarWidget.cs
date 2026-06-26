@@ -303,15 +303,16 @@ namespace Smartphone
                 {
                     b.Draw(widgetTex, rect, new Color(40, 65, 110, 130));
 
-                    // Randomized deep blue distinct rain lines - Smooth reduced velocity
+                    // Randomized deep blue distinct rain lines - Speed increased by ~30%
                     for (int i = 0; i < 12; i++)
                     {
                         float speed = 0.19f + ((i * 19) % 5) * 0.04f;
                         int xOffset = (i * 53) % rect.Width;
                         int yOffset = (i * 127) % rect.Height;
 
-                        int posX = rect.X + (int)((xOffset + timeMs * 0.07f * speed) % rect.Width);
-                        int posY = rect.Y + (int)((yOffset + timeMs * 0.22f * speed) % rect.Height);
+                        // Increased multipliers from 0.07f and 0.22f
+                        int posX = rect.X + (int)((xOffset + timeMs * 0.09f * speed) % rect.Width);
+                        int posY = rect.Y + (int)((yOffset + timeMs * 0.29f * speed) % rect.Height);
 
                         b.Draw(Game1.staminaRect,
                                new Rectangle(posX, posY, 3, 18),
@@ -329,7 +330,7 @@ namespace Smartphone
                     // Deep violet atmospheric backing mask overlay (leaves snow pixels highly visible)
                     b.Draw(widgetTex, rect, new Color(35, 40, 70, 110));
 
-                    int snowParticleCount = 18; // Preserved high particle density layout profile
+                    int snowParticleCount = 27; // Increased by 50% from 18
 
                     for (int i = 0; i < snowParticleCount; i++)
                     {

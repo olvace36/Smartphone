@@ -1097,21 +1097,21 @@ namespace Smartphone
             else
             {
                 // Fall back to standard static icon render if no widget callback exists
-                DrawIconWithJiggle(b, app, iconRect, jiggleDeg); // cite: PhoneAppLayoutManager.cs
+                DrawIconWithJiggle(b, app, iconRect, jiggleDeg);
             }
 
-            if (app.GetBadgeCount != null) // cite: PhoneAppLayoutManager.cs
+            if (app.GetBadgeCount != null)
             {
                 try
                 {
-                    int badge = app.GetBadgeCount(); // cite: PhoneAppLayoutManager.cs
-                    if (badge > 0) DrawBadge(b, iconRect, badge); // cite: PhoneAppLayoutManager.cs
+                    int badge = app.GetBadgeCount();
+                    if (badge > 0) DrawBadge(b, iconRect, badge);
                 }
                 catch { }
             }
 
-            if (!isDockContext) // cite: PhoneAppLayoutManager.cs
-                DrawAppLabel(b, cellRect, app.DisplayName); // cite: PhoneAppLayoutManager.cs
+            if (!isDockContext)
+                DrawAppLabel(b, app.DisplayName, new Vector2(cellRect.Center.X, cellRect.Bottom - ScaleUi(14)), Color.White, 1, cellRect.Width - 27);
         }
 
         private void DrawFolderCell(SpriteBatch b, LayoutItem folder, Rectangle cellRect, float jiggleDeg, List<HomeAppEntryProxy> allApps)
@@ -1154,7 +1154,7 @@ namespace Smartphone
                 DrawAppIcon(b, childApp.IconTexture, miniIconRect, childApp.SourceRect);
             }
 
-            DrawAppLabel(b, cellRect, folder.FolderName);
+            DrawAppLabel(b, folder.FolderName, new Vector2(cellRect.Center.X, cellRect.Bottom - ScaleUi(14)), Color.White, 1, cellRect.Width - 27);
         }
 
         private void DrawIconWithJiggle(SpriteBatch b, HomeAppEntryProxy app, Rectangle iconRect, float jiggleDeg)
@@ -1180,18 +1180,89 @@ namespace Smartphone
             b.Draw(texture, drawRect, source, Color.White);
         }
 
-        private void DrawAppLabel(SpriteBatch b, Rectangle appBounds, string name)
+        private void DrawAppLabel(SpriteBatch b, string text, Vector2 centerPos, Color color, float alpha, int maxCellWidth = 0)
         {
-            if (string.IsNullOrEmpty(name)) return;
-            SpriteFont labelFont = Game1.smallFont;
-            float labelScale = _menu.PhoneUiScale < 0.999f ? 0.55f : 0.65f;
-            Vector2 labelSize = labelFont.MeasureString(name) * labelScale;
+            if (string.IsNullOrWhiteSpace(text))
+                return;
 
-            // REDUCED GAP: Adjusted upward from Bottom - 2 to Bottom - 14 to fit closer to the lower icon boundary line
-            Vector2 labelPos = new Vector2(
-                appBounds.X + (appBounds.Width - labelSize.X) / 2f,
-                appBounds.Bottom - ScaleUi(14));
-            b.DrawString(labelFont, name, labelPos, GetHomeTextColor(), 0f, Vector2.Zero, labelScale, SpriteEffects.None, 1f);
+            float fontScale = _menu.GetPhoneTextScale(0.7f);
+            SpriteFont font = Game1.smallFont;
+            Vector2 fullTextSize = font.MeasureString(text) * fontScale;
+
+            // Calculate the allowable horizontal boundary for this label (defaulting to ~84px scaled if not explicitly passed)
+            int maxWidth = maxCellWidth > 0 ? maxCellWidth : ScaleUi(84);
+            int padding = ScaleUi(8);
+            int clipWidth = maxWidth + padding;
+
+            string displayText = text;
+            float offsetX = 0f;
+
+            // If the text exceeds the allowed cell width, compute a continuous scrolling marquee offset
+            if (fullTextSize.X > clipWidth)
+            {
+                string loopText = text + "   " + text;
+                Vector2 singleSize = font.MeasureString(text + "   ") * fontScale;
+
+                // Smooth scrolling speed (0.035f pixels per millisecond)
+                double timeMs = Game1.currentGameTime.TotalGameTime.TotalMilliseconds;
+                offsetX = (float)(timeMs * 0.035 % singleSize.X);
+
+                displayText = loopText;
+            }
+
+            // Center position calculations
+            float startX = centerPos.X - Math.Min(fullTextSize.X, clipWidth) / 2f;
+            Vector2 textPos = new(startX - offsetX, centerPos.Y);
+
+            // If scrolling is needed, use a ScissorRectangle (Hardware Clipping Mask) to prevent text from bleeding into neighboring icons
+            Rectangle originalScissor = b.GraphicsDevice.ScissorRectangle;
+            bool useClipping = fullTextSize.X > clipWidth;
+
+            if (useClipping)
+            {
+                b.End();
+                b.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState { ScissorTestEnable = true });
+
+                Rectangle clipRect = new((int)(centerPos.X - clipWidth / 2f), (int)centerPos.Y - 2, clipWidth, (int)fullTextSize.Y + 6);
+
+                // Safely intersect with existing viewport bounds to prevent crashes
+                Rectangle screenViewport = b.GraphicsDevice.Viewport.Bounds;
+                clipRect = Rectangle.Intersect(clipRect, screenViewport);
+
+                b.GraphicsDevice.ScissorRectangle = clipRect;
+            }
+
+            // Draw clean drop shadow
+            b.DrawString(
+                font,
+                displayText,
+                textPos + new Vector2(1, 1),
+                Color.Black * 0.4f * alpha,
+                0f,
+                Vector2.Zero,
+                fontScale,
+                SpriteEffects.None,
+                0f);
+
+            // Draw label text
+            b.DrawString(
+                font,
+                displayText,
+                textPos,
+                color * alpha,
+                0f,
+                Vector2.Zero,
+                fontScale,
+                SpriteEffects.None,
+                0f);
+
+            // Restore normal rendering state if clipping was activated
+            if (useClipping)
+            {
+                b.End();
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
+                b.GraphicsDevice.ScissorRectangle = originalScissor;
+            }
         }
 
         private void DrawBadge(SpriteBatch b, Rectangle iconRect, int badgeCount)

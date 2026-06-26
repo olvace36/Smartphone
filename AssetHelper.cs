@@ -3,6 +3,17 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
+namespace Smartphone
+{
+    public class PhoneSettingsData
+    {
+        public Dictionary<string, string> ComponentThemes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public string CurrentPhoneBackground { get; set; } = "";
+        public string CurrentPhoneSound { get; set; } = "";
+        public string CurrentPhoneTextColor { get; set; } = "";
+    }
+}
+
 public class AssetHelper
 {
     public const string DefaultPhoneThemeName = "default";
@@ -37,7 +48,7 @@ public class AssetHelper
 
     public static string GetComponentTheme(string component)
     {
-        LoadComponentThemes();
+        LoadSettings();
         if (componentThemes.TryGetValue(component, out string? theme))
             return theme;
         return DefaultPhoneThemeName;
@@ -46,7 +57,7 @@ public class AssetHelper
     public static void SetComponentTheme(string component, string theme)
     {
         componentThemes[component] = ResolveComponentThemeName(component, theme);
-        SaveComponentThemes();
+        SaveSettings();
     }
 
     public static List<string> GetAvailableThemeNamesForComponent(string component)
@@ -102,13 +113,13 @@ public class AssetHelper
 
     public static bool SetCurrentPhoneTheme(string? requestedThemeName)
     {
-        LoadComponentThemes();
+        LoadSettings();
         if (!string.IsNullOrWhiteSpace(requestedThemeName) && !string.Equals(requestedThemeName, DefaultPhoneThemeName, StringComparison.OrdinalIgnoreCase))
         {
             if (componentThemes["phone"] == DefaultPhoneThemeName)
             {
                 componentThemes["phone"] = ResolveComponentThemeName("phone", requestedThemeName);
-                SaveComponentThemes();
+                SaveSettings();
             }
         }
         return true;
@@ -123,46 +134,86 @@ public class AssetHelper
         return Path.Combine(modFolderPath, GetPhoneThemesRootPath());
     }
 
-    private static bool themesLoaded = false;
-    private static void LoadComponentThemes()
+    private static bool settingsLoaded = false;
+    private static string lastLoadedSave = null;
+
+    public static void LoadSettings()
     {
-        if (themesLoaded) return;
+        string currentSave = Smartphone.ModEntry.GetActiveSaveFolderName();
+        if (settingsLoaded && lastLoadedSave == currentSave) return;
+
         try
         {
             string? modFolderPath = Smartphone.ModEntry.Instance?.Helper?.DirectoryPath ?? Smartphone.ModEntry.SHelper?.DirectoryPath;
             if (string.IsNullOrWhiteSpace(modFolderPath)) return;
 
-            string path = Path.Combine(modFolderPath, "userdata", "component_themes.json");
+            string path = Path.Combine(modFolderPath, Smartphone.ModEntry.GetSaveDataPath("settings.json"));
             if (File.Exists(path))
             {
                 string json = File.ReadAllText(path);
-                var data = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
+
+                // Try parsing into the new complex settings class
+                var data = Newtonsoft.Json.JsonConvert.DeserializeObject<Smartphone.PhoneSettingsData>(json);
+
+                // If the dictionary is completely empty, it might be the old flat dictionary format we just migrated
+                if (data == null || (data.ComponentThemes.Count == 0 && string.IsNullOrEmpty(data.CurrentPhoneBackground)))
+                {
+                    try
+                    {
+                        var oldData = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
+                        if (oldData != null && oldData.ContainsKey("phone"))
+                        {
+                            foreach (var kv in oldData)
+                                componentThemes[kv.Key] = kv.Value;
+                        }
+                    }
+                    catch { }
+                }
+
                 if (data != null)
                 {
-                    foreach (var kv in data)
+                    if (data.ComponentThemes != null && data.ComponentThemes.Count > 0)
                     {
-                        if (componentThemes.ContainsKey(kv.Key))
+                        foreach (var kv in data.ComponentThemes)
                             componentThemes[kv.Key] = kv.Value;
                     }
+                    if (!string.IsNullOrEmpty(data.CurrentPhoneBackground))
+                        Smartphone.ModEntry.currentPhoneBackground = data.CurrentPhoneBackground;
+                    if (!string.IsNullOrEmpty(data.CurrentPhoneSound))
+                        Smartphone.ModEntry.currentPhoneSound = data.CurrentPhoneSound;
+                    if (!string.IsNullOrEmpty(data.CurrentPhoneTextColor))
+                        Smartphone.ModEntry.currentPhoneTextColor = data.CurrentPhoneTextColor;
                 }
             }
-            themesLoaded = true;
+
+            lastLoadedSave = currentSave;
+            settingsLoaded = true;
         }
         catch { }
     }
 
-    private static void SaveComponentThemes()
+    public static void SaveSettings()
     {
         try
         {
             string? modFolderPath = Smartphone.ModEntry.Instance?.Helper?.DirectoryPath ?? Smartphone.ModEntry.SHelper?.DirectoryPath;
             if (string.IsNullOrWhiteSpace(modFolderPath)) return;
 
-            string dir = Path.Combine(modFolderPath, "userdata");
-            Directory.CreateDirectory(dir);
+            // Saves directly into ./userdata/{SaveName}/settings.json
+            string path = Path.Combine(modFolderPath, Smartphone.ModEntry.GetSaveDataPath("settings.json"));
+            string dir = Path.GetDirectoryName(path);
+            if (!Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
 
-            string path = Path.Combine(dir, "component_themes.json");
-            string json = Newtonsoft.Json.JsonConvert.SerializeObject(componentThemes, Newtonsoft.Json.Formatting.Indented);
+            var data = new Smartphone.PhoneSettingsData
+            {
+                ComponentThemes = componentThemes,
+                CurrentPhoneBackground = Smartphone.ModEntry.currentPhoneBackground ?? "",
+                CurrentPhoneSound = Smartphone.ModEntry.currentPhoneSound ?? "bigSelect",
+                CurrentPhoneTextColor = Smartphone.ModEntry.currentPhoneTextColor ?? "Black"
+            };
+
+            string json = Newtonsoft.Json.JsonConvert.SerializeObject(data, Newtonsoft.Json.Formatting.Indented);
             File.WriteAllText(path, json);
         }
         catch { }

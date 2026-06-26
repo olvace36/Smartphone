@@ -163,7 +163,7 @@ namespace Smartphone
             float uiScale = ModEntry.GetActivePhoneUiScale();
 
             b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.45f);
-            DrawPhoneScreenBackground(b, 0, applyBackgroundImage: true);
+            DrawPhoneScreenBackground(b, 0, applyBackgroundImage: false);
 
             int headerHeight = ScaleUiValue(80); // Height raised slightly to center 60px inputs cleanly
             int tabHeight = ScaleUiValue(70);
@@ -487,8 +487,8 @@ namespace Smartphone
                         Rectangle clearBtn = new Rectangle(keyStartX + (2 * (btnSize + spaceX)), actionRowY + (btnSize - ScaleUiValue(45)) / 2, btnSize, ScaleUiValue(45));
                         Textures.DrawCard(b, clearBtn.X, clearBtn.Y, clearBtn.Width, clearBtn.Height, Color.LightGray);
                         float backTxtScale = 0.8f * uiScale;
-                        Vector2 backTextSz = Game1.smallFont.MeasureString("<") * backTxtScale;
-                        b.DrawString(Game1.smallFont, "<", new Vector2(clearBtn.X + (clearBtn.Width - backTextSz.X) / 2, clearBtn.Y + (clearBtn.Height - backTextSz.Y) / 2), Color.Black, 0f, Vector2.Zero, backTxtScale, SpriteEffects.None, 1f);
+                        Vector2 backTextSz = Game1.smallFont.MeasureString("X") * backTxtScale;
+                        b.DrawString(Game1.smallFont, "X", new Vector2(clearBtn.X + (clearBtn.Width - backTextSz.X) / 2, clearBtn.Y + (clearBtn.Height - backTextSz.Y) / 2), Color.Black, 0f, Vector2.Zero, backTxtScale, SpriteEffects.None, 1f);
                     }
                 }
             }

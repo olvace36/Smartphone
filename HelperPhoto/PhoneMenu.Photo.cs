@@ -520,6 +520,7 @@ namespace Smartphone
         private Rectangle photoDetailActionBounds = Rectangle.Empty;
         private Rectangle photoDetailPrevBounds = Rectangle.Empty;
         private Rectangle photoDetailNextBounds = Rectangle.Empty;
+        private Rectangle photoDetailInfoBounds = Rectangle.Empty;
 
         // ─────────────────────────────────────────────────────────────
         //  Computed helpers
@@ -1074,7 +1075,7 @@ namespace Smartphone
             var items = new List<string>();
             if (photoDetailIndex >= 0)
             {
-                items.AddRange(new[] { "Delete", "Add to Album", "Use as background" });
+                items.AddRange(new[] { "Delete", "Add to Album", "Set wallpaper" });
             }
             else
             {
@@ -1088,6 +1089,14 @@ namespace Smartphone
             int dropH = items.Count * itemH;
             int dropX = content.Right - dropW - ScaleUiValue(8);
             int dropY = content.Y + ScaleUiValue(4);
+
+            // If in detail view, pop the menu UP from the bottom bar
+            if (photoDetailIndex >= 0)
+            {
+                int barH = ScaleUiValue(PhotoDetailBarHeightBase);
+                dropY = content.Bottom - barH - dropH - ScaleUiValue(8);
+            }
+
             IClickableMenu.drawTextureBox(
                 b,
                 Game1.menuTexture,
@@ -1370,7 +1379,6 @@ namespace Smartphone
         }
 
         // ── Detail view ───────────────────────────────────────────────
-
         private void DrawPhotoDetailView(SpriteBatch b, Rectangle content)
         {
             // Full-screen black background within phone content
@@ -1407,9 +1415,9 @@ namespace Smartphone
             Rectangle bottomBar = new(content.X, content.Bottom - barH, content.Width, barH);
             b.Draw(Game1.staminaRect, bottomBar, new Color(0, 0, 0, 100));
 
-            // Prev / Next navigation
-            photoDetailPrevBounds = new(content.X + btnPad, bottomBar.Center.Y - navSize / 2, navSize, navSize);
-            photoDetailNextBounds = new(content.Right - btnPad - navSize, bottomBar.Center.Y - navSize / 2, navSize, navSize);
+            // Prev / Next navigation (Centered vertically on screen height)
+            photoDetailPrevBounds = new(content.X + btnPad, content.Center.Y - navSize / 2, navSize, navSize);
+            photoDetailNextBounds = new(content.Right - btnPad - navSize, content.Center.Y - navSize / 2, navSize, navSize);
 
             // Can go prev?
             List<int> filteredIndices = GetFilteredPhotoIndices();
@@ -1420,7 +1428,7 @@ namespace Smartphone
             DrawRedesignedNavButton(b, photoDetailPrevBounds, isNext: false, enabled: hasPrev);
             DrawRedesignedNavButton(b, photoDetailNextBounds, isNext: true, enabled: hasNext);
 
-            // Heart / Favourite button
+            // Heart / Favourite button (Centered in bottom bar)
             bool isFav = IsPhotoFavourite(capturedImages[photoDetailIndex]);
             photoDetailFavBounds = new(
                 bottomBar.Center.X - favSize / 2,
@@ -1428,39 +1436,61 @@ namespace Smartphone
                 favSize, favSize);
             DrawRedesignedFavButton(b, photoDetailFavBounds, isFav);
 
-            // Top bar
-            Rectangle topBar = new(content.X, content.Y, content.Width, ScaleUiValue(PhotoNavBarHeightBase));
-            b.Draw(Game1.staminaRect, topBar, new Color(0, 0, 0, 100));
-
-            // Back arrow (Removed to use the phone-provided back button)
-
-            // Action button top-right
-            int actionW = ScaleUiValue(80);
-            int actionH = ScaleUiValue(42);
-            photoDetailActionBounds = new Rectangle(content.Right - btnPad - actionW, topBar.Center.Y - actionH / 2, actionW, actionH);
+            // Action button (Moved to bottom right)
+            int actionW = ScaleUiValue(90);
+            int actionH = ScaleUiValue(50);
+            photoDetailActionBounds = new Rectangle(content.Right - btnPad - actionW, bottomBar.Center.Y - actionH / 2, actionW, actionH);
             DrawPhoneRoundButton(b, photoDetailActionBounds, "Action", Color.Black, Color.White);
 
+            // Info button (Moved to bottom left)
+            int infoW = ScaleUiValue(50);
+            int infoH = ScaleUiValue(50);
+            photoDetailInfoBounds = new Rectangle(content.X + btnPad, bottomBar.Center.Y - infoH / 2, infoW, infoH);
+            DrawPhoneRoundButton(b, photoDetailInfoBounds, "i", Color.Black, Color.White);
 
-            // Photo name at bottom of top bar
-            if (photoDetailIndex >= 0 && photoDetailIndex < capturedImages.Count)
+            // Hover metadata tooltip for Info button
+            int mouseX = Game1.getMouseX();
+            int mouseY = Game1.getMouseY();
+            if (photoDetailInfoBounds.Contains(mouseX, mouseY) && photoDetailIndex >= 0 && photoDetailIndex < capturedImages.Count)
             {
-                string displayName = GetPhotoDisplayName(capturedImages[photoDetailIndex]);
-                float nameScale = GetPhoneTextScale(0.7f);
-                Vector2 nameSz = Game1.smallFont.MeasureString(displayName) * nameScale;
-                int leftLimit = content.X + btnPad;
+                string photoPath = capturedImages[photoDetailIndex];
+                string filename = Path.GetFileName(photoPath);
+                string loc = "Unknown Location";
+                string ts = "";
 
-                // Update the right limit to account for the wider Action button
-                int rightLimit = content.Right - btnPad - actionW - ScaleUiValue(16);
-                int maxW = rightLimit - leftLimit;
+                if (ModEntry.ImageMetadataStore.TryGetValue(filename, out var metadata) && metadata != null)
+                {
+                    loc = string.IsNullOrWhiteSpace(metadata.Location) ? "Unknown Location" : metadata.Location;
+                    ts = string.IsNullOrWhiteSpace(metadata.TimeString) ? "" : metadata.TimeString;
+                }
 
-                Vector2 namePos = (nameSz.X <= maxW)
-                    ? new Vector2(content.Center.X - nameSz.X / 2f, topBar.Center.Y - nameSz.Y / 2f)
-                    : new Vector2(leftLimit, topBar.Center.Y - nameSz.Y / 2f);
+                string hoverText = string.IsNullOrEmpty(ts) ? loc : $"{loc}\n{ts}";
 
-                DrawLoopingText(b, displayName, Game1.smallFont, namePos, maxW, Color.White, nameScale);
+                float tipScale = GetPhoneTextScale(0.7f);
+                Vector2 tipSize = Game1.smallFont.MeasureString(hoverText) * tipScale;
+                int tipPad = ScaleUiValue(12);
+
+                int tipX = photoDetailInfoBounds.X;
+                int tipY = photoDetailInfoBounds.Y - (int)tipSize.Y - tipPad * 2 - ScaleUiValue(8);
+
+                // Draw tooltip background
+                IClickableMenu.drawTextureBox(
+                    b,
+                    Game1.menuTexture,
+                    new Rectangle(0, 256, 60, 60),
+                    tipX,
+                    tipY,
+                    (int)tipSize.X + tipPad * 2,
+                    (int)tipSize.Y + tipPad * 2,
+                    Color.White,
+                    1f,
+                    false
+                );
+
+                // Draw tooltip text
+                b.DrawString(Game1.smallFont, hoverText, new Vector2(tipX + tipPad, tipY + tipPad), Color.Black, 0f, Vector2.Zero, tipScale, SpriteEffects.None, 1f);
             }
         }
-
         // ─────────────────────────────────────────────────────────────
         //  Input Handling
         // ─────────────────────────────────────────────────────────────
@@ -2202,7 +2232,7 @@ namespace Smartphone
                     photoAlbumPickerOpen = true;
                     break;
 
-                case "Use as background":
+                case "Set wallpaper":
                     if (photoDetailIndex >= 0 && photoDetailIndex < capturedImages.Count)
                     {
                         string path = capturedImages[photoDetailIndex];
@@ -2662,24 +2692,20 @@ namespace Smartphone
 
         private void DrawRedesignedNavButton(SpriteBatch b, Rectangle bounds, bool isNext, bool enabled)
         {
-            IClickableMenu.drawTextureBox(
-                b,
-                Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
-                bounds.X,
-                bounds.Y,
-                bounds.Width,
-                bounds.Height,
-                new Color(0, 0, 0, 140),
-                1f,
-                false);
-
             Rectangle source = isNext
                 ? Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 33)
                 : Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 44);
 
             Color color = enabled ? Color.White : Color.Gray * 0.5f;
 
+            // Subtle drop shadow so the arrow is visible against bright photos
+            b.Draw(
+                Game1.mouseCursors,
+                new Rectangle(bounds.X + ScaleUiValue(8) + 2, bounds.Y + ScaleUiValue(8) + 2, bounds.Width - ScaleUiValue(16), bounds.Height - ScaleUiValue(16)),
+                source,
+                Color.Black * 0.4f);
+
+            // Draw Arrow
             b.Draw(
                 Game1.mouseCursors,
                 new Rectangle(bounds.X + ScaleUiValue(8), bounds.Y + ScaleUiValue(8), bounds.Width - ScaleUiValue(16), bounds.Height - ScaleUiValue(16)),

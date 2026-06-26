@@ -90,13 +90,6 @@ namespace Smartphone
         private const string BuiltinAppCalendarId = "builtin:calendar";
         private const string BuiltinAppPhoneId = "builtin:phone";
 
-        // Legacy paging constants (kept for lock screen and other legacy uses)
-        private const int HomeAppsPerPage = 20;
-        private const int HomeAppsColumns = 4;
-        private const int HomeAppStartX = 80;
-        private const int HomeAppStartY = 176;
-        private const int HomeAppSpacingX = 120;
-        private const int HomeAppSpacingY = 120;
         private const int AppLabelTrailingSpaces = 5;
         private const float AppLabelFontScale = 0.8f;
         private const float AppLabelMarqueePixelsPerSecond = 45f;
@@ -136,7 +129,7 @@ namespace Smartphone
             return baseValue * phoneUiScale;
         }
 
-        private float GetPhoneTextScale(float localScale = 1f)
+        public float GetPhoneTextScale(float localScale = 1f)
         {
             float globalScale = phoneUiScale < 0.999f
                 ? PhoneGlobalTextScale
@@ -811,20 +804,12 @@ namespace Smartphone
             phoneBackgroundImage = null;
             phoneBackgroundImageBlurred?.Dispose();
             phoneBackgroundImageBlurred = null;
-            ModEntry.currentPhoneBackground = "";
-            phoneBackgroundImage?.Dispose();
-            phoneBackgroundImage = null;
+            AssetHelper.SaveSettings();
         }
 
         private void ApplyPhoneBackground(string imagePath)
         {
-            if (string.IsNullOrWhiteSpace(imagePath))
-            {
-                ResetPhoneBackgroundToDefault();
-                return;
-            }
-
-            if (!File.Exists(imagePath))
+            if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
             {
                 ResetPhoneBackgroundToDefault();
                 return;
@@ -836,13 +821,14 @@ namespace Smartphone
                 using (Texture2D fullImage = Texture2D.FromStream(Game1.graphics.GraphicsDevice, stream))
                 {
                     phoneBackgroundImage?.Dispose();
-                    phoneBackgroundImageBlurred?.Dispose(); // Add this line
+                    phoneBackgroundImageBlurred?.Dispose();
 
                     phoneBackgroundImage = CropTexture(fullImage);
-                    phoneBackgroundImageBlurred = CreateBlurredTexture(phoneBackgroundImage); // Add this line
+                    phoneBackgroundImageBlurred = CreateBlurredTexture(phoneBackgroundImage);
                 }
 
                 ModEntry.currentPhoneBackground = imagePath;
+                AssetHelper.SaveSettings(); // <--- Save triggered
             }
             catch (Exception ex)
             {
@@ -1047,72 +1033,6 @@ namespace Smartphone
             layoutManager?.DrawHomeScreen(b);
         }
 
-
-
-        private List<HomeAppEntry> BuildHomeAppsSnapshot()
-        {
-            var apps = new List<HomeAppEntry>
-            {
-                new HomeAppEntry
-                {
-                    Id = BuiltinAppNotificationId,
-                    DisplayName = ModEntry.SHelper.Translation.Get("app.notification.name"),
-                    IconTexture = textureAppNotification,
-                    GetBadgeCount = () => Math.Max(0, NotificationManager.GetUnreadNotification())
-                },
-                new HomeAppEntry
-                {
-                    Id = BuiltinAppStoreId,
-                    DisplayName = ModEntry.SHelper.Translation.Get("app.appstore.name"),
-                    IconTexture = textureAppAppStore
-                },
-                new HomeAppEntry
-                {
-                    Id = BuiltinAppCameraId,
-                    DisplayName = ModEntry.SHelper.Translation.Get("app.camera.name"),
-                    IconTexture = textureAppCamera
-                },
-                new HomeAppEntry
-                {
-                    Id = BuiltinAppPhotoId,
-                    DisplayName = ModEntry.SHelper.Translation.Get("app.photos.name"),
-                    IconTexture = textureAppPhoto
-                },
-                new HomeAppEntry
-                {
-                    Id = BuiltinAppSettingId,
-                    DisplayName = ModEntry.SHelper.Translation.Get("app.settings.name"),
-                    IconTexture = textureAppSetting
-                },
-                new HomeAppEntry
-                {
-                    Id = BuiltinAppCalendarId,
-                    DisplayName = ModEntry.SHelper.Translation.Get("app.calendar.name"),
-                    IconTexture = textureAppCalendar
-                },
-                new HomeAppEntry
-                {
-                    Id = BuiltinAppPhoneId,
-                    DisplayName = "Phone",
-                    IconTexture = Textures.GetAppTexture(BuiltinAppPhoneId, AppSize.Size1x1)
-                }
-            };
-
-            foreach (RegisteredPhoneApp app in ModEntry.GetRegisteredPhoneAppsSnapshot())
-            {
-                apps.Add(new HomeAppEntry
-                {
-                    Id = app.CompositeId,
-                    DisplayName = app.DisplayName,
-                    IconTexture = app.IconTexture,
-                    SourceRect = app.SourceRect,
-                    GetBadgeCount = () => GetRegisteredAppBadgeCount(app)
-                });
-            }
-
-            return apps;
-        }
-
         /// <summary>Public accessor for layout manager to call back into snapshot building.</summary>
         internal List<HomeAppEntryProxy> BuildHomeAppsSnapshotPublic()
         {
@@ -1223,25 +1143,6 @@ namespace Smartphone
 
         /// <summary>Public bridge for layout manager to get current text color.</summary>
         internal Color GetHomeTextColorPublic() => GetCurrentHomeTextColor();
-
-        /// <summary>Enter reorder mode from the settings app.</summary>
-        internal void EnterReorderMode()
-        {
-            currentApp = null;
-            rootLandingState = RootLandingState.Home;
-            layoutManager?.EnterReorderMode();
-        }
-
-        // Notification sizing/scrolling moved to partial class
-
-        private void DrawHomeApps(SpriteBatch b)
-        {
-            // Legacy stub — layout manager now handles drawing via DrawHomeLandingScreen
-            homeAppClickBounds.Clear();
-            homeAppPrevPageBounds = Rectangle.Empty;
-            homeAppNextPageBounds = Rectangle.Empty;
-        }
-
 
 
         private bool TryHandleHomeAppClick(string appId)
@@ -1450,154 +1351,6 @@ namespace Smartphone
             return false;
         }
 
-
-
-
-
-        private void DrawAppIcon(SpriteBatch b, Texture2D texture, Rectangle bounds, Rectangle? sourceRect)
-        {
-            Rectangle textureBounds = new Rectangle(0, 0, texture.Width, texture.Height);
-            Rectangle source = sourceRect.HasValue
-                ? Rectangle.Intersect(sourceRect.Value, textureBounds)
-                : textureBounds;
-
-            if (source.Width <= 0 || source.Height <= 0)
-                source = textureBounds;
-
-            float scale = Math.Min(bounds.Width / (float)source.Width, bounds.Height / (float)source.Height);
-
-            int drawWidth = Math.Max(1, (int)Math.Round(source.Width * scale));
-            int drawHeight = Math.Max(1, (int)Math.Round(source.Height * scale));
-
-            Rectangle drawRect = new Rectangle(
-                bounds.X + (bounds.Width - drawWidth) / 2,
-                bounds.Y + (bounds.Height - drawHeight) / 2,
-                drawWidth,
-                drawHeight);
-
-            b.Draw(texture, drawRect, source, Color.White);
-        }
-
-        private void DrawAppLabel(SpriteBatch b, Rectangle appBounds, string appName)
-        {
-            SpriteFont labelFont = Game1.smallFont;
-            string name = appName ?? "";
-            float viewportWidth = 95f;
-            float labelScale = GetPhoneTextScale(AppLabelFontScale);
-            float labelWidth = labelFont.MeasureString(name).X * labelScale;
-
-            if (labelWidth <= viewportWidth)
-            {
-                DrawStaticAppLabel(b, appBounds, name);
-                return;
-            }
-
-            DrawMarqueeAppLabel(b, appBounds, name, viewportWidth);
-        }
-
-        private void DrawStaticAppLabel(SpriteBatch b, Rectangle appBounds, string label)
-        {
-            SpriteFont labelFont = Game1.smallFont;
-            float labelScale = GetPhoneTextScale(AppLabelFontScale);
-            Vector2 labelSize = labelFont.MeasureString(label) * labelScale;
-            Vector2 labelPos = new Vector2(
-                appBounds.X + (appBounds.Width - labelSize.X) / 2f,
-                appBounds.Bottom + 4);
-
-            b.DrawString(labelFont, label, labelPos, GetCurrentHomeTextColor(), 0f, Vector2.Zero, labelScale, SpriteEffects.None, 1f);
-        }
-
-        private void DrawMarqueeAppLabel(SpriteBatch b, Rectangle appBounds, string appName, float viewportWidth)
-        {
-            SpriteFont labelFont = Game1.smallFont;
-            string marqueeSource = appName + new string(' ', AppLabelTrailingSpaces);
-            float labelScale = GetPhoneTextScale(AppLabelFontScale);
-            float viewportHeight = labelFont.LineSpacing * labelScale;
-            Vector2 viewportPos = new Vector2(
-                appBounds.X + (appBounds.Width - viewportWidth) / 2f,
-                appBounds.Bottom + 4);
-
-            Rectangle clipRect = new Rectangle(
-                (int)Math.Floor(viewportPos.X),
-                (int)Math.Floor(viewportPos.Y),
-                Math.Max(1, (int)Math.Ceiling(viewportWidth)),
-                Math.Max(1, (int)Math.Ceiling(viewportHeight + 2f)));
-
-            Rectangle viewportBounds = Game1.graphics.GraphicsDevice.Viewport.Bounds;
-            clipRect = Rectangle.Intersect(clipRect, viewportBounds);
-            if (clipRect.Width <= 0 || clipRect.Height <= 0)
-                return;
-
-            float marqueeWidth = labelFont.MeasureString(marqueeSource).X * labelScale;
-            if (marqueeWidth <= 0f)
-            {
-                DrawStaticAppLabel(b, appBounds, appName);
-                return;
-            }
-
-            float scrollOffset = (float)((appLabelMarqueeElapsedSeconds * AppLabelMarqueePixelsPerSecond) % marqueeWidth);
-            Vector2 drawPos = new Vector2(viewportPos.X - scrollOffset, viewportPos.Y);
-
-            b.End();
-
-            Rectangle previousScissorRect = Game1.graphics.GraphicsDevice.ScissorRectangle;
-            Game1.graphics.GraphicsDevice.ScissorRectangle = clipRect;
-
-            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, appLabelScissorRasterizer);
-
-            Color textColor = GetCurrentHomeTextColor();
-            b.DrawString(labelFont, marqueeSource, drawPos, textColor, 0f, Vector2.Zero, labelScale, SpriteEffects.None, 1f);
-            b.DrawString(labelFont, marqueeSource, new Vector2(drawPos.X + marqueeWidth, drawPos.Y), textColor, 0f, Vector2.Zero, labelScale, SpriteEffects.None, 1f);
-
-            b.End();
-            Game1.graphics.GraphicsDevice.ScissorRectangle = previousScissorRect;
-            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
-        }
-
-        private void DrawAppBadge(SpriteBatch b, Rectangle appBounds, int badgeCount)
-        {
-            string badgeText = Math.Min(99, badgeCount).ToString();
-            Vector2 badgeTextSize = Game1.smallFont.MeasureString(badgeText);
-
-            int badgeWidth = Math.Max(32, (int)badgeTextSize.X + 18);
-            int badgeHeight = Math.Max(24, (int)badgeTextSize.Y + 6);
-            int badgeX = appBounds.Right - (badgeWidth / 2) - 10;
-            int badgeY = appBounds.Y - (badgeHeight / 2) + 10;
-
-            IClickableMenu.drawTextureBox(
-                b,
-                Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
-                badgeX,
-                badgeY,
-                badgeWidth,
-                badgeHeight,
-                new Color(255, 0, 0, 150),
-                1f,
-                false);
-
-            Vector2 badgeTextPosition = new Vector2(
-                badgeX + (badgeWidth - badgeTextSize.X) / 2f,
-                badgeY + (badgeHeight - badgeTextSize.Y) / 2f);
-            DrawPhoneText(b, Game1.smallFont, badgeText, badgeTextPosition, Color.White);
-        }
-
-        private int GetHomeAppBadgeCount(HomeAppEntry app)
-        {
-            if (app.GetBadgeCount == null)
-                return 0;
-
-            try
-            {
-                return Math.Max(0, app.GetBadgeCount.Invoke());
-            }
-            catch (Exception ex)
-            {
-                ModEntry.SMonitor.Log($"Badge callback failed for app '{app.Id}': {ex.Message}", LogLevel.Warn);
-                return 0;
-            }
-        }
-
         private int GetRegisteredAppBadgeCount(RegisteredPhoneApp app)
         {
             if (app.GetBadgeCount == null)
@@ -1612,23 +1365,6 @@ namespace Smartphone
                 ModEntry.SMonitor.Log($"Badge callback failed for smartphone app '{app.CompositeId}': {ex.Message}", LogLevel.Warn);
                 return 0;
             }
-        }
-
-
-
-        private bool TryChangeHomeAppPage(int delta)
-        {
-            List<HomeAppEntry> apps = BuildHomeAppsSnapshot();
-            int totalPages = (int)Math.Ceiling(apps.Count / (double)HomeAppsPerPage);
-            if (totalPages <= 1)
-                return false;
-
-            int nextPage = Math.Clamp(homeAppPage + delta, 0, totalPages - 1);
-            if (nextPage == homeAppPage)
-                return false;
-
-            homeAppPage = nextPage;
-            return true;
         }
 
         public void OpenHomeScreen()
@@ -1728,7 +1464,7 @@ namespace Smartphone
                         count++;
                     }
                     // Multiply by 0.5f to darken the image (iPhone style)
-                    destData[y * width + x] = new Color((int)((r / count) * 0.85f), (int)((g / count) * 0.85f), (int)((b / count) * 0.85f), 255);
+                    destData[y * width + x] = new Color((int)((r / count) * 0.9f), (int)((g / count) * 0.9f), (int)((b / count) * 0.9f), 255);
                 }
             }
 
