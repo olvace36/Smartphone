@@ -324,7 +324,7 @@ namespace Smartphone
 
             List<HomeAppEntryProxy> allApps = BuildAllAppsSnapshot();
             SyncLayoutWithApps(allApps);
-            DrawDockDivider(b);
+
             DrawDock(b, allApps);
 
             if (IsReorderMode && _openFolder == null)
@@ -383,6 +383,7 @@ namespace Smartphone
                 Game1.playSound("trashcan");
                 BuildDefaultLayout(BuildAllAppsSnapshot());
                 SaveLayout();
+                _menu.ResetPhoneBackgroundToDefault();
                 return true;
             }
 
@@ -1201,12 +1202,6 @@ namespace Smartphone
             int bh = Math.Max(ScaleUi(18), (int)textSize.Y + ScaleUi(4));
             IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
                 iconRect.Right - bw / 2 - ScaleUi(4), iconRect.Top - bh / 2 + ScaleUi(4), bw, bh, new Color(255, 0, 0, 220), 1f, false);
-        }
-
-        private void DrawDockDivider(SpriteBatch b)
-        {
-            Rectangle contentBounds = _menu.GetPhoneContentBounds();
-            b.Draw(Game1.staminaRect, new Rectangle(contentBounds.X, contentBounds.Y + ScaleUi(690), contentBounds.Width, ScaleUi(1)), Color.White * 0.25f);
         }
 
         private void DrawPageIndicator(SpriteBatch b)

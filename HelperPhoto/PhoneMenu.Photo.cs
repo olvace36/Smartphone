@@ -506,7 +506,7 @@ namespace Smartphone
 
         // Detail view buttons
         private Rectangle photoDetailFavBounds = Rectangle.Empty;
-        private Rectangle photoDetailDeleteBounds = Rectangle.Empty;
+        private Rectangle photoDetailActionBounds = Rectangle.Empty;
         private Rectangle photoDetailPrevBounds = Rectangle.Empty;
         private Rectangle photoDetailNextBounds = Rectangle.Empty;
 
@@ -1059,7 +1059,17 @@ namespace Smartphone
         {
             int itemH = ScaleUiValue(PhotoDropdownItemHBase);
             int dropW = ScaleUiValue(PhotoDropdownWidthBase);
-            var items = new List<string> { "Delete", "Select all", "Favourite", "Add to Album" };
+
+            var items = new List<string>();
+            if (photoDetailIndex >= 0)
+            {
+                items.AddRange(new[] { "Delete", "Add to Album", "Use as background" });
+            }
+            else
+            {
+                items.AddRange(new[] { "Delete", "Select all", "Favourite", "Add to Album" });
+            }
+
             photoDropdownItems.Clear();
             photoDropdownItemBounds.Clear();
             photoDropdownItems.AddRange(items);
@@ -1384,7 +1394,7 @@ namespace Smartphone
 
             // Bottom toolbar
             Rectangle bottomBar = new(content.X, content.Bottom - barH, content.Width, barH);
-            b.Draw(Game1.staminaRect, bottomBar, new Color(0, 0, 0, 180));
+            b.Draw(Game1.staminaRect, bottomBar, new Color(0, 0, 0, 100));
 
             // Prev / Next navigation
             photoDetailPrevBounds = new(content.X + btnPad, bottomBar.Center.Y - navSize / 2, navSize, navSize);
@@ -1409,18 +1419,16 @@ namespace Smartphone
 
             // Top bar
             Rectangle topBar = new(content.X, content.Y, content.Width, ScaleUiValue(PhotoNavBarHeightBase));
-            b.Draw(Game1.staminaRect, topBar, new Color(0, 0, 0, 160));
+            b.Draw(Game1.staminaRect, topBar, new Color(0, 0, 0, 100));
 
             // Back arrow (Removed to use the phone-provided back button)
 
-            // Delete button top-right (Redesigned to draw texting app's trash can icon)
-            photoDetailDeleteBounds = new(content.Right - btnPad - ScaleUiValue(48), topBar.Center.Y - ScaleUiValue(20), ScaleUiValue(32), ScaleUiValue(40));
-            b.Draw(
-                Game1.mouseCursors,
-                photoDetailDeleteBounds,
-                new Rectangle(564, 102, 16, 26),
-                Color.White * 0.9f
-            );
+            // Action button top-right
+            int actionW = ScaleUiValue(80);
+            int actionH = ScaleUiValue(42);
+            photoDetailActionBounds = new Rectangle(content.Right - btnPad - actionW, topBar.Center.Y - actionH / 2, actionW, actionH);
+            DrawPhoneRoundButton(b, photoDetailActionBounds, "Action", Color.Black, Color.White);
+
 
             // Photo name at bottom of top bar
             if (photoDetailIndex >= 0 && photoDetailIndex < capturedImages.Count)
@@ -1429,7 +1437,9 @@ namespace Smartphone
                 float nameScale = GetPhoneTextScale(0.7f);
                 Vector2 nameSz = Game1.smallFont.MeasureString(displayName) * nameScale;
                 int leftLimit = content.X + btnPad;
-                int rightLimit = content.Right - btnPad - ScaleUiValue(48);
+
+                // Update the right limit to account for the wider Action button
+                int rightLimit = content.Right - btnPad - actionW - ScaleUiValue(16);
                 int maxW = rightLimit - leftLimit;
 
                 Vector2 namePos = (nameSz.X <= maxW)
@@ -1539,11 +1549,10 @@ namespace Smartphone
             // ── Detail view ───────────────────────────────────────────
             if (photoDetailIndex >= 0)
             {
-                if (photoDetailDeleteBounds.Contains(x, y))
+                if (photoDetailActionBounds.Contains(x, y))
                 {
-                    photoSelectedIndices.Clear();
-                    photoSelectedIndices.Add(photoDetailIndex);
-                    photoDeleteConfirmOpen = true;
+                    photoActionDropdownOpen = true;
+                    Game1.playSound("smallSelect");
                     photoClickHandledOnPress = true;
                     return;
                 }
@@ -2132,8 +2141,16 @@ namespace Smartphone
             switch (action)
             {
                 case "Delete":
-                    if (photoSelectedIndices.Count > 0)
+                    if (photoDetailIndex >= 0)
+                    {
+                        photoSelectedIndices.Clear();
+                        photoSelectedIndices.Add(photoDetailIndex);
                         photoDeleteConfirmOpen = true;
+                    }
+                    else if (photoSelectedIndices.Count > 0)
+                    {
+                        photoDeleteConfirmOpen = true;
+                    }
                     break;
 
                 case "Select all":
@@ -2165,7 +2182,22 @@ namespace Smartphone
                     break;
 
                 case "Add to Album":
+                    if (photoDetailIndex >= 0)
+                    {
+                        // Auto-select the active photo so it gets added to the album
+                        photoSelectedIndices.Clear();
+                        photoSelectedIndices.Add(photoDetailIndex);
+                    }
                     photoAlbumPickerOpen = true;
+                    break;
+
+                case "Use as background":
+                    if (photoDetailIndex >= 0 && photoDetailIndex < capturedImages.Count)
+                    {
+                        string path = capturedImages[photoDetailIndex];
+                        ApplyPhoneBackground(path); // This correctly hooks into PhoneMenu.cs!
+                        Game1.playSound("coin");
+                    }
                     break;
             }
         }

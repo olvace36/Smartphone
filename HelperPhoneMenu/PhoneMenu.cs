@@ -114,6 +114,7 @@ namespace Smartphone
 
         private List<string> capturedImages;
         private Texture2D phoneBackgroundImage = null;
+        private Texture2D phoneBackgroundImageBlurred = null;
 
         private bool forcedFreeControllerCursor = false;
         private readonly float phoneUiScale;
@@ -195,14 +196,23 @@ namespace Smartphone
             b.Draw(texturePhoneCapture, GetPhoneFrameBounds(), Color.White);
         }
 
-        private void DrawPhoneScreenBackground(SpriteBatch b, int xOffset, bool applyBackgroundImage = false)
+        private void DrawPhoneScreenBackground(SpriteBatch b, int xOffset, bool applyBackgroundImage = false, bool useBlurredBackground = false)
         {
             Rectangle contentBounds = GetPhoneContentBounds(xOffset);
             b.Draw(texturePhoneBackground, contentBounds, Color.White);
 
-            if (applyBackgroundImage && phoneBackgroundImage != null)
+            if (applyBackgroundImage)
             {
-                b.Draw(phoneBackgroundImage, contentBounds, Color.White * 0.8f);
+                // If blur is requested, draw our new frosted texture
+                if (useBlurredBackground && phoneBackgroundImageBlurred != null)
+                {
+                    b.Draw(phoneBackgroundImageBlurred, contentBounds, Color.White);
+                }
+                // Otherwise draw the sharp image for the lock screen
+                else if (phoneBackgroundImage != null)
+                {
+                    b.Draw(phoneBackgroundImage, contentBounds, Color.White * 0.8f);
+                }
             }
         }
 
@@ -788,8 +798,13 @@ namespace Smartphone
             return string.Equals(left ?? "", right ?? "", StringComparison.OrdinalIgnoreCase);
         }
 
-        private void ResetPhoneBackgroundToDefault()
+        internal void ResetPhoneBackgroundToDefault()
         {
+            ModEntry.currentPhoneBackground = "";
+            phoneBackgroundImage?.Dispose();
+            phoneBackgroundImage = null;
+            phoneBackgroundImageBlurred?.Dispose();
+            phoneBackgroundImageBlurred = null;
             ModEntry.currentPhoneBackground = "";
             phoneBackgroundImage?.Dispose();
             phoneBackgroundImage = null;
@@ -815,7 +830,10 @@ namespace Smartphone
                 using (Texture2D fullImage = Texture2D.FromStream(Game1.graphics.GraphicsDevice, stream))
                 {
                     phoneBackgroundImage?.Dispose();
+                    phoneBackgroundImageBlurred?.Dispose(); // Add this line
+
                     phoneBackgroundImage = CropTexture(fullImage);
+                    phoneBackgroundImageBlurred = CreateBlurredTexture(phoneBackgroundImage); // Add this line
                 }
 
                 ModEntry.currentPhoneBackground = imagePath;
@@ -1006,7 +1024,7 @@ namespace Smartphone
 
         private void DrawHomeLandingScreen(SpriteBatch b, int xOffset, bool drawApps)
         {
-            DrawPhoneScreenBackground(b, xOffset, applyBackgroundImage: true);
+            DrawPhoneScreenBackground(b, xOffset, applyBackgroundImage: true, useBlurredBackground: true);
 
             if (!drawApps)
                 return;
@@ -1643,7 +1661,75 @@ namespace Smartphone
             rootLandingState = RootLandingState.LockScreen;
         }
 
+        private Texture2D CreateBlurredTexture(Texture2D source)
+        {
+            if (source == null) return null;
 
+            // 1. Downsample for speed and extra "softness"
+            int scaleDown = 4;
+            int width = Math.Max(1, source.Width / scaleDown);
+            int height = Math.Max(1, source.Height / scaleDown);
+
+            Color[] srcData = new Color[source.Width * source.Height];
+            source.GetData(srcData);
+            Color[] smallData = new Color[width * height];
+
+            for (int y = 0; y < height; y++)
+            {
+                int srcY = Math.Min(y * scaleDown, source.Height - 1);
+                for (int x = 0; x < width; x++)
+                {
+                    int srcX = Math.Min(x * scaleDown, source.Width - 1);
+                    smallData[y * width + x] = srcData[srcY * source.Width + srcX];
+                }
+            }
+
+            int blurRadius = 2;
+            Color[] temp = new Color[width * height];
+
+            // 2. Horizontal Blur Pass
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int r = 0, g = 0, b = 0;
+                    int count = 0;
+                    for (int k = -blurRadius; k <= blurRadius; k++)
+                    {
+                        int px = Math.Clamp(x + k, 0, width - 1);
+                        Color c = smallData[y * width + px];
+                        r += c.R; g += c.G; b += c.B;
+                        count++;
+                    }
+                    temp[y * width + x] = new Color(r / count, g / count, b / count, 255);
+                }
+            }
+
+            Color[] destData = new Color[width * height];
+
+            // 3. Vertical Blur Pass & Darkening Overlay
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    int r = 0, g = 0, b = 0;
+                    int count = 0;
+                    for (int k = -blurRadius; k <= blurRadius; k++)
+                    {
+                        int py = Math.Clamp(y + k, 0, height - 1);
+                        Color c = temp[py * width + x];
+                        r += c.R; g += c.G; b += c.B;
+                        count++;
+                    }
+                    // Multiply by 0.5f to darken the image (iPhone style)
+                    destData[y * width + x] = new Color((int)((r / count) * 0.85f), (int)((g / count) * 0.85f), (int)((b / count) * 0.85f), 255);
+                }
+            }
+
+            Texture2D blurred = new Texture2D(Game1.graphics.GraphicsDevice, width, height);
+            blurred.SetData(destData);
+            return blurred;
+        }
 
         public void ClosePhoneMenu()
         {

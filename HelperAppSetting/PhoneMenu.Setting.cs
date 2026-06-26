@@ -136,7 +136,7 @@ namespace Smartphone
                 title,
                 new Vector2(PhoneX(SettingsTitleXOffsetBase), PhoneY(SettingsTitleYOffsetBase)),
                 Color.Black,
-                localScale: 0.55f * PhoneUiScale);
+                localScale: 1f * PhoneUiScale);
 
             if (currentSettingMenuState == SettingMenuSoundState)
             {
@@ -211,7 +211,7 @@ namespace Smartphone
                     rowBounds.X + ScaleUiValue(SettingsOptionTextXPaddingBase),
                     rowBounds.Y + ScaleUiValue(SettingsOptionTextYOffsetBase)),
                 Color.Black,
-                localScale: 0.5f * PhoneUiScale);
+                localScale: 0.85f * PhoneUiScale);
 
             b.Draw(
                 Game1.mouseCursors,
