@@ -40,7 +40,8 @@ namespace Smartphone
         ChangeSize1x1,
         ChangeSize2x1,
         ChangeSize2x2,
-        ChangeSize3x2,
+        ChangeSize2x3,
+        ChangeSize2x4,
         ChangeSize4x2,
         ChangeSize4x3,
         ChangeSize4x4,
@@ -1496,7 +1497,8 @@ namespace Smartphone
                 (AppSize.Size1x1, DropdownOption.ChangeSize1x1, "1×1"),
                 (AppSize.Size2x1, DropdownOption.ChangeSize2x1, "2×1"),
                 (AppSize.Size2x2, DropdownOption.ChangeSize2x2, "2×2"),
-                (AppSize.Size3x2, DropdownOption.ChangeSize3x2, "3×2"),
+                (AppSize.Size2x3, DropdownOption.ChangeSize2x3, "2×3"),
+                (AppSize.Size2x4, DropdownOption.ChangeSize2x4, "2×4"),
                 (AppSize.Size4x2, DropdownOption.ChangeSize4x2, "4×2"),
                 (AppSize.Size4x3, DropdownOption.ChangeSize4x3, "4×3"),
                 (AppSize.Size4x4, DropdownOption.ChangeSize4x4, "4×4")
@@ -1551,7 +1553,8 @@ namespace Smartphone
                 if (item.option == DropdownOption.ChangeSize1x1) ApplySize(AppSize.Size1x1);
                 if (item.option == DropdownOption.ChangeSize2x1) ApplySize(AppSize.Size2x1);
                 if (item.option == DropdownOption.ChangeSize2x2) ApplySize(AppSize.Size2x2);
-                if (item.option == DropdownOption.ChangeSize3x2) ApplySize(AppSize.Size3x2);
+                if (item.option == DropdownOption.ChangeSize2x3) ApplySize(AppSize.Size2x3);
+                if (item.option == DropdownOption.ChangeSize2x4) ApplySize(AppSize.Size2x4);
                 if (item.option == DropdownOption.ChangeSize4x2) ApplySize(AppSize.Size4x2);
                 if (item.option == DropdownOption.ChangeSize4x3) ApplySize(AppSize.Size4x3);
                 if (item.option == DropdownOption.ChangeSize4x4) ApplySize(AppSize.Size4x4);
@@ -1571,27 +1574,16 @@ namespace Smartphone
             }
         }
 
-        private string GetThemeComponentForApp(string appId)
-        {
-            if (appId.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase))
-            {
-                return "app_" + appId.Substring("builtin:".Length);
-            }
-            return "app_" + appId.Replace(":", "_");
-        }
-
         private void ApplyTheme(string appId, string themeName)
         {
             if (string.IsNullOrEmpty(appId)) return;
-            string component = GetThemeComponentForApp(appId);
 
-            // Save choice to component_themes json data manifest
+            string component = Textures.GetComponentFromAppId(appId);
+
             AssetHelper.SetComponentTheme(component, themeName);
 
-            // Clear the active in-memory cache to terminate old textures references completely
             Textures.AppTextureCache?.Clear();
 
-            // Re-bind graphics pointers immediately across the screen context
             _menu.ReloadThemeTextures();
         }
 
@@ -2170,7 +2162,8 @@ namespace Smartphone
                 AppSize.Size1x1 => (1, 1),
                 AppSize.Size2x1 => (2, 1),
                 AppSize.Size2x2 => (2, 2),
-                AppSize.Size3x2 => (3, 2),
+                AppSize.Size2x3 => (2, 3),
+                AppSize.Size2x4 => (2, 4),
                 AppSize.Size4x2 => (4, 2),
                 AppSize.Size4x3 => (4, 3),
                 AppSize.Size4x4 => (4, 4),
@@ -2193,21 +2186,12 @@ namespace Smartphone
             _dropdownItems.Clear();
             if (app == null) return;
 
-            string component = GetThemeComponentForApp(app.Id);
-            List<string> themes = new() { "default" };
+            string component = Textures.GetComponentFromAppId(app.Id);
 
-            // Scan your phone_themes folder for any component-specific styles
-            string themeComponentDir = Path.Combine(ModEntry.Instance.Helper.DirectoryPath, "phone_themes", component);
-            if (Directory.Exists(themeComponentDir))
+            List<string> themes = AssetHelper.GetAvailableThemeNamesForComponent(component);
+            if (themes == null || themes.Count == 0)
             {
-                foreach (string dir in Directory.GetDirectories(themeComponentDir))
-                {
-                    string name = Path.GetFileName(dir);
-                    if (!string.Equals(name, "default", StringComparison.OrdinalIgnoreCase))
-                    {
-                        themes.Add(name);
-                    }
-                }
+                themes = new List<string> { "default" };
             }
 
             int itemH = ScaleUi(32), itemW = ScaleUi(140);

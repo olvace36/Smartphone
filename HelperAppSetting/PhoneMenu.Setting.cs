@@ -64,11 +64,8 @@ namespace Smartphone
 
         private static string GetFriendlyComponentName(string compKey)
         {
-            if (compKey.StartsWith("app_"))
-            {
-                string appId = compKey.Substring(4);
-                return ModEntry.GetRegisteredAppDisplayName(appId);
-            }
+
+            return ModEntry.GetRegisteredAppDisplayName(compKey);
             return compKey;
         }
 

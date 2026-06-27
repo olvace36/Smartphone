@@ -1185,11 +1185,18 @@ namespace Smartphone
 
             foreach (RegisteredPhoneApp app in ModEntry.GetRegisteredPhoneAppsSnapshot())
             {
+                string activeTheme = AssetHelper.GetComponentTheme(app.CompositeId);
+
+                if (!app.ThemedIconTextures.TryGetValue(activeTheme, out Texture2D? iconTex))
+                {
+                    app.ThemedIconTextures.TryGetValue("default", out iconTex);
+                }
+
                 apps.Add(new HomeAppEntryProxy
                 {
                     Id = app.CompositeId,
                     DisplayName = app.DisplayName,
-                    IconTexture = Textures.GetAppTexture(app.CompositeId, AppSize.Size1x1) ?? (app.ThemedIconTextures.TryGetValue("default", out var tex) ? tex : null!),
+                    IconTexture = Textures.GetAppTexture(app.CompositeId, AppSize.Size1x1) ?? iconTex!,
                     SourceRect = app.SourceRect,
                     GetBadgeCount = () => GetRegisteredAppBadgeCount(app),
                     OnDrawWidget = app.OnDrawWidget,
