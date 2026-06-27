@@ -1111,7 +1111,7 @@ namespace Smartphone
             }
 
             if (!isDockContext)
-                DrawAppLabel(b, app.DisplayName, new Vector2(cellRect.Center.X, cellRect.Bottom - ScaleUi(14)), Color.White, 1, cellRect.Width - 27);
+                DrawAppLabel(b, app.DisplayName, new Vector2(cellRect.Center.X, cellRect.Bottom - ScaleUi(14)), GetHomeTextColor(), 1, cellRect.Width - 27);
         }
 
         private void DrawFolderCell(SpriteBatch b, LayoutItem folder, Rectangle cellRect, float jiggleDeg, List<HomeAppEntryProxy> allApps)
@@ -1154,7 +1154,7 @@ namespace Smartphone
                 DrawAppIcon(b, childApp.IconTexture, miniIconRect, childApp.SourceRect);
             }
 
-            DrawAppLabel(b, folder.FolderName, new Vector2(cellRect.Center.X, cellRect.Bottom - ScaleUi(14)), Color.White, 1, cellRect.Width - 27);
+            DrawAppLabel(b, folder.FolderName, new Vector2(cellRect.Center.X, cellRect.Bottom - ScaleUi(14)), GetHomeTextColor(), 1, cellRect.Width - 27);
         }
 
         private void DrawIconWithJiggle(SpriteBatch b, HomeAppEntryProxy app, Rectangle iconRect, float jiggleDeg)
@@ -1232,17 +1232,7 @@ namespace Smartphone
                 b.GraphicsDevice.ScissorRectangle = clipRect;
             }
 
-            // Draw clean drop shadow
-            b.DrawString(
-                font,
-                displayText,
-                textPos + new Vector2(1, 1),
-                Color.Black * 0.4f * alpha,
-                0f,
-                Vector2.Zero,
-                fontScale,
-                SpriteEffects.None,
-                0f);
+
 
             // Draw label text
             b.DrawString(

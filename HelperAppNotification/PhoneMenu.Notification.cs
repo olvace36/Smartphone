@@ -52,6 +52,7 @@ namespace Smartphone
                     new Rectangle(564, 102, 16, 26),
                     ScaleUiValue(1.7f));
             }
+            removeButton.scale = ScaleUiValue(1.7f);
             removeButton.bounds = new Rectangle(
                 this.xPositionOnScreen + ScaleUiValue(385),
                 this.yPositionOnScreen + ScaleUiValue(116),

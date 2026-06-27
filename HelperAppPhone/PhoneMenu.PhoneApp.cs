@@ -622,63 +622,6 @@ namespace Smartphone
                     return;
                 }
 
-                var list = GetSortedContacts();
-                int currentY = contentY - phoneAppContactsScroll;
-                foreach (var item in list)
-                {
-                    Rectangle rowRect = new Rectangle(bounds.X + ScaleUiValue(15), currentY, bounds.Width - ScaleUiValue(30), rowHeight);
-                    if (clipArea.Contains(x, y) && rowRect.Contains(x, y))
-                    {
-                        int origIdx = phoneAppContacts.IndexOf(item.OriginalContact);
-                        if (phoneAppIsEditingContacts)
-                        {
-                            Rectangle delBtn = new Rectangle(rowRect.Right - ScaleUiValue(75), rowRect.Y + ScaleUiValue(8), ScaleUiValue(65), rowRect.Height - ScaleUiValue(16));
-                            if (delBtn.Contains(x, y))
-                            {
-                                if (origIdx >= 0)
-                                {
-                                    phoneAppIsConfirmingDelete = true;
-                                    phoneAppDeletingContactIndex = origIdx;
-                                    Game1.playSound("smallSelect");
-                                }
-                                return;
-                            }
-
-                            if (origIdx >= 0)
-                            {
-                                phoneAppIsEditingExistingContact = true;
-                                phoneAppEditingContactIndex = origIdx;
-                                phoneAppNewContactName = item.OriginalContact.Name;
-                                phoneAppKeypadBuffer = item.OriginalContact.Number;
-                                phoneAppActiveField = 0;
-                                Game1.playSound("bigSelect");
-                            }
-                        }
-                        else
-                        {
-                            Game1.playSound("bigSelect");
-                            ExecuteCallAction(item.Name, item.Number, item.IsNpc);
-                        }
-                        return;
-                    }
-                    currentY += rowHeight + ScaleUiValue(6);
-                }
-            }
-            else if (phoneAppCurrentTab == 1) // Recents Click Actions
-            {
-                int currentY = contentY - phoneAppRecentsScroll;
-                foreach (var call in phoneAppRecentCalls)
-                {
-                    Rectangle rowRect = new Rectangle(bounds.X + ScaleUiValue(15), currentY, bounds.Width - ScaleUiValue(30), rowHeight);
-                    if (clipArea.Contains(x, y) && rowRect.Contains(x, y))
-                    {
-                        Game1.playSound("bigSelect");
-                        bool isNpc = ModEntry.NpcNumbers.ContainsKey(call.Number);
-                        ExecuteCallAction(call.Name, call.Number, isNpc);
-                        return;
-                    }
-                    currentY += rowHeight + ScaleUiValue(6);
-                }
             }
             else if (phoneAppCurrentTab == 2) // Keypad Dialer Click Controls
             {
@@ -848,6 +791,101 @@ namespace Smartphone
                 phoneAppRecentsScroll = Math.Clamp(phoneAppRecentsScroll + (direction > 0 ? -scrollScale : scrollScale), 0, maxScroll);
             }
         }
+
+        public void ApplyTouchScrollDeltaPhoneApp(int pixelDelta)
+        {
+            int rowHeight = (int)(ScaleUiValue(55) * 1.25f);
+            if (phoneAppCurrentTab == 0)
+            {
+                int maxScroll = Math.Max(0, GetSortedContacts().Count * (rowHeight + ScaleUiValue(6)) - ScaleUiValue(500));
+                phoneAppContactsScroll = Math.Clamp(phoneAppContactsScroll + pixelDelta, 0, maxScroll);
+            }
+            else if (phoneAppCurrentTab == 1)
+            {
+                int maxScroll = Math.Max(0, phoneAppRecentCalls.Count * (rowHeight + ScaleUiValue(6)) - ScaleUiValue(500));
+                phoneAppRecentsScroll = Math.Clamp(phoneAppRecentsScroll + pixelDelta, 0, maxScroll);
+            }
+        }
+
+        public void ReleaseLeftClickPhoneApp(int x, int y)
+        {
+            Rectangle bounds = GetPhoneContentBounds();
+            int tabHeight = ScaleUiValue(70);
+            int headerHeight = ScaleUiValue(80);
+            int contentY = bounds.Y + headerHeight + ScaleUiValue(5);
+            int contentHeight = bounds.Height - headerHeight - tabHeight - ScaleUiValue(10);
+            Rectangle clipArea = new Rectangle(bounds.X, contentY, bounds.Width, contentHeight);
+            int rowHeight = (int)(ScaleUiValue(55) * 1.25f);
+
+            if (phoneAppCurrentTab == 0) // Contacts List
+            {
+                if (phoneAppIsConfirmingDelete || phoneAppIsEditingExistingContact)
+                    return;
+
+                Rectangle topActionBtn = new Rectangle(bounds.Right - ScaleUiValue(85), bounds.Y + ScaleUiValue(10), ScaleUiValue(70), ScaleUiValue(60));
+                if (topActionBtn.Contains(x, y))
+                    return;
+
+                var list = GetSortedContacts();
+                int currentY = contentY - phoneAppContactsScroll;
+                foreach (var item in list)
+                {
+                    Rectangle rowRect = new Rectangle(bounds.X + ScaleUiValue(15), currentY, bounds.Width - ScaleUiValue(30), rowHeight);
+                    if (clipArea.Contains(x, y) && rowRect.Contains(x, y))
+                    {
+                        int origIdx = phoneAppContacts.IndexOf(item.OriginalContact);
+                        if (phoneAppIsEditingContacts)
+                        {
+                            Rectangle delBtn = new Rectangle(rowRect.Right - ScaleUiValue(75), rowRect.Y + ScaleUiValue(8), ScaleUiValue(65), rowRect.Height - ScaleUiValue(16));
+                            if (delBtn.Contains(x, y))
+                            {
+                                if (origIdx >= 0)
+                                {
+                                    phoneAppIsConfirmingDelete = true;
+                                    phoneAppDeletingContactIndex = origIdx;
+                                    Game1.playSound("smallSelect");
+                                }
+                                return;
+                            }
+
+                            if (origIdx >= 0)
+                            {
+                                phoneAppIsEditingExistingContact = true;
+                                phoneAppEditingContactIndex = origIdx;
+                                phoneAppNewContactName = item.OriginalContact.Name;
+                                phoneAppKeypadBuffer = item.OriginalContact.Number;
+                                phoneAppActiveField = 0;
+                                Game1.playSound("bigSelect");
+                            }
+                        }
+                        else
+                        {
+                            Game1.playSound("bigSelect");
+                            ExecuteCallAction(item.Name, item.Number, item.IsNpc);
+                        }
+                        return;
+                    }
+                    currentY += rowHeight + ScaleUiValue(6);
+                }
+            }
+            else if (phoneAppCurrentTab == 1) // Recents List
+            {
+                int currentY = contentY - phoneAppRecentsScroll;
+                foreach (var call in phoneAppRecentCalls)
+                {
+                    Rectangle rowRect = new Rectangle(bounds.X + ScaleUiValue(15), currentY, bounds.Width - ScaleUiValue(30), rowHeight);
+                    if (clipArea.Contains(x, y) && rowRect.Contains(x, y))
+                    {
+                        Game1.playSound("bigSelect");
+                        bool isNpc = ModEntry.NpcNumbers.ContainsKey(call.Number);
+                        ExecuteCallAction(call.Name, call.Number, isNpc);
+                        return;
+                    }
+                    currentY += rowHeight + ScaleUiValue(6);
+                }
+            }
+        }
+
 
         public void HandlePhoneAppKeyPress(Keys key)
         {

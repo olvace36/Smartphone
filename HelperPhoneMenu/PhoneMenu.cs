@@ -503,6 +503,10 @@ namespace Smartphone
                 {
                     ReleaseLeftClickAppStore(x, y);
                 }
+                else if (currentApp == "appPhone")
+                {
+                    ReleaseLeftClickPhoneApp(x, y);
+                }
             }
 
             ResetCameraZoomHoldState();
@@ -727,7 +731,7 @@ namespace Smartphone
             {
                 ReceiveScrollWheelActionAppStore(direction);
             }
-            else if (currentApp == "appPhoto" && photoDetailIndex < 0)
+            else if (currentApp == "appPhoto")
             {
                 HandlePhotoScrollWheel(direction);
             }

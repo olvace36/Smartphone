@@ -386,6 +386,10 @@ namespace Smartphone
             {
                 ApplyPhotoTouchScrollDelta(pixelDelta);
             }
+            else if (currentApp == "appPhone")
+            {
+                ApplyTouchScrollDeltaPhoneApp(pixelDelta);
+            }
         }
 
         private void ClearTextUndoHistory(EditableTextFieldKind field)
@@ -1879,7 +1883,30 @@ namespace Smartphone
 
         internal void HandlePhotoScrollWheel(int direction)
         {
-            if (photoDetailIndex >= 0) return;
+            if (photoDetailIndex >= 0)
+            {
+                List<int> filteredIndices = GetFilteredPhotoIndices();
+                int currentFilteredIdx = filteredIndices.IndexOf(photoDetailIndex);
+                if (direction > 0) // Scroll up -> previous photo
+                {
+                    if (currentFilteredIdx > 0)
+                    {
+                        photoDetailIndex = filteredIndices[currentFilteredIdx - 1];
+                        DisposePhotoDetailTexture();
+                        Game1.playSound("smallSelect");
+                    }
+                }
+                else if (direction < 0) // Scroll down -> next photo
+                {
+                    if (currentFilteredIdx >= 0 && currentFilteredIdx < filteredIndices.Count - 1)
+                    {
+                        photoDetailIndex = filteredIndices[currentFilteredIdx + 1];
+                        DisposePhotoDetailTexture();
+                        Game1.playSound("smallSelect");
+                    }
+                }
+                return;
+            }
             float delta = -(direction / 120f) * ScaleUiValue(PhotoScrollSpeed * 8);
             photoScrollTarget = Math.Clamp(photoScrollTarget + delta, 0f, GetPhotoMaxScroll());
         }

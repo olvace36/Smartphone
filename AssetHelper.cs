@@ -142,6 +142,9 @@ public class AssetHelper
         string currentSave = Smartphone.ModEntry.GetActiveSaveFolderName();
         if (settingsLoaded && lastLoadedSave == currentSave) return;
 
+        // Reset to default value first
+        Smartphone.ModEntry.currentPhoneSound = "getNewSpecialItem";
+
         try
         {
             string? modFolderPath = Smartphone.ModEntry.Instance?.Helper?.DirectoryPath ?? Smartphone.ModEntry.SHelper?.DirectoryPath;
@@ -181,6 +184,8 @@ public class AssetHelper
                         Smartphone.ModEntry.currentPhoneBackground = data.CurrentPhoneBackground;
                     if (!string.IsNullOrEmpty(data.CurrentPhoneSound))
                         Smartphone.ModEntry.currentPhoneSound = data.CurrentPhoneSound;
+                    else
+                        Smartphone.ModEntry.currentPhoneSound = "getNewSpecialItem";
                     if (!string.IsNullOrEmpty(data.CurrentPhoneTextColor))
                         Smartphone.ModEntry.currentPhoneTextColor = data.CurrentPhoneTextColor;
                 }
@@ -209,7 +214,7 @@ public class AssetHelper
             {
                 ComponentThemes = componentThemes,
                 CurrentPhoneBackground = Smartphone.ModEntry.currentPhoneBackground ?? "",
-                CurrentPhoneSound = Smartphone.ModEntry.currentPhoneSound ?? "bigSelect",
+                CurrentPhoneSound = string.IsNullOrEmpty(Smartphone.ModEntry.currentPhoneSound) ? "getNewSpecialItem" : Smartphone.ModEntry.currentPhoneSound,
                 CurrentPhoneTextColor = Smartphone.ModEntry.currentPhoneTextColor ?? "Black"
             };
 

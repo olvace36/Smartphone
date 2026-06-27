@@ -265,7 +265,7 @@ namespace Smartphone
 
         public static string currentPhoneTheme = "Default";
         public static string currentPhoneBackground = "";
-        public static string currentPhoneSound = "bigSelect";
+        public static string currentPhoneSound = "getNewSpecialItem";
         public static string currentPhoneTextColor = "Black";
 
         public static bool takeScreenshot = false;
