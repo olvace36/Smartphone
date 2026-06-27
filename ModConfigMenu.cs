@@ -55,6 +55,23 @@ namespace Smartphone
                 setValue: value => Config.DisableUpdateWarning = value
             );
 
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => "Blacklist NPC",
+                tooltip: () => "NPC names listed here will not receive a phone number or trigger sharing dialogues.",
+                getValue: () => Config.BlacklistNpc,
+                setValue: value => Config.BlacklistNpc = value
+            );
+
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => "Friendship Requirement",
+                tooltip: () => "Relationship tier requirement to trigger number sharing dialogues.",
+                getValue: () => Config.FriendshipRequirement,
+                setValue: value => Config.FriendshipRequirement = value,
+                allowedValues: new string[] { "Meet", "Friend" }
+            );
+
             configMenu.AddPageLink(
                 mod: ModManifest,
                 pageId: "storage-limits",

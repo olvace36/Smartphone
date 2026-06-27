@@ -25,5 +25,8 @@ namespace Smartphone
 
         public bool DisableUpdateWarning { get; set; } = false;
         public bool ShowPhoneIcon { get; set; } = true;
+
+        public string BlacklistNpc { get; set; } = "Leo, Krobus, Dwarf, Gunther, Birdie, Bouncer, MoonSBV, PanSBV, RaccoonSBV, Leximonster, Dianna, Torts";
+        public string FriendshipRequirement { get; set; } = "Meet";
     }
 }

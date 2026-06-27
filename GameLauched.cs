@@ -114,14 +114,19 @@ namespace Smartphone
                 NPC speaker = Game1.currentSpeaker;
                 if (speaker == null) return;
                 lastSpeaker = speaker;
-
             }
 
             if (e.OldMenu is DialogueBox && lastSpeaker != null)
             {
                 string npcName = lastSpeaker.Name;
 
-                int requiredHearts = 4;
+                if (!string.IsNullOrWhiteSpace(Config.BlacklistNpc))
+                {
+                    var blacklist = Config.BlacklistNpc.Split(',').Select(p => p.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    if (blacklist.Contains(npcName)) return;
+                }
+
+                int requiredHearts = Config.FriendshipRequirement == "Friend" ? 500 : 1;
                 int currentHearts = Game1.player.getFriendshipLevelForNPC(npcName);
 
                 string phoneFlag = $"d5a1lamdtd.Smartphone_HasPhone_{npcName}";

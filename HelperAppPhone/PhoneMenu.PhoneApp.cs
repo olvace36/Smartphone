@@ -1031,16 +1031,38 @@ namespace Smartphone
 
         public static void AssignNpcNumber()
         {
-            // Clear and fully re-build static NPC speed tracking cache context
             ModEntry.NpcNumbers.Clear();
             HashSet<string> existingNumbers = new HashSet<string>();
 
+            HashSet<string> blacklist = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (ModEntry.Config != null && !string.IsNullOrWhiteSpace(ModEntry.Config.BlacklistNpc))
+            {
+                foreach (var item in ModEntry.Config.BlacklistNpc.Split(','))
+                {
+                    string trimmed = item.Trim();
+                    if (!string.IsNullOrEmpty(trimmed))
+                        blacklist.Add(trimmed);
+                }
+            }
+
             Utility.ForEachVillager(npc =>
             {
-                if (npc != null && npc.CanSocialize && npc.modData.TryGetValue("d5a1lamdtd.Smartphone.PhoneNumber", out string existingNum) && !string.IsNullOrWhiteSpace(existingNum))
+                if (npc != null && npc.CanSocialize)
                 {
-                    existingNumbers.Add(existingNum);
-                    ModEntry.NpcNumbers[existingNum] = npc.Name;
+                    if (blacklist.Contains(npc.Name))
+                    {
+                        if (npc.modData.ContainsKey("d5a1lamdtd.Smartphone.PhoneNumber"))
+                        {
+                            npc.modData.Remove("d5a1lamdtd.Smartphone.PhoneNumber");
+                        }
+                        return true;
+                    }
+
+                    if (npc.modData.TryGetValue("d5a1lamdtd.Smartphone.PhoneNumber", out string existingNum) && !string.IsNullOrWhiteSpace(existingNum))
+                    {
+                        existingNumbers.Add(existingNum);
+                        ModEntry.NpcNumbers[existingNum] = npc.Name;
+                    }
                 }
                 return true;
             });
@@ -1050,6 +1072,9 @@ namespace Smartphone
             {
                 if (npc != null && npc.CanSocialize)
                 {
+                    if (blacklist.Contains(npc.Name))
+                        return true;
+
                     if (!npc.modData.ContainsKey("d5a1lamdtd.Smartphone.PhoneNumber") || string.IsNullOrWhiteSpace(npc.modData["d5a1lamdtd.Smartphone.PhoneNumber"]))
                     {
                         string newNumber;
