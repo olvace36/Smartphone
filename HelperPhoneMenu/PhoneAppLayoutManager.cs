@@ -1261,7 +1261,7 @@ namespace Smartphone
             Vector2 textSize = Game1.smallFont.MeasureString(text);
             int bw = Math.Max(ScaleUi(24), (int)textSize.X + ScaleUi(10));
             int bh = Math.Max(ScaleUi(18), (int)textSize.Y + ScaleUi(4));
-            IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
+            Textures.DrawCard(b,
                 iconRect.Right - bw / 2 - ScaleUi(4), iconRect.Top - bh / 2 + ScaleUi(4), bw, bh, new Color(255, 0, 0, 220), 1f, false);
         }
 
@@ -1291,7 +1291,7 @@ namespace Smartphone
                 ScaleUi(DoneButtonW),
                 ScaleUi(DoneButtonH));
 
-            IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
+            Textures.DrawCard(b,
                 _doneButtonBounds.X, _doneButtonBounds.Y, _doneButtonBounds.Width, _doneButtonBounds.Height, new Color(80, 200, 120, 240), 1f, false);
 
             string label = ModEntry.SHelper.Translation.Get("ui.reorder.done").Default("Done");
@@ -1308,7 +1308,7 @@ namespace Smartphone
                 ScaleUi(ResetButtonW),
                 ScaleUi(ResetButtonH));
 
-            IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
+            Textures.DrawCard(b,
                 _resetButtonBounds.X, _resetButtonBounds.Y, _resetButtonBounds.Width, _resetButtonBounds.Height, new Color(220, 80, 80, 240), 1f, false);
 
             string label = ModEntry.SHelper.Translation.Get("ui.reorder.reset").Default("Reset");
@@ -1463,7 +1463,7 @@ namespace Smartphone
         {
             foreach (var item in _dropdownItems)
             {
-                IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), item.bounds.X, item.bounds.Y, item.bounds.Width, item.bounds.Height, Color.White, 1f, false);
+                Textures.DrawCard(b, item.bounds.X, item.bounds.Y, item.bounds.Width, item.bounds.Height, Color.White, 1f, false);
                 Vector2 sz = Game1.smallFont.MeasureString(item.label) * 0.65f;
                 b.DrawString(Game1.smallFont, item.label, new Vector2(item.bounds.X + (item.bounds.Width - sz.X) / 2f, item.bounds.Y + (item.bounds.Height - sz.Y) / 2f), Color.Black, 0f, Vector2.Zero, 0.65f, SpriteEffects.None, 1f);
             }

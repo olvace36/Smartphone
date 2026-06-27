@@ -533,10 +533,8 @@ namespace Smartphone
             int badgeX = iconBounds.Right - badgeSize + 6;
             int badgeY = Math.Max(2, iconBounds.Y - (badgeSize / 2) + 8);
 
-            IClickableMenu.drawTextureBox(
+            Textures.DrawCard(
                 spriteBatch,
-                Game1.menuTexture,
-                new Microsoft.Xna.Framework.Rectangle(0, 256, 60, 60),
                 badgeX,
                 badgeY,
                 badgeSize,

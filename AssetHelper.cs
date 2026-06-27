@@ -223,18 +223,4 @@ public class AssetHelper
         }
         catch { }
     }
-
-    public class ImagesConstants
-    {
-        public const string PhoneBackground = "phone_screen.png";
-        public const string PhoneEmpty = "phone_edge.png";
-        public const string Background = "background.png";
-
-        public const string AppCamera = "1x1.png";
-        public const string AppPhoto = "1x1.png";
-        public const string AppSetting = "1x1.png";
-        public const string AppNotification = "1x1.png";
-        public const string AppAppStore = "1x1.png";
-        public const string AppCalendar = "1x1.png";
-    }
 }

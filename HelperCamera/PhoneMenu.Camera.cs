@@ -387,10 +387,8 @@ namespace Smartphone
                         ? new Color(95, 145, 185, 110)
                         : new Color(20, 20, 20, 95);
 
-                    IClickableMenu.drawTextureBox(
+                    Textures.DrawCard(
                         b,
-                        Game1.menuTexture,
-                        new Rectangle(0, 256, 60, 60),
                         bounds.X,
                         bounds.Y,
                         bounds.Width,
@@ -423,10 +421,8 @@ namespace Smartphone
                 ? new Color(120, 200, 255, 145)
                 : new Color(25, 25, 25, 120);
 
-            IClickableMenu.drawTextureBox(
+            Textures.DrawCard(
                 b,
-                Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
                 bounds.X,
                 bounds.Y,
                 bounds.Width,

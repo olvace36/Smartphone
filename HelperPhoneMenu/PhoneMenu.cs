@@ -99,7 +99,6 @@ namespace Smartphone
         private readonly Dictionary<string, Rectangle> homeAppClickBounds = new();
         private Rectangle homeAppPrevPageBounds = Rectangle.Empty;
         private Rectangle homeAppNextPageBounds = Rectangle.Empty;
-        private int homeAppPage = 0;
         private double appLabelMarqueeElapsedSeconds = 0d;
         private readonly RasterizerState appLabelScissorRasterizer = new() { ScissorTestEnable = true };
 
@@ -1458,7 +1457,6 @@ namespace Smartphone
         {
             settingScrollOffset = 0f;
             settingScrollTarget = 0f;
-            homeAppPage = 0;
             currentSettingMenuState = SettingMenuMainState;
             currentApp = null;
             rootLandingState = RootLandingState.Home;

@@ -120,10 +120,8 @@ namespace Smartphone
                 if (bubbleTop > visibleBottom)
                     break;
 
-                IClickableMenu.drawTextureBox(
+                Textures.DrawCard(
                     b,
-                    Game1.menuTexture,
-                    new Rectangle(0, 256, 60, 60), // source rect for 9-slice
                     bubbleRect.X - ScaleUiValue(5),
                     bubbleRect.Y,
                     bubbleRect.Width + ScaleUiValue(12),

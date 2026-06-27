@@ -191,10 +191,8 @@ namespace Smartphone
             Rectangle rowBounds = new Rectangle(rowX, rowY, rowWidth, rowHeight);
             settingOptionBounds[optionId] = rowBounds;
 
-            IClickableMenu.drawTextureBox(
+            Textures.DrawCard(
                 b,
-                Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
                 rowBounds.X,
                 rowBounds.Y,
                 rowBounds.Width,
@@ -272,10 +270,8 @@ namespace Smartphone
                 Rectangle rowBounds = new Rectangle(nameX - ScaleUiValue(10), y + ScaleUiValue(54), ScaleUiValue(380), ScaleUiValue(55));
                 themeComponentRowBounds[compKey] = rowBounds;
 
-                IClickableMenu.drawTextureBox(
+                Textures.DrawCard(
                     b,
-                    Game1.menuTexture,
-                    new Rectangle(0, 256, 60, 60),
                     rowBounds.X,
                     rowBounds.Y,
                     rowBounds.Width,

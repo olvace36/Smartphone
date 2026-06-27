@@ -965,10 +965,8 @@ namespace Smartphone
             int sectionHeight = ScaleUiValue(PhotoAlbumTitleHeightBase);
 
             // Replace the flat staminaRect with the textured menu box
-            IClickableMenu.drawTextureBox(
+            Textures.DrawCard(
                 b,
-                Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
                 viewport.X,
                 y,
                 viewport.Width,
@@ -1101,10 +1099,8 @@ namespace Smartphone
                 dropY = content.Bottom - barH - dropH - ScaleUiValue(8);
             }
 
-            IClickableMenu.drawTextureBox(
+            Textures.DrawCard(
                 b,
-                Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
                 dropX,
                 dropY,
                 dropW,
@@ -1154,10 +1150,8 @@ namespace Smartphone
             int mX = content.Center.X - mW / 2;
             int mY = content.Center.Y - mH / 2;
             Rectangle modal = new(mX, mY, mW, mH);
-            IClickableMenu.drawTextureBox(
+            Textures.DrawCard(
                 b,
-                Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
                 modal.X,
                 modal.Y,
                 modal.Width,
@@ -1204,18 +1198,16 @@ namespace Smartphone
             int mY = content.Center.Y - mH / 2;
             Rectangle modal = new(mX, mY, mW, mH);
 
-            IClickableMenu.drawTextureBox(
-    b,
-    Game1.menuTexture,
-    new Rectangle(0, 256, 60, 60),
-    modal.X,
-    modal.Y,
-    modal.Width,
-    modal.Height,
-    Color.White,
-    1f,
-    false
-);
+            Textures.DrawCard(
+                b,
+                modal.X,
+                modal.Y,
+                modal.Width,
+                modal.Height,
+                Color.White,
+                1f,
+                false
+            );
 
             int cy = mY + pad;
             b.DrawString(Game1.smallFont, title, new Vector2(mX + pad, cy),
@@ -1255,10 +1247,8 @@ namespace Smartphone
             int mX = content.Center.X - mW / 2;
             int mY = content.Center.Y - mH / 2;
 
-            IClickableMenu.drawTextureBox(
+            Textures.DrawCard(
                 b,
-                Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
                 mX,
                 mY,
                 mW,
@@ -1307,10 +1297,8 @@ namespace Smartphone
             int mH = pad + (int)titleSz.Y + pad + inputH + pad + btnH + pad;
             int mX = content.Center.X - mW / 2;
             int mY = content.Center.Y - mH / 2;
-            IClickableMenu.drawTextureBox(
+            Textures.DrawCard(
                 Game1.spriteBatch,
-                Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
                 mX,
                 mY,
                 mW,
@@ -1478,10 +1466,8 @@ namespace Smartphone
                 int tipY = photoDetailInfoBounds.Y - (int)tipSize.Y - tipPad * 2 - ScaleUiValue(8);
 
                 // Draw tooltip background
-                IClickableMenu.drawTextureBox(
+                Textures.DrawCard(
                     b,
-                    Game1.menuTexture,
-                    new Rectangle(0, 256, 60, 60),
                     tipX,
                     tipY,
                     (int)tipSize.X + tipPad * 2,
@@ -2609,10 +2595,8 @@ namespace Smartphone
             // Replace flat rectangle with the textured menu box
             // Note: I've passed Color.White so the texture renders with its original brown colors,
             // but you can change it to bgColor if you want to tint the Stardew box!
-            IClickableMenu.drawTextureBox(
+            Textures.DrawCard(
                 b,
-                Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
                 bounds.X,
                 bounds.Y,
                 bounds.Width,
@@ -2742,10 +2726,8 @@ namespace Smartphone
 
         private void DrawRedesignedFavButton(SpriteBatch b, Rectangle bounds, bool isFav)
         {
-            IClickableMenu.drawTextureBox(
+            Textures.DrawCard(
                 b,
-                Game1.menuTexture,
-                new Rectangle(0, 256, 60, 60),
                 bounds.X,
                 bounds.Y,
                 bounds.Width,

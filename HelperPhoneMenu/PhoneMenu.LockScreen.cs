@@ -136,10 +136,8 @@ namespace Smartphone
                         (int)Math.Round(hintSize.X + 44f),
                         (int)Math.Round(hintSize.Y + 18f));
 
-                    IClickableMenu.drawTextureBox(
+                    Textures.DrawCard(
                         b,
-                        Game1.menuTexture,
-                        new Rectangle(0, 256, 60, 60),
                         hintBoxBounds.X,
                         hintBoxBounds.Y,
                         hintBoxBounds.Width,

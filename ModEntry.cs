@@ -250,7 +250,6 @@ namespace Smartphone
 
         public static IMonitor SMonitor;
         public static IModHelper SHelper;
-        public static IUnlimitedEventExpansionApi iUnlimitedEventExpansionApi;
 
         private ModApi apiInstance;
 
