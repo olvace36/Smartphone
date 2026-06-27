@@ -1189,7 +1189,7 @@ namespace Smartphone
                 {
                     Id = app.CompositeId,
                     DisplayName = app.DisplayName,
-                    IconTexture = app.IconTexture,
+                    IconTexture = Textures.GetAppTexture(app.CompositeId, AppSize.Size1x1) ?? (app.ThemedIconTextures.TryGetValue("default", out var tex) ? tex : null!),
                     SourceRect = app.SourceRect,
                     GetBadgeCount = () => GetRegisteredAppBadgeCount(app),
                     OnDrawWidget = app.OnDrawWidget,

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using StardewValley;
 
 namespace Smartphone
 {
@@ -63,6 +64,14 @@ public class AssetHelper
     public static List<string> GetAvailableThemeNamesForComponent(string component)
     {
         List<string> themeNames = new();
+
+        var regApp = Smartphone.ModEntry.GetRegisteredPhoneAppsSnapshot().FirstOrDefault(a => a.CompositeId.Equals(component, StringComparison.OrdinalIgnoreCase));
+        if (regApp != null && regApp.ThemedIconTextures != null)
+        {
+            themeNames.AddRange(regApp.ThemedIconTextures.Keys);
+        }
+
+
         string componentRootPath = Path.Combine(GetAbsolutePhoneThemesRootPath(), component);
 
         if (Directory.Exists(componentRootPath))

@@ -10,11 +10,10 @@ namespace Smartphone
         public string OwnerModId { get; init; } = "";
         public string AppId { get; init; } = "";
         public string DisplayName { get; init; } = "";
-        public Texture2D IconTexture { get; init; } = null!;
+        public Dictionary<string, Texture2D> ThemedIconTextures { get; init; } = new(StringComparer.OrdinalIgnoreCase);
         public Action? OnClick { get; init; }
         public bool ClosePhoneOnLaunch { get; init; }
         public Rectangle? SourceRect { get; init; }
-        public Func<bool>? IsVisible { get; init; }
         public Func<int>? GetBadgeCount { get; init; }
         public List<AppSize> SupportedSizes { get; init; } = new() { AppSize.Size1x1 };
         public Action<SpriteBatch, Rectangle, AppSize>? OnDrawWidget { get; init; }
@@ -52,18 +51,37 @@ namespace Smartphone
         private static readonly Dictionary<string, RegisteredPhoneApp> RegisteredPhoneApps = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, RegisteredChatQuickActionButton> RegisteredChatQuickActionButtons = new(StringComparer.OrdinalIgnoreCase);
 
+        public static List<string> GetRegisteredAppIds()
+        {
+            lock (RegisteredPhoneAppsLock)
+            {
+                return RegisteredPhoneApps.Keys.ToList();
+            }
+        }
+
+        public static string GetRegisteredAppDisplayName(string appId)
+        {
+            lock (RegisteredPhoneAppsLock)
+            {
+                if (RegisteredPhoneApps.TryGetValue(appId, out var app))
+                {
+                    return app.DisplayName;
+                }
+                return appId;
+            }
+        }
+
         internal static bool RegisterPhoneAppInternal(
             string ownerModId,
             string appId,
             string displayName,
-            Texture2D iconTexture,
             Action onClick,
             bool closePhoneOnLaunch,
             Rectangle? sourceRect,
-            Func<bool>? isVisible,
             Func<int>? getBadgeCount,
-            List<AppSize>? supportedSizes = null,
-            Action<SpriteBatch, Rectangle, AppSize>? onDrawWidget = null) // <-- Add here
+            AppSize[]? supportedSizes = null,
+            Action<SpriteBatch, Rectangle, AppSize>? onDrawWidget = null,
+            Dictionary<string, Texture2D>? themedIconTextures = null)
         {
             if (onClick == null)
             {
@@ -75,35 +93,38 @@ namespace Smartphone
                 ownerModId,
                 appId,
                 displayName,
-                iconTexture,
                 onClick,
                 closePhoneOnLaunch,
                 sourceRect,
-                isVisible,
                 getBadgeCount,
                 supportedSizes,
-                onDrawWidget); // <-- Forward here
+                onDrawWidget,
+                themedIconTextures);
         }
 
         private static bool RegisterPhoneAppCore(
             string ownerModId,
             string appId,
             string displayName,
-            Texture2D iconTexture,
             Action? onClick,
             bool closePhoneOnLaunch,
             Rectangle? sourceRect,
-            Func<bool>? isVisible,
             Func<int>? getBadgeCount,
-            List<AppSize>? supportedSizes = null,
-            Action<SpriteBatch, Rectangle, AppSize>? onDrawWidget = null) // <-- Add here
+            AppSize[]? supportedSizes = null,
+            Action<SpriteBatch, Rectangle, AppSize>? onDrawWidget = null,
+            Dictionary<string, Texture2D>? themedIconTextures = null)
         {
             if (string.IsNullOrWhiteSpace(ownerModId)
                 || string.IsNullOrWhiteSpace(appId)
-                || string.IsNullOrWhiteSpace(displayName)
-                || iconTexture == null)
+                || string.IsNullOrWhiteSpace(displayName))
             {
-                SMonitor?.Log("RegisterPhoneApp failed: ownerModId, appId/groupId, displayName, and iconTexture are required.", LogLevel.Warn);
+                SMonitor?.Log("RegisterPhoneApp failed: ownerModId, appId/groupId, and displayName are required.", LogLevel.Warn);
+                return false;
+            }
+
+            if (themedIconTextures == null || themedIconTextures.Count == 0 || !themedIconTextures.ContainsKey("default"))
+            {
+                SMonitor?.Log("RegisterPhoneApp failed: themedIconTextures must not be null/empty and must contain a 'default' theme icon.", LogLevel.Warn);
                 return false;
             }
 
@@ -113,8 +134,8 @@ namespace Smartphone
                 return false;
             }
 
-            List<AppSize> sizes = (supportedSizes != null && supportedSizes.Count > 0)
-                ? supportedSizes
+            List<AppSize> sizes = (supportedSizes != null && supportedSizes.Length > 0)
+                ? new List<AppSize>(supportedSizes)
                 : new List<AppSize> { AppSize.Size1x1 };
 
             string key = RegisteredPhoneApp.BuildCompositeId(ownerModId, appId);
@@ -123,14 +144,13 @@ namespace Smartphone
                 OwnerModId = ownerModId.Trim(),
                 AppId = appId.Trim(),
                 DisplayName = displayName.Trim(),
-                IconTexture = iconTexture,
+                ThemedIconTextures = new Dictionary<string, Texture2D>(themedIconTextures, StringComparer.OrdinalIgnoreCase),
                 OnClick = onClick,
                 ClosePhoneOnLaunch = closePhoneOnLaunch,
                 SourceRect = sourceRect,
-                IsVisible = isVisible,
                 GetBadgeCount = getBadgeCount,
                 SupportedSizes = sizes,
-                OnDrawWidget = onDrawWidget // <-- Assign property here
+                OnDrawWidget = onDrawWidget
             };
 
             bool replaced;
@@ -308,23 +328,13 @@ namespace Smartphone
 
         internal static List<RegisteredPhoneApp> GetRegisteredPhoneAppsSnapshot()
         {
-            List<RegisteredPhoneApp> snapshot;
             lock (RegisteredPhoneAppsLock)
             {
-                snapshot = RegisteredPhoneApps.Values
+                return RegisteredPhoneApps.Values
                     .OrderBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase)
                     .ThenBy(p => p.CompositeId, StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
-
-            List<RegisteredPhoneApp> visibleApps = new();
-            foreach (RegisteredPhoneApp app in snapshot)
-            {
-                if (IsRegisteredPhoneAppVisible(app))
-                    visibleApps.Add(app);
-            }
-
-            return visibleApps;
         }
 
         internal static bool TryInvokeRegisteredPhoneApp(string compositeId, PhoneMenu menu)
@@ -337,9 +347,6 @@ namespace Smartphone
                 RegisteredPhoneApps.TryGetValue(compositeId, out app);
 
             if (app == null)
-                return false;
-
-            if (!IsRegisteredPhoneAppVisible(app))
                 return false;
 
             try
@@ -367,22 +374,6 @@ namespace Smartphone
             phoneMenu.OpenHomeScreen();
             Game1.activeClickableMenu = phoneMenu;
             return true;
-        }
-
-        private static bool IsRegisteredPhoneAppVisible(RegisteredPhoneApp app)
-        {
-            if (app.IsVisible == null)
-                return true;
-
-            try
-            {
-                return app.IsVisible.Invoke();
-            }
-            catch (Exception ex)
-            {
-                SMonitor?.Log($"Visibility callback failed for smartphone app '{app.CompositeId}': {ex.Message}", LogLevel.Warn);
-                return false;
-            }
         }
 
         private static bool IsRegisteredChatQuickActionButtonVisibleForNpc(RegisteredChatQuickActionButton action, string selectedNpcName)

@@ -63,27 +63,40 @@ namespace Smartphone
             string ownerModId,
             string appId,
             string displayName,
-            Texture2D iconTexture,
             Action onClick,
             bool closePhoneOnLaunch = true,
             Rectangle? sourceRect = null,
-            Func<bool>? isVisible = null,
             Func<int>? getBadgeCount = null,
-            List<AppSize>? supportedSizes = null,
-            Action<SpriteBatch, Rectangle, AppSize>? onDrawWidget = null)
+            AppSize[]? supportedSizes = null,
+            Action<SpriteBatch, Rectangle, AppSize>? onDrawWidget = null,
+            Dictionary<string, Texture2D>? themedIconTextures = null)
         {
             return ModEntry.RegisterPhoneAppInternal(
                 ownerModId,
                 appId,
                 displayName,
-                iconTexture,
                 onClick,
                 closePhoneOnLaunch,
                 sourceRect,
-                isVisible,
                 getBadgeCount,
                 supportedSizes,
-                onDrawWidget);
+                onDrawWidget,
+                themedIconTextures);
+        }
+
+        public void SetComponentTheme(string component, string theme)
+        {
+            AssetHelper.SetComponentTheme(component, theme);
+        }
+
+        public string GetComponentTheme(string component)
+        {
+            return AssetHelper.GetComponentTheme(component);
+        }
+
+        public Texture2D? GetAppIconTexture(string appId)
+        {
+            return Textures.GetAppTexture(appId, AppSize.Size1x1);
         }
 
         public bool UnregisterPhoneApp(string ownerModId, string appId)
@@ -202,9 +215,9 @@ namespace Smartphone
             float uiScale = ModEntry.GetActivePhoneUiScale();
             int scale(int val) => ModEntry.ScalePhoneUiValue(val, uiScale);
 
-            var backBounds = new Rectangle(phoneX + scale(132), phoneY + scale(925), scale(64), scale(64));
-            var lockBounds = new Rectangle(phoneX + scale(405), phoneY + scale(925), scale(64), scale(64));
-            var homeBounds = new Rectangle(phoneX + scale(265), phoneY + scale(925), scale(64), scale(64));
+            var backBounds = new Rectangle(phoneX + scale(182), phoneY + scale(975), scale(64), scale(64));
+            var lockBounds = new Rectangle(phoneX + scale(455), phoneY + scale(975), scale(64), scale(64));
+            var homeBounds = new Rectangle(phoneX + scale(315), phoneY + scale(975), scale(64), scale(64));
 
             if (backBounds.Contains(x, y))
             {
@@ -240,6 +253,89 @@ namespace Smartphone
             return false;
         }
 
+        public void DrawPhoneSizeButtons(SpriteBatch b, int phoneX, int phoneY)
+        {
+            if (ModEntry.Config.ShowSizeButton == "Disable") return;
+
+            float uiScale = ModEntry.GetActivePhoneUiScale();
+            int scale(int val) => ModEntry.ScalePhoneUiValue(val, uiScale);
+
+            int buttonY = phoneY + scale(975);
+            int smallButtonY = buttonY + scale(68);
+            int smallButtonW = scale(28);
+            int smallButtonH = scale(28);
+
+            var decRect = new Rectangle(phoneX + scale(315), smallButtonY, smallButtonW, smallButtonH);
+            var incRect = new Rectangle(phoneX + scale(351), smallButtonY, smallButtonW, smallButtonH);
+
+            bool showButtons = ModEntry.Config.ShowSizeButton == "Always";
+            if (!showButtons)
+            {
+                int mx = Game1.getMouseX(true);
+                int my = Game1.getMouseY(true);
+                if (decRect.Contains(mx, my) || incRect.Contains(mx, my))
+                {
+                    showButtons = true;
+                }
+            }
+
+            if (showButtons)
+            {
+                Textures.DrawCard(b, decRect.X, decRect.Y, decRect.Width, decRect.Height, Color.White * 0.9f, 1f, false);
+                Textures.DrawCard(b, incRect.X, incRect.Y, incRect.Width, incRect.Height, Color.White * 0.9f, 1f, false);
+
+                float scaleFactor = (uiScale < 0.999f ? 0.85f : 1f) * 0.7f;
+                Vector2 decSize = Game1.smallFont.MeasureString("-") * scaleFactor;
+                b.DrawString(Game1.smallFont, "-", new Vector2(decRect.Center.X - decSize.X / 2f, decRect.Center.Y - decSize.Y / 2f), Color.Black, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 1f);
+
+                Vector2 incSize = Game1.smallFont.MeasureString("+") * scaleFactor;
+                b.DrawString(Game1.smallFont, "+", new Vector2(incRect.Center.X - incSize.X / 2f, incRect.Center.Y - incSize.Y / 2f), Color.Black, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 1f);
+            }
+        }
+
+        public bool HandlePhoneSizeButtonsClick(int x, int y, int phoneX, int phoneY)
+        {
+            if (ModEntry.Config.ShowSizeButton == "Disable") return false;
+
+            float uiScale = ModEntry.GetActivePhoneUiScale();
+            int scale(int val) => ModEntry.ScalePhoneUiValue(val, uiScale);
+
+            int buttonY = phoneY + scale(975);
+            int smallButtonY = buttonY + scale(68);
+            int smallButtonW = scale(28);
+            int smallButtonH = scale(28);
+
+            var decRect = new Rectangle(phoneX + scale(315), smallButtonY, smallButtonW, smallButtonH);
+            var incRect = new Rectangle(phoneX + scale(351), smallButtonY, smallButtonW, smallButtonH);
+
+            if (decRect.Contains(x, y))
+            {
+                ModEntry.Instance.AdjustPhoneSize(-0.1f);
+                return true;
+            }
+            if (incRect.Contains(x, y))
+            {
+                ModEntry.Instance.AdjustPhoneSize(0.1f);
+                return true;
+            }
+
+            return false;
+        }
+
+        public string GetDecreaseSizeKey()
+        {
+            return ModEntry.Config?.DecreasePhoneSizeKey.ToString() ?? "OemComma";
+        }
+
+        public string GetIncreaseSizeKey()
+        {
+            return ModEntry.Config?.IncreasePhoneSizeKey.ToString() ?? "OemPeriod";
+        }
+
+        public void AdjustPhoneSize(float amount)
+        {
+            ModEntry.Instance.AdjustPhoneSize(amount);
+        }
     }
 
     public partial class ModEntry : Mod

@@ -46,19 +46,17 @@ namespace Smartphone
         /// <param name="supportedSizes">Optional list of <see cref="AppSize"/> values the app icon supports as widget sizes.
         /// Defaults to <see cref="AppSize.Size1x1"/> only when null or empty.</param>
         /// <returns>True if registration succeeded; otherwise false.</returns>
-        // Inside ISmartPhoneApi.cs
         bool RegisterPhoneApp(
             string ownerModId,
             string appId,
             string displayName,
-            Texture2D iconTexture,
             Action onClick,
             bool closePhoneOnLaunch = true,
             Rectangle? sourceRect = null,
-            Func<bool>? isVisible = null,
             Func<int>? getBadgeCount = null,
-            List<AppSize>? supportedSizes = null,
-            Action<SpriteBatch, Rectangle, AppSize>? onDrawWidget = null
+            AppSize[]? supportedSizes = null,
+            Action<SpriteBatch, Rectangle, AppSize>? onDrawWidget = null,
+            Dictionary<string, Texture2D>? themedIconTextures = null
         );
 
         /// <summary>
@@ -246,6 +244,47 @@ namespace Smartphone
         /// <param name="getMetadata">Whether to retrieve the metadata.</param>
         /// <param name="onComplete">Callback invoked when user finishes selection or cancels (passes JSON string representing List of SelectedPhotoResult, or empty list).</param>
         void RetrievePhotos(int limit, bool getTexture, bool getMetadata, Action<string> onComplete, bool squareOnly = false);
+
+        /// <summary>
+        /// Draws the phone scale adjustment buttons (+ and -) if they are enabled in the configuration.
+        /// </summary>
+        void DrawPhoneSizeButtons(SpriteBatch b, int phoneX, int phoneY);
+
+        /// <summary>
+        /// Handles clicks on the phone scale adjustment buttons.
+        /// </summary>
+        /// <returns>True if a button was clicked and handled, false otherwise.</returns>
+        bool HandlePhoneSizeButtonsClick(int x, int y, int phoneX, int phoneY);
+
+        /// <summary>
+        /// Gets the configured button name for decreasing the phone size.
+        /// </summary>
+        string GetDecreaseSizeKey();
+
+        /// <summary>
+        /// Gets the configured button name for increasing the phone size.
+        /// </summary>
+        string GetIncreaseSizeKey();
+
+        /// <summary>
+        /// Adjusts the phone size by the given amount.
+        /// </summary>
+        void AdjustPhoneSize(float amount);
+
+        /// <summary>
+        /// Sets the theme for a component.
+        /// </summary>
+        void SetComponentTheme(string component, string theme);
+
+        /// <summary>
+        /// Gets the current theme for a component.
+        /// </summary>
+        string GetComponentTheme(string component);
+
+        /// <summary>
+        /// Gets the resolved 1x1 icon texture for an app.
+        /// </summary>
+        Texture2D? GetAppIconTexture(string appId);
     }
 
     public class SelectedPhotoResult

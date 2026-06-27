@@ -186,16 +186,39 @@ namespace Smartphone
             }
 
             Texture2D? loadedTex = null;
-            try
+            if (File.Exists(absolutePath))
             {
-                loadedTex = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(relativePath);
-            }
-            catch
-            {
-                loadedTex = null;
+                try
+                {
+                    loadedTex = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(relativePath);
+                }
+                catch
+                {
+                    loadedTex = null;
+                }
             }
 
-            AppTextureCache[cacheKey] = loadedTex!;
+            if (loadedTex == null)
+            {
+                var regApp = ModEntry.GetRegisteredPhoneAppsSnapshot().FirstOrDefault(a => a.CompositeId.Equals(appId, StringComparison.OrdinalIgnoreCase));
+                if (regApp != null && regApp.ThemedIconTextures != null)
+                {
+                    string currentTheme = AssetHelper.GetComponentTheme(component);
+                    if (regApp.ThemedIconTextures.TryGetValue(currentTheme, out var themedTex))
+                    {
+                        loadedTex = themedTex;
+                    }
+                    else if (regApp.ThemedIconTextures.TryGetValue("default", out var defaultTex))
+                    {
+                        loadedTex = defaultTex;
+                    }
+                }
+            }
+
+            if (loadedTex != null)
+            {
+                AppTextureCache[cacheKey] = loadedTex;
+            }
             return loadedTex!;
         }
     }

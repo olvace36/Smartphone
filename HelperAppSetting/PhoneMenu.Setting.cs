@@ -43,10 +43,34 @@ namespace Smartphone
         private string currentSelectedThemeComponent = "phone";
         private readonly Dictionary<string, Rectangle> themeComponentRowBounds = new(StringComparer.OrdinalIgnoreCase);
 
-        private static readonly List<string> ThemeComponentKeys = new()
+        private static List<string> GetThemeComponentKeys()
         {
-            "phone", "app_appstore", "app_calendar", "app_camera", "app_notification", "app_photo", "app_setting"
-        };
+            var keys = new List<string>
+            {
+                "phone", "app_appstore", "app_calendar", "app_camera", "app_notification", "app_photo", "app_setting"
+            };
+
+            foreach (var app in ModEntry.GetRegisteredPhoneAppsSnapshot())
+            {
+                string compKey = Textures.GetComponentFromAppId(app.CompositeId);
+                if (!keys.Contains(compKey))
+                {
+                    keys.Add(compKey);
+                }
+            }
+
+            return keys;
+        }
+
+        private static string GetFriendlyComponentName(string compKey)
+        {
+            if (compKey.StartsWith("app_"))
+            {
+                string appId = compKey.Substring(4);
+                return ModEntry.GetRegisteredAppDisplayName(appId);
+            }
+            return compKey;
+        }
 
         private const int SettingsTitleXOffsetBase = 155;
         private const int SettingsTitleYOffsetBase = 117;
@@ -125,7 +149,7 @@ namespace Smartphone
                     "app_notification" => "Notification",
                     "app_photo" => "Photos",
                     "app_setting" => "Settings",
-                    _ => "Pick Theme"
+                    _ => GetFriendlyComponentName(currentSelectedThemeComponent)
                 },
                 _ => ModEntry.SHelper.Translation.Get("ui.setting.title")
             };
@@ -246,9 +270,10 @@ namespace Smartphone
             int visibleTop = settingsClipRect.Top - ScrollDrawOverscan;
             int visibleBottom = settingsClipRect.Bottom + ScrollDrawOverscan;
 
-            for (int i = 0; i < ThemeComponentKeys.Count; i++)
+            var themeKeys = GetThemeComponentKeys();
+            for (int i = 0; i < themeKeys.Count; i++)
             {
-                string compKey = ThemeComponentKeys[i];
+                string compKey = themeKeys[i];
                 int y = yStart + i * itemSpacing - (int)MathF.Floor(settingScrollOffset);
 
                 if (y + itemSpacing < visibleTop) continue;
@@ -264,7 +289,7 @@ namespace Smartphone
                     "app_notification" => "Notification",
                     "app_photo" => "Photos",
                     "app_setting" => "Settings",
-                    _ => compKey
+                    _ => GetFriendlyComponentName(compKey)
                 };
 
                 Rectangle rowBounds = new Rectangle(nameX - ScaleUiValue(10), y + ScaleUiValue(54), ScaleUiValue(380), ScaleUiValue(55));
@@ -787,7 +812,7 @@ namespace Smartphone
             {
                 SettingMenuSoundState => phoneSoundList.Count,
                 SettingMenuTextColorState => phoneTextColorList.Count,
-                SettingMenuThemeState => ThemeComponentKeys.Count,
+                SettingMenuThemeState => GetThemeComponentKeys().Count,
                 SettingMenuThemeComponentListState => phoneThemeList.Count,
                 _ => 0
             };
