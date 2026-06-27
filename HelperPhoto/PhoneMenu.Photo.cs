@@ -201,8 +201,9 @@ namespace Smartphone
                 bool isSearching = phoneAppCurrentTab == 0 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact && !phoneAppIsConfirmingDelete;
                 bool isEditing = phoneAppIsAddingContact || phoneAppIsEditingExistingContact;
                 bool isDialing = phoneAppCurrentTab == 2 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact;
+                bool isViewingDetail = phoneAppViewingContactDetail;
 
-                if (isSearching || isEditing || isDialing)
+                if ((isSearching || isEditing || isDialing) && !isViewingDetail)
                     return EditableTextFieldKind.PhoneAppInput;
             }
 

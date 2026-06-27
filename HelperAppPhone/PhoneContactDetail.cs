@@ -25,13 +25,6 @@ namespace Smartphone
 
             b.Draw(Game1.staminaRect, new Rectangle(bounds.X, bounds.Y + headerHeight, bounds.Width, ScaleUiValue(2)), Color.LightGray);
 
-            // Back Navigation Button
-            Rectangle backBtn = new Rectangle(bounds.X + ScaleUiValue(15), bounds.Y + ScaleUiValue(15), ScaleUiValue(60), ScaleUiValue(50));
-            Textures.DrawCard(b, backBtn.X, backBtn.Y, backBtn.Width, backBtn.Height, Color.LightGray);
-            float backScale = 0.7f * uiScale;
-            Vector2 backSz = Game1.smallFont.MeasureString("<") * backScale;
-            b.DrawString(Game1.smallFont, "<", new Vector2(backBtn.X + (backBtn.Width - backSz.X) / 2, backBtn.Y + (backBtn.Height - backSz.Y) / 2), Color.Black, 0f, Vector2.Zero, backScale, SpriteEffects.None, 1f);
-
             int contentY = bounds.Y + headerHeight + ScaleUiValue(25);
             NPC targetNpc = null;
             if (phoneAppSelectedContactDetail.IsNpc && ModEntry.NpcNumbers.TryGetValue(phoneAppSelectedContactDetail.Number, out string npcName))
@@ -94,39 +87,60 @@ namespace Smartphone
                 contentY += ScaleUiValue(110);
             }
 
-            // Quick Call Button
-            Rectangle callBtn = new Rectangle(bounds.X + ScaleUiValue(40), contentY, bounds.Width - ScaleUiValue(80), ScaleUiValue(60));
+            // Card / Nav Bar
+            int btnSize = ScaleUiValue(75);
+            Rectangle navBar = new Rectangle(bounds.X + ScaleUiValue(10), contentY, bounds.Width - ScaleUiValue(20), btnSize);
+
+            // Draw Card Background
+            Textures.DrawCard(b, navBar.X, navBar.Y, navBar.Width, navBar.Height, Color.White * 0.9f);
+
+            // Title "Phone" on the left
+            float navBarTitleScale = 0.9f * uiScale;
+            Vector2 titleSz = Game1.smallFont.MeasureString("Phone") * navBarTitleScale;
+            b.DrawString(Game1.smallFont, "Phone", new Vector2(navBar.X + ScaleUiValue(15), navBar.Y + (navBar.Height - titleSz.Y) / 2), Color.Black, 0f, Vector2.Zero, navBarTitleScale, SpriteEffects.None, 1f);
+
+            // Buttons on the right edge of the card
+            Rectangle favBtn = new Rectangle(navBar.X + navBar.Width - btnSize, navBar.Y, btnSize, btnSize);
+            Rectangle callBtn = new Rectangle(favBtn.X - ScaleUiValue(10) - btnSize, navBar.Y, btnSize, btnSize);
+
+            // Call Button
             Textures.DrawCard(b, callBtn.X, callBtn.Y, callBtn.Width, callBtn.Height, Color.LimeGreen);
             float btnTxtScale = 0.9f * uiScale;
-            Vector2 callSz = Game1.smallFont.MeasureString("Call") * btnTxtScale;
-            b.DrawString(Game1.smallFont, "Call", new Vector2(callBtn.X + (callBtn.Width - callSz.X) / 2, callBtn.Y + (callBtn.Height - callSz.Y) / 2), Color.White, 0f, Vector2.Zero, btnTxtScale, SpriteEffects.None, 1f);
-
-            contentY += ScaleUiValue(75);
+            float callBtnTxtScale = btnTxtScale;
+            Vector2 callSz = Game1.smallFont.MeasureString("Call") * callBtnTxtScale;
+            if (callSz.X > callBtn.Width - ScaleUiValue(8))
+            {
+                callBtnTxtScale *= (callBtn.Width - ScaleUiValue(8)) / callSz.X;
+                callSz = Game1.smallFont.MeasureString("Call") * callBtnTxtScale;
+            }
+            b.DrawString(Game1.smallFont, "Call", new Vector2(callBtn.X + (callBtn.Width - callSz.X) / 2, callBtn.Y + (callBtn.Height - callSz.Y) / 2), Color.White, 0f, Vector2.Zero, callBtnTxtScale, SpriteEffects.None, 1f);
 
             // Toggle Favorite Status Button
             bool isFav = phoneAppFavoriteNumbers.Contains(phoneAppSelectedContactDetail.Number);
             Color favBtnColor = isFav ? Color.LightCoral : Color.LightSkyBlue;
-            string favTxt = isFav ? "Remove Favorite" : "Add to Favorite";
+            string favTxt = isFav ? "Unpin" : "Pin";
 
-            Rectangle favBtn = new Rectangle(bounds.X + ScaleUiValue(40), contentY, bounds.Width - ScaleUiValue(80), ScaleUiValue(60));
             Textures.DrawCard(b, favBtn.X, favBtn.Y, favBtn.Width, favBtn.Height, favBtnColor);
-            Vector2 favSz = Game1.smallFont.MeasureString(favTxt) * btnTxtScale;
-            b.DrawString(Game1.smallFont, favTxt, new Vector2(favBtn.X + (favBtn.Width - favSz.X) / 2, favBtn.Y + (favBtn.Height - favSz.Y) / 2), Color.Black, 0f, Vector2.Zero, btnTxtScale, SpriteEffects.None, 1f);
+            float favBtnTxtScale = btnTxtScale;
+            Vector2 favSz = Game1.smallFont.MeasureString(favTxt) * favBtnTxtScale;
+            if (favSz.X > favBtn.Width - ScaleUiValue(8))
+            {
+                favBtnTxtScale *= (favBtn.Width - ScaleUiValue(8)) / favSz.X;
+                favSz = Game1.smallFont.MeasureString(favTxt) * favBtnTxtScale;
+            }
+            b.DrawString(Game1.smallFont, favTxt, new Vector2(favBtn.X + (favBtn.Width - favSz.X) / 2, favBtn.Y + (favBtn.Height - favSz.Y) / 2), Color.Black, 0f, Vector2.Zero, favBtnTxtScale, SpriteEffects.None, 1f);
+
+            Texture2D frameTex = Textures.PhoneEmpty;
+            if (frameTex != null && !frameTex.IsDisposed)
+            {
+                b.Draw(frameTex, new Vector2(ModEntry.currentMenuX, ModEntry.currentMenuY), null, Color.White, 0f, Vector2.Zero, uiScale, SpriteEffects.None, 0.99f);
+            }
         }
 
         public void ReceiveLeftClickPhoneContactDetail(int x, int y)
         {
             Rectangle bounds = GetPhoneContentBounds();
             int headerHeight = ScaleUiValue(80);
-
-            Rectangle backBtn = new Rectangle(bounds.X + ScaleUiValue(15), bounds.Y + ScaleUiValue(15), ScaleUiValue(60), ScaleUiValue(50));
-            if (backBtn.Contains(x, y))
-            {
-                phoneAppViewingContactDetail = false;
-                phoneAppSelectedContactDetail = null;
-                Game1.playSound("shwip");
-                return;
-            }
 
             int contentY = bounds.Y + headerHeight + ScaleUiValue(25);
             NPC targetNpc = null;
@@ -149,7 +163,11 @@ namespace Smartphone
                 contentY += ScaleUiValue(110);
             }
 
-            Rectangle callBtn = new Rectangle(bounds.X + ScaleUiValue(40), contentY, bounds.Width - ScaleUiValue(80), ScaleUiValue(60));
+            int btnSize = ScaleUiValue(75);
+            Rectangle navBar = new Rectangle(bounds.X + ScaleUiValue(10), contentY, bounds.Width - ScaleUiValue(20), btnSize);
+            Rectangle favBtn = new Rectangle(navBar.X + navBar.Width - btnSize, navBar.Y, btnSize, btnSize);
+            Rectangle callBtn = new Rectangle(favBtn.X - ScaleUiValue(10) - btnSize, navBar.Y, btnSize, btnSize);
+
             if (callBtn.Contains(x, y))
             {
                 Game1.playSound("bigSelect");
@@ -157,8 +175,6 @@ namespace Smartphone
                 return;
             }
 
-            contentY += ScaleUiValue(75);
-            Rectangle favBtn = new Rectangle(bounds.X + ScaleUiValue(40), contentY, bounds.Width - ScaleUiValue(80), ScaleUiValue(60));
             if (favBtn.Contains(x, y))
             {
                 Game1.playSound("coin");

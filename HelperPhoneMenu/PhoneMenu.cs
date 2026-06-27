@@ -1176,7 +1176,7 @@ namespace Smartphone
                 new HomeAppEntryProxy
                 {
                     Id = BuiltinAppPhoneId,
-                    DisplayName = "Phone",
+                    DisplayName = "Contacts",
                     IconTexture = Textures.GetAppTexture(BuiltinAppPhoneId, AppSize.Size1x1),
                     OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppPhoneId, rect, size),
                     SupportedSizes = new List<AppSize> { AppSize.Size1x1, AppSize.Size2x2 }
@@ -1425,11 +1425,6 @@ namespace Smartphone
                 return HandleCameraAppBackButton();
             }
 
-            if (currentApp != null)
-            {
-                currentApp = null;
-                return true;
-            }
             if (currentApp == "appPhone")
             {
                 if (phoneAppIsAddingContact)
@@ -1438,6 +1433,23 @@ namespace Smartphone
                     Game1.playSound("cancel");
                     return true;
                 }
+
+                if (phoneAppViewingContactDetail)
+                {
+                    phoneAppViewingContactDetail = false;
+                    phoneAppSelectedContactDetail = null;
+                    Game1.playSound("shwip");
+                    return true;
+                }
+
+                currentApp = null;
+                return true;
+            }
+
+
+
+            if (currentApp != null)
+            {
                 currentApp = null;
                 return true;
             }
