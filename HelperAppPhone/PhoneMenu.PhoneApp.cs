@@ -26,6 +26,10 @@ namespace Smartphone
         private bool phoneAppIsEditingExistingContact = false;
         private bool phoneAppIsConfirmingDelete = false;
 
+        // Details View State
+        private bool phoneAppViewingContactDetail = false;
+        private ContactItem phoneAppSelectedContactDetail = null;
+
         private int phoneAppEditingContactIndex = -1;
         private int phoneAppDeletingContactIndex = -1;
         private int phoneAppActiveField = 0; // 0 = Name, 1 = Number
@@ -33,6 +37,7 @@ namespace Smartphone
 
         private List<RecentCall> phoneAppRecentCalls = new();
         private List<Contact> phoneAppContacts = new();
+        private List<string> phoneAppFavoriteNumbers = new(); // Stores favorites by Number
         private bool phoneAppDataLoaded = false;
 
         public class RecentCall
@@ -78,6 +83,9 @@ namespace Smartphone
                         phoneAppContacts = data["Contacts"].ToObject<List<Contact>>() ?? new();
                     else if (data["CustomContacts"] != null)
                         phoneAppContacts = data["CustomContacts"].ToObject<List<Contact>>() ?? new();
+
+                    if (data["FavoriteNumbers"] != null)
+                        phoneAppFavoriteNumbers = data["FavoriteNumbers"].ToObject<List<string>>() ?? new();
                 }
             }
             catch (Exception ex)
@@ -94,7 +102,7 @@ namespace Smartphone
                 Directory.CreateDirectory(folderPath);
                 string filePath = Path.Combine(folderPath, "phone_app_data.json");
 
-                var data = new { RecentCalls = phoneAppRecentCalls, Contacts = phoneAppContacts };
+                var data = new { RecentCalls = phoneAppRecentCalls, Contacts = phoneAppContacts, FavoriteNumbers = phoneAppFavoriteNumbers };
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(data, Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(filePath, json);
             }
@@ -121,19 +129,21 @@ namespace Smartphone
                 });
             }
 
-            var sorted = list.OrderBy(c =>
-            {
-                string nameText = c.Name;
-                if (c.IsNpc && ModEntry.NpcNumbers.TryGetValue(c.Number, out string npcInternal))
+            var sorted = list
+                .OrderByDescending(c => phoneAppFavoriteNumbers.Contains(c.Number))
+                .ThenBy(c =>
                 {
-                    if (string.Equals(c.Name, npcInternal, StringComparison.OrdinalIgnoreCase))
+                    string nameText = c.Name;
+                    if (c.IsNpc && ModEntry.NpcNumbers.TryGetValue(c.Number, out string npcInternal))
                     {
-                        var character = Game1.getCharacterFromName(npcInternal);
-                        if (character != null) nameText = character.displayName;
+                        if (string.Equals(c.Name, npcInternal, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var character = Game1.getCharacterFromName(npcInternal);
+                            if (character != null) nameText = character.displayName;
+                        }
                     }
-                }
-                return nameText;
-            }, StringComparer.OrdinalIgnoreCase).ToList();
+                    return nameText;
+                }, StringComparer.OrdinalIgnoreCase).ToList();
 
             // Filter on-the-fly based on search box input query string if active
             if (phoneAppCurrentTab == 0 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact && !phoneAppIsConfirmingDelete && !string.IsNullOrEmpty(phoneAppSearchQuery))
@@ -158,6 +168,12 @@ namespace Smartphone
 
         public void DrawPhoneApp(SpriteBatch b)
         {
+            if (phoneAppViewingContactDetail)
+            {
+                DrawPhoneContactDetail(b);
+                return;
+            }
+
             EnsurePhoneAppDataLoaded();
             Rectangle bounds = GetPhoneContentBounds();
             float uiScale = ModEntry.GetActivePhoneUiScale();
@@ -165,7 +181,7 @@ namespace Smartphone
             b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.45f);
             DrawPhoneScreenBackground(b, 0, applyBackgroundImage: false);
 
-            int headerHeight = ScaleUiValue(80); // Height raised slightly to center 60px inputs cleanly
+            int headerHeight = ScaleUiValue(80);
             int tabHeight = ScaleUiValue(70);
             int contentY = bounds.Y + headerHeight + ScaleUiValue(5);
             int contentHeight = bounds.Height - headerHeight - tabHeight - ScaleUiValue(10);
@@ -178,7 +194,6 @@ namespace Smartphone
 
             if (phoneAppCurrentTab == 0 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact && !phoneAppIsConfirmingDelete)
             {
-                // Active query search text input field replaces title text block layout
                 Rectangle searchBoxRect = new Rectangle(bounds.X + ScaleUiValue(15), bounds.Y + ScaleUiValue(10), bounds.Width - ScaleUiValue(115), ScaleUiValue(60));
                 Textures.DrawCard(b, searchBoxRect.X, searchBoxRect.Y, searchBoxRect.Width, searchBoxRect.Height, Color.White);
 
@@ -210,7 +225,6 @@ namespace Smartphone
             }
             else if (phoneAppCurrentTab == 2 && !phoneAppIsAddingContact && phoneAppKeypadBuffer.Length > 0)
             {
-                // Aligned Add contact option button inside header bar layout
                 Textures.DrawCard(b, topActionBtn.X, topActionBtn.Y, topActionBtn.Width, topActionBtn.Height, Color.LightSkyBlue);
                 string btnText = "Add";
                 float btnScale = 0.75f * uiScale;
@@ -237,7 +251,6 @@ namespace Smartphone
             b.DrawString(Game1.smallFont, "Recents", new Vector2(bounds.X + tabCellWidth + (tabCellWidth - sRecents.X) / 2, tabBackground.Y + (tabHeight - sRecents.Y) / 2), colorRecents, 0f, Vector2.Zero, tabScale, SpriteEffects.None, 1f);
             b.DrawString(Game1.smallFont, "Keypad", new Vector2(bounds.X + tabCellWidth * 2 + (bounds.Width - tabCellWidth * 2 - sKeypad.X) / 2, tabBackground.Y + (tabHeight - sKeypad.Y) / 2), colorKeypad, 0f, Vector2.Zero, tabScale, SpriteEffects.None, 1f);
 
-            // --- CORE TABS RENDER CONTENT (+25% row height modification) ---
             int rowHeight = (int)(ScaleUiValue(55) * 1.25f);
 
             if (phoneAppCurrentTab == 0 || phoneAppCurrentTab == 1)
@@ -330,8 +343,18 @@ namespace Smartphone
                                 }
                             }
 
+                            int nameOffsetX = ScaleUiValue(15);
+
+                            // Draw favorite heart icon if favorited
+                            if (phoneAppFavoriteNumbers.Contains(contact.Number))
+                            {
+                                int heartSize = ScaleUiValue(20);
+                                b.Draw(Game1.mouseCursors, new Rectangle(cardRect.X + nameOffsetX, cardRect.Y + (cardRect.Height - heartSize) / 2, heartSize, heartSize), new Rectangle(211, 428, 7, 6), Color.White);
+                                nameOffsetX += heartSize + ScaleUiValue(8);
+                            }
+
                             float nameScale = 0.85f * uiScale;
-                            b.DrawString(Game1.smallFont, displayNameStr, new Vector2(cardRect.X + ScaleUiValue(15), cardRect.Y + (cardRect.Height - Game1.smallFont.LineSpacing * nameScale) / 2), Color.Black, 0f, Vector2.Zero, nameScale, SpriteEffects.None, 1f);
+                            b.DrawString(Game1.smallFont, displayNameStr, new Vector2(cardRect.X + nameOffsetX, cardRect.Y + (cardRect.Height - Game1.smallFont.LineSpacing * nameScale) / 2), Color.Black, 0f, Vector2.Zero, nameScale, SpriteEffects.None, 1f);
 
                             if (phoneAppIsEditingContacts)
                             {
@@ -382,7 +405,6 @@ namespace Smartphone
                                 if (character != null) nameText = character.displayName;
                             }
 
-                            // Reduced the text row layout gap down considerably for compact rendering
                             float recNameScale = 0.85f * uiScale;
                             float recTimeScale = 0.65f * uiScale;
                             b.DrawString(Game1.smallFont, nameText, new Vector2(cardRect.X + ScaleUiValue(15), cardRect.Y + ScaleUiValue(10)), Color.Black, 0f, Vector2.Zero, recNameScale, SpriteEffects.None, 1f);
@@ -502,6 +524,12 @@ namespace Smartphone
 
         public void ReceiveLeftClickPhoneApp(int x, int y)
         {
+            if (phoneAppViewingContactDetail)
+            {
+                ReceiveLeftClickPhoneContactDetail(x, y);
+                return;
+            }
+
             Rectangle bounds = GetPhoneContentBounds();
             int tabHeight = ScaleUiValue(70);
 
@@ -514,7 +542,8 @@ namespace Smartphone
                     phoneAppIsAddingContact = false;
                     phoneAppIsEditingExistingContact = false;
                     phoneAppIsConfirmingDelete = false;
-                    phoneAppSearchQuery = ""; // Clear active search string on view rotation
+                    phoneAppViewingContactDetail = false;
+                    phoneAppSearchQuery = "";
                     Game1.playSound("shwip");
                 }
                 return;
@@ -524,7 +553,6 @@ namespace Smartphone
             int contentY = bounds.Y + headerHeight + ScaleUiValue(5);
             int contentHeight = bounds.Height - headerHeight - tabHeight - ScaleUiValue(10);
             Rectangle clipArea = new Rectangle(bounds.X, contentY, bounds.Width, contentHeight);
-            int rowHeight = (int)(ScaleUiValue(55) * 1.25f);
 
             if (phoneAppCurrentTab == 0) // Contacts Screen Handlers
             {
@@ -586,7 +614,6 @@ namespace Smartphone
                                 string newNum = phoneAppKeypadBuffer.Trim();
                                 var currentContact = phoneAppContacts[phoneAppEditingContactIndex];
 
-                                // Purges any existing matching entry to maintain entry uniqueness
                                 phoneAppContacts.RemoveAll(c => c != currentContact && c.Number == newNum);
                                 phoneAppEditingContactIndex = phoneAppContacts.IndexOf(currentContact);
 
@@ -637,7 +664,6 @@ namespace Smartphone
                         if (!string.IsNullOrWhiteSpace(phoneAppNewContactName))
                         {
                             string targetNum = phoneAppKeypadBuffer.Trim();
-                            // Overwrites previous entries sharing identical number fields
                             phoneAppContacts.RemoveAll(c => c.Number == targetNum);
                             phoneAppContacts.Add(new Contact { Name = phoneAppNewContactName.Trim(), Number = targetNum });
 
@@ -660,14 +686,12 @@ namespace Smartphone
                 {
                     Rectangle dispBox = new Rectangle(bounds.X + ScaleUiValue(25), contentY + ScaleUiValue(15), bounds.Width - ScaleUiValue(50), ScaleUiValue(55));
 
-                    // Evaluate action hit intercepts targeting the updated top header position
                     Rectangle topActionBtn = new Rectangle(bounds.Right - ScaleUiValue(85), bounds.Y + ScaleUiValue(10), ScaleUiValue(70), ScaleUiValue(60));
                     if (phoneAppKeypadBuffer.Length > 0 && topActionBtn.Contains(x, y))
                     {
                         phoneAppIsAddingContact = true;
                         phoneAppActiveField = 0;
 
-                        // Pre-populate box with NPC name if number matches an NPC, while leaving it customizable
                         if (ModEntry.NpcNumbers.TryGetValue(phoneAppKeypadBuffer, out string npcName))
                         {
                             var character = Game1.getCharacterFromName(npcName);
@@ -778,6 +802,8 @@ namespace Smartphone
 
         public void ReceiveScrollWheelActionPhoneApp(int direction)
         {
+            if (phoneAppViewingContactDetail) return;
+
             int scrollScale = ScaleUiValue(40);
             int rowHeight = (int)(ScaleUiValue(55) * 1.25f);
             if (phoneAppCurrentTab == 0)
@@ -794,6 +820,8 @@ namespace Smartphone
 
         public void ApplyTouchScrollDeltaPhoneApp(int pixelDelta)
         {
+            if (phoneAppViewingContactDetail) return;
+
             int rowHeight = (int)(ScaleUiValue(55) * 1.25f);
             if (phoneAppCurrentTab == 0)
             {
@@ -809,6 +837,8 @@ namespace Smartphone
 
         public void ReleaseLeftClickPhoneApp(int x, int y)
         {
+            if (phoneAppViewingContactDetail) return;
+
             Rectangle bounds = GetPhoneContentBounds();
             int tabHeight = ScaleUiValue(70);
             int headerHeight = ScaleUiValue(80);
@@ -860,8 +890,10 @@ namespace Smartphone
                         }
                         else
                         {
-                            Game1.playSound("bigSelect");
-                            ExecuteCallAction(item.Name, item.Number, item.IsNpc);
+                            // Shift to newly added detail view upon clicking contact
+                            Game1.playSound("smallSelect");
+                            phoneAppSelectedContactDetail = item;
+                            phoneAppViewingContactDetail = true;
                         }
                         return;
                     }
@@ -889,7 +921,8 @@ namespace Smartphone
 
         public void HandlePhoneAppKeyPress(Keys key)
         {
-            // 1. Capture keyboard strokes directly for Contacts search box
+            if (phoneAppViewingContactDetail) return;
+
             if (phoneAppCurrentTab == 0 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact && !phoneAppIsConfirmingDelete)
             {
                 if (key == Keys.Back)
@@ -923,7 +956,6 @@ namespace Smartphone
                 return;
             }
 
-            // 2. Capture keyboard strokes directly for the Keypad dialer
             if (phoneAppCurrentTab == 2 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact)
             {
                 if (key == Keys.Enter)
@@ -969,7 +1001,6 @@ namespace Smartphone
                 else if (key >= Keys.NumPad0 && key <= Keys.NumPad9) inputChar = (key - Keys.NumPad0).ToString();
                 else if (key == Keys.OemPlus || key == Keys.Add) inputChar = "+";
 
-                // Bonus: Support typing * and # if the user holds shift
                 bool isShift = Game1.oldKBState.IsKeyDown(Keys.LeftShift) || Game1.oldKBState.IsKeyDown(Keys.RightShift);
                 if (isShift && key == Keys.D8) inputChar = "*";
                 if (isShift && key == Keys.D3) inputChar = "#";
@@ -985,7 +1016,6 @@ namespace Smartphone
                 return;
             }
 
-            // 3. Existing Add/Edit contact fields logic
             if (!phoneAppIsAddingContact && !phoneAppIsEditingExistingContact) return;
 
             if (key == Keys.Back)
@@ -1006,7 +1036,7 @@ namespace Smartphone
             string inputCharForEdit = key.ToString();
             if (key >= Keys.D0 && key <= Keys.D9) inputCharForEdit = (key - Keys.D0).ToString();
             else if (key >= Keys.NumPad0 && key <= Keys.NumPad9) inputCharForEdit = (key - Keys.NumPad0).ToString();
-            else if (key == Keys.OemPlus || key == Keys.Add) inputCharForEdit = "+"; // Allow typing + in the number edit field too!
+            else if (key == Keys.OemPlus || key == Keys.Add) inputCharForEdit = "+";
 
             if (inputCharForEdit.Length == 1)
             {
