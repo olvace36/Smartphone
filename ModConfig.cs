@@ -14,6 +14,10 @@ namespace Smartphone
         public float PlayerCaptureWorldFlashRadius { get; set; } = 3f;
 
         public bool UseSmallPhoneSize { get; set; } = false;
+        public SButton DecreasePhoneSizeKey { get; set; } = SButton.OemComma;
+        public SButton IncreasePhoneSizeKey { get; set; } = SButton.OemPeriod;
+        public float PhoneSize { get; set; } = 1f;
+        public string ShowSizeButton { get; set; } = "Hover";
         public int HudPhoneIconOffsetX { get; set; } = 0;
         public int HudPhoneIconOffsetY { get; set; } = 0;
 

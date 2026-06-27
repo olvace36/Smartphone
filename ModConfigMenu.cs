@@ -123,12 +123,46 @@ namespace Smartphone
                 text: () => Helper.Translation.Get("config.paragraph.phone_size")
             );
 
-            configMenu.AddBoolOption(
+            configMenu.AddNumberOption(
                 mod: ModManifest,
-                name: () => Helper.Translation.Get("config.name.small_phone_size"),
-                tooltip: () => Helper.Translation.Get("config.tooltip.small_phone_size"),
-                getValue: () => Config.UseSmallPhoneSize,
-                setValue: value => Config.UseSmallPhoneSize = value
+                name: () => Helper.Translation.Get("config.name.phone_size"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.phone_size"),
+                getValue: () => Math.Clamp(Config.PhoneSize, 0.7f, 1.5f),
+                setValue: value =>
+                {
+                    float clamped = Math.Clamp(value, 0.7f, 1.5f);
+                    Config.PhoneSize = MathF.Round(clamped * 10f) / 10f;
+                },
+                min: 0.7f,
+                max: 1.5f,
+                interval: 0.1f,
+                formatValue: value => $"{value:0.0}"
+            );
+
+            configMenu.AddKeybind(
+                mod: ModManifest,
+                name: () => Helper.Translation.Get("config.name.decrease_phone_size_key"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.decrease_phone_size_key"),
+                getValue: () => Config.DecreasePhoneSizeKey,
+                setValue: value => Config.DecreasePhoneSizeKey = value
+            );
+
+            configMenu.AddKeybind(
+                mod: ModManifest,
+                name: () => Helper.Translation.Get("config.name.increase_phone_size_key"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.increase_phone_size_key"),
+                getValue: () => Config.IncreasePhoneSizeKey,
+                setValue: value => Config.IncreasePhoneSizeKey = value
+            );
+
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => Helper.Translation.Get("config.name.show_size_button"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.show_size_button"),
+                getValue: () => Config.ShowSizeButton,
+                setValue: value => Config.ShowSizeButton = value,
+                allowedValues: new string[] { "Disable", "Hover", "Always" },
+                formatAllowedValue: value => Helper.Translation.Get($"config.value.show_size_button.{value.ToLower()}")
             );
 
             configMenu.AddBoolOption(

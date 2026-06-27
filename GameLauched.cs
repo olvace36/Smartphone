@@ -170,6 +170,21 @@ namespace Smartphone
 
             bool canOpenPhoneMenu = Game1.activeClickableMenu == null && Game1.currentMinigame == null;
 
+            bool isPhoneMenuOpen = Game1.activeClickableMenu != null && Game1.activeClickableMenu == phoneMenu;
+            bool isTyping = isPhoneMenuOpen && phoneMenu.IsTextInputActive();
+            if (!isTyping && (canOpenPhoneMenu || isPhoneMenuOpen) && e.Button == Config.DecreasePhoneSizeKey)
+            {
+                AdjustPhoneSize(-0.1f);
+                Helper.Input.Suppress(e.Button);
+                return;
+            }
+            if (!isTyping && (canOpenPhoneMenu || isPhoneMenuOpen) && e.Button == Config.IncreasePhoneSizeKey)
+            {
+                AdjustPhoneSize(0.1f);
+                Helper.Input.Suppress(e.Button);
+                return;
+            }
+
             if (e.Button == Config.ModKey && canOpenPhoneMenu)
             {
                 OpenPhoneFromHudTrigger();
@@ -200,6 +215,28 @@ namespace Smartphone
             //     var tile = e.Cursor.Tile;
             //     Game1.chatBox.addErrorMessage((IsWalkableWarpTile(Game1.currentLocation, (int)tile.X, (int)tile.Y) && IsWalkableWarpTile(Game1.currentLocation, (int)tile.X, (int)tile.Y - 1)).ToString());
             // }
+        }
+
+        internal void AdjustPhoneSize(float amount)
+        {
+            if (Config == null)
+                return;
+
+            float currentSize = Config.PhoneSize;
+            float newSize = currentSize + amount;
+            newSize = Math.Clamp(newSize, 0.7f, 1.5f);
+            newSize = MathF.Round(newSize, 1);
+
+            if (Math.Abs(newSize - currentSize) > 0.001f)
+            {
+                Config.PhoneSize = newSize;
+                Helper.WriteConfig(Config);
+
+                if (phoneMenu != null)
+                {
+                    phoneMenu.UpdateScale(newSize);
+                }
+            }
         }
 
 
@@ -315,9 +352,7 @@ namespace Smartphone
 
         internal static float GetConfiguredPhoneUiScale()
         {
-            return Config?.UseSmallPhoneSize == true
-                ? PhoneSmallUiScale
-                : 1f;
+            return Config != null ? Math.Clamp(Config.PhoneSize, 0.7f, 1.5f) : 1f;
         }
 
         internal static float GetActivePhoneUiScale()

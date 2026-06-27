@@ -76,6 +76,8 @@ namespace Smartphone
         private ClickableTextureComponent backButton;
         private ClickableTextureComponent lockButton;
         private ClickableTextureComponent homeButton;
+        private ClickableComponent decreaseSizeButton;
+        private ClickableComponent increaseSizeButton;
 
 
         // apps
@@ -110,13 +112,34 @@ namespace Smartphone
         private Texture2D phoneBackgroundImageBlurred = null;
 
         private bool forcedFreeControllerCursor = false;
-        private readonly float phoneUiScale;
+        private float phoneUiScale;
 
         internal float PhoneUiScale => phoneUiScale;
 
         internal bool UsesPhoneUiScale(float scale)
         {
             return Math.Abs(phoneUiScale - scale) < 0.001f;
+        }
+
+        public void UpdateScale(float newScale)
+        {
+            this.phoneUiScale = newScale;
+            this.width = ModEntry.GetScaledPhoneFrameWidth(newScale);
+            this.height = ModEntry.GetScaledPhoneFrameHeight(newScale);
+            this.xPositionOnScreen = Game1.uiViewport.Width / 2 - ModEntry.GetScaledPhoneDefaultMenuOffsetX(newScale);
+            this.yPositionOnScreen = Game1.uiViewport.Height / 2 - ModEntry.GetScaledPhoneDefaultMenuOffsetY(newScale);
+
+            this.UpdateSystemButtonsBounds();
+
+            if (this.layoutManager != null)
+            {
+                this.layoutManager.LoadLayout(this.BuildHomeAppsSnapshotPublic());
+            }
+        }
+
+        public bool IsTextInputActive()
+        {
+            return GetActiveEditableTextField() != EditableTextFieldKind.None;
         }
 
         private int ScaleUiValue(int baseValue)
@@ -331,6 +354,32 @@ namespace Smartphone
                 homeButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(315), buttonY, buttonSize, buttonSize);
                 homeButton.scale = ScaleUiValue(1.3f);
             }
+
+            int smallButtonY = buttonY + ScaleUiValue(68);
+            int smallButtonW = ScaleUiValue(28);
+            int smallButtonH = ScaleUiValue(28);
+
+            if (decreaseSizeButton == null)
+            {
+                decreaseSizeButton = new ClickableComponent(
+                    new Rectangle(this.xPositionOnScreen + ScaleUiValue(315), smallButtonY, smallButtonW, smallButtonH),
+                    "decrease_size");
+            }
+            else
+            {
+                decreaseSizeButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(315), smallButtonY, smallButtonW, smallButtonH);
+            }
+
+            if (increaseSizeButton == null)
+            {
+                increaseSizeButton = new ClickableComponent(
+                    new Rectangle(this.xPositionOnScreen + ScaleUiValue(351), smallButtonY, smallButtonW, smallButtonH),
+                    "increase_size");
+            }
+            else
+            {
+                increaseSizeButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(351), smallButtonY, smallButtonW, smallButtonH);
+            }
         }
 
         public override void draw(SpriteBatch b)
@@ -376,6 +425,27 @@ namespace Smartphone
                 DrawPhoneApp(b);
             }
 
+
+            // Draw size buttons
+            if (ModEntry.Config.ShowSizeButton != "Disable" && decreaseSizeButton != null && increaseSizeButton != null)
+            {
+                bool showButtons = ModEntry.Config.ShowSizeButton == "Always";
+                if (!showButtons)
+                {
+                    int mx = Game1.getMouseX(true);
+                    int my = Game1.getMouseY(true);
+                    if (decreaseSizeButton.bounds.Contains(mx, my) || increaseSizeButton.bounds.Contains(mx, my))
+                    {
+                        showButtons = true;
+                    }
+                }
+
+                if (showButtons)
+                {
+                    DrawPhoneRoundButton(b, decreaseSizeButton.bounds, "-", Color.Black, Color.White * 0.9f);
+                    DrawPhoneRoundButton(b, increaseSizeButton.bounds, "+", Color.Black, Color.White * 0.9f);
+                }
+            }
 
             // base
             base.draw(b);
@@ -468,7 +538,6 @@ namespace Smartphone
             {
                 xPositionOnScreen = Game1.getMouseX() - dragOffsetX;
                 yPositionOnScreen = Game1.getMouseY() - dragOffsetY;
-                ClampPhoneMenuToViewport();
             }
 
             ModEntry.currentMenuX = xPositionOnScreen;
@@ -579,6 +648,20 @@ namespace Smartphone
             }
 
 
+
+            if (ModEntry.Config.ShowSizeButton != "Disable" && decreaseSizeButton != null && increaseSizeButton != null)
+            {
+                if (decreaseSizeButton.bounds.Contains(x, y))
+                {
+                    ModEntry.Instance.AdjustPhoneSize(-0.1f);
+                    return;
+                }
+                if (increaseSizeButton.bounds.Contains(x, y))
+                {
+                    ModEntry.Instance.AdjustPhoneSize(0.1f);
+                    return;
+                }
+            }
 
             if (IsBackButtonPressed(x, y))
             {
@@ -1390,8 +1473,24 @@ namespace Smartphone
             }
         }
 
+        public void VerifyPhonePosition()
+        {
+            Rectangle viewport = new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height);
+            Rectangle phoneBounds = new Rectangle(xPositionOnScreen, yPositionOnScreen, width, height);
+
+            Rectangle intersection = Rectangle.Intersect(phoneBounds, viewport);
+            float intersectionArea = intersection.Width * intersection.Height;
+            float phoneArea = phoneBounds.Width * phoneBounds.Height;
+
+            if (phoneArea <= 0 || (intersectionArea / phoneArea) < 0.25f)
+            {
+                ResetToDefaultPosition();
+            }
+        }
+
         public void OpenLockScreen()
         {
+            this.VerifyPhonePosition();
             OpenHomeScreen();
 
             if (ModEntry.pendingPhoneOsInitialization)
