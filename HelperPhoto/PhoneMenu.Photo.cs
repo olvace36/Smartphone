@@ -1076,6 +1076,11 @@ namespace Smartphone
             if (photoDetailIndex >= 0)
             {
                 items.AddRange(new[] { "Delete", "Add to Album", "Set wallpaper" });
+                var socialApi = ModEntry.SHelper.ModRegistry.GetApi<IStardewSocialApi>("d5a1lamdtd.Smartphone-AppStardewSocial");
+                if (socialApi != null)
+                {
+                    items.Add("Share");
+                }
             }
             else
             {
@@ -2249,6 +2254,25 @@ namespace Smartphone
                         string path = capturedImages[photoDetailIndex];
                         ApplyPhoneBackground(path); // This correctly hooks into PhoneMenu.cs!
                         Game1.playSound("coin");
+                    }
+                    break;
+
+                case "Share":
+                    if (photoDetailIndex >= 0 && photoDetailIndex < capturedImages.Count)
+                    {
+                        string path = capturedImages[photoDetailIndex];
+                        string fname = Path.GetFileName(path);
+                        string tag = "";
+                        if (ModEntry.ImageMetadataStore.TryGetValue(fname, out var m) && m != null)
+                        {
+                            tag = m.Tag ?? "";
+                        }
+                        var socialApi = ModEntry.SHelper.ModRegistry.GetApi<IStardewSocialApi>("d5a1lamdtd.Smartphone-AppStardewSocial");
+                        if (socialApi != null)
+                        {
+                            photoActionDropdownOpen = false;
+                            socialApi.CreateDraftPost(text: null, taggedNpc: null, imagePath: path, postTags: tag);
+                        }
                     }
                     break;
             }

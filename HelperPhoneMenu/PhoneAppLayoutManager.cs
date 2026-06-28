@@ -129,7 +129,6 @@ namespace Smartphone
 
         private bool _dropdownOpen;
         private string? _dropdownAppId;
-        private bool _dropdownForDock;
         private int _dropdownForMainIndex = -1;
         private List<(DropdownOption option, Rectangle bounds, string label)> _dropdownItems = new();
 
@@ -1476,7 +1475,6 @@ namespace Smartphone
             if (item.IsFolder) return;
 
             _dropdownAppId = item.AppId;
-            _dropdownForDock = false;
             _dropdownForMainIndex = index;
 
             List<HomeAppEntryProxy> allApps = BuildAllAppsSnapshot();

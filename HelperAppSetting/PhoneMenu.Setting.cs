@@ -66,7 +66,6 @@ namespace Smartphone
         {
 
             return ModEntry.GetRegisteredAppDisplayName(compKey);
-            return compKey;
         }
 
         private const int SettingsTitleXOffsetBase = 155;
