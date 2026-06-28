@@ -317,6 +317,12 @@ namespace Smartphone
             return (texture != null && !texture.IsDisposed) ? texture : null;
         }
 
+        public Texture2D? GetCardTexture()
+        {
+            var texture = Textures.CardTexture;
+            return (texture != null && !texture.IsDisposed) ? texture : null;
+        }
+
         public (int x, int y) GetPhonePosition()
         {
             return (ModEntry.currentMenuX, ModEntry.currentMenuY);
