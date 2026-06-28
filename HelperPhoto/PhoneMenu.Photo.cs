@@ -700,8 +700,8 @@ namespace Smartphone
                 photoBtnActionBounds = Rectangle.Empty;
                 photoBtnDoneBounds = Rectangle.Empty;
 
-                DrawPhoneRoundButton(b, photoBtnApiCancelBounds, "Cancel", Color.White, Color.White);
-                DrawPhoneRoundButton(b, photoBtnApiDoneBounds, "Done", Color.White, Color.White);
+                DrawPhoneRoundButton(b, photoBtnApiCancelBounds, "Cancel", Color.Black, Color.White);
+                DrawPhoneRoundButton(b, photoBtnApiDoneBounds, "Done", Color.Black, Color.White);
             }
             else if (photoSelectMode)
             {
@@ -715,8 +715,8 @@ namespace Smartphone
                 string selLabel = photoSelectedIndices.Count == 0
                     ? "Select"
                     : $"Action";
-                DrawPhoneRoundButton(b, photoBtnActionBounds, selLabel, Color.White, Color.White);
-                DrawPhoneRoundButton(b, photoBtnDoneBounds, "Done", Color.White, Color.White);
+                DrawPhoneRoundButton(b, photoBtnActionBounds, selLabel, Color.Black, Color.White);
+                DrawPhoneRoundButton(b, photoBtnDoneBounds, "Done", Color.Black, Color.White);
             }
             else
             {
@@ -726,7 +726,7 @@ namespace Smartphone
                 photoBtnDoneBounds = Rectangle.Empty;
                 photoBtnApiCancelBounds = Rectangle.Empty;
                 photoBtnApiDoneBounds = Rectangle.Empty;
-                DrawPhoneRoundButton(b, photoBtnSelectBounds, "Select", Color.White, Color.White);
+                DrawPhoneRoundButton(b, photoBtnSelectBounds, "Select", Color.Black, Color.White);
             }
         }
 
@@ -746,9 +746,6 @@ namespace Smartphone
             int cellW = PhotoCellWidth;
             int cellH = PhotoCellHeight;
             int div = PhotoDivider;
-
-            // White background → dividers show through
-            b.Draw(Game1.staminaRect, viewport, Color.White);
 
             // Build filtered photo list
             List<int> photoIndices = GetFilteredPhotoIndices();

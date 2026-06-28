@@ -26,6 +26,25 @@ namespace Smartphone
         Size4x3,
         Size4x4,
     }
+
+
+    public class SelectedPhotoResult
+    {
+        public string AbsolutePath { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
+        public string Tag { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+        public string Timestamp { get; set; } = string.Empty;
+        public byte[]? TextureData { get; set; }
+    }
+
+    public interface IContactActionCardButton
+    {
+        public string Text { get; set; }
+        public Color BackgroundColor { get; set; }
+        public Color TextColor { get; set; }
+        public Action<string>? OnClick { get; set; }
+    }
     public interface ISmartPhoneApi
     {
         /// ======================================
@@ -84,6 +103,27 @@ namespace Smartphone
         bool OpenPhoneHomeScreen();
 
 
+
+
+        /// ======================================
+        /// API for Contacts
+        /// ======================================
+
+        /// <summary>
+        /// Event that fires whenever the list of contactable NPCs changes.
+        /// Receives the updated list of NPC internal names.
+        /// </summary>
+        event Action<List<string>> ContactableNpcsChanged;
+
+        /// <summary>
+        /// Registers a new custom card under the contact info screen, allowing up to 4 buttons.
+        /// </summary>
+        /// <param name="modId">The unique ID of the mod registering the card.</param>
+        /// <param name="cardTitle">The title of the card (e.g. "Gift", "Social").</param>
+        /// <param name="buttons">A list of button definitions. Max 4 buttons.</param>
+        /// <param name="npcNames">An optional list of NPC internal names for which this card is available. If null or empty, it is available for all NPCs.</param>
+        /// <returns>True if successfully registered.</returns>
+        bool RegisterContactActionCard(string modId, string cardTitle, IList<IContactActionCardButton> buttons, List<string> npcNames = null);
 
 
 
@@ -286,15 +326,5 @@ namespace Smartphone
         /// Gets the resolved 1x1 icon texture for an app.
         /// </summary>
         Texture2D? GetAppIconTexture(string appId);
-    }
-
-    public class SelectedPhotoResult
-    {
-        public string AbsolutePath { get; set; } = string.Empty;
-        public string FileName { get; set; } = string.Empty;
-        public string Tag { get; set; } = string.Empty;
-        public string Location { get; set; } = string.Empty;
-        public string Timestamp { get; set; } = string.Empty;
-        public byte[]? TextureData { get; set; }
     }
 }

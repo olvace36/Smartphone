@@ -301,6 +301,8 @@ namespace Smartphone
 
             if (Game1.IsMasterGame)
                 PhoneMenu.AssignNpcNumber();
+            else
+                ModEntry.NotifyContactableNpcsChanged();
         }
 
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)

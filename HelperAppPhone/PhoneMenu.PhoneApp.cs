@@ -25,6 +25,7 @@ namespace Smartphone
         private bool phoneAppIsEditingContacts = false;
         private bool phoneAppIsEditingExistingContact = false;
         private bool phoneAppIsConfirmingDelete = false;
+        private bool phoneAppClickHandledOnPress = false;
 
         // Details View State
         private bool phoneAppViewingContactDetail = false;
@@ -94,6 +95,12 @@ namespace Smartphone
             }
         }
 
+        public List<Contact> GetContacts()
+        {
+            EnsurePhoneAppDataLoaded();
+            return phoneAppContacts;
+        }
+
         private void SavePhoneAppData()
         {
             try
@@ -105,6 +112,7 @@ namespace Smartphone
                 var data = new { RecentCalls = phoneAppRecentCalls, Contacts = phoneAppContacts, FavoriteNumbers = phoneAppFavoriteNumbers };
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(data, Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(filePath, json);
+                ModEntry.NotifyContactableNpcsChanged();
             }
             catch (Exception ex)
             {
@@ -526,7 +534,6 @@ namespace Smartphone
         {
             if (phoneAppViewingContactDetail)
             {
-                ReceiveLeftClickPhoneContactDetail(x, y);
                 return;
             }
 
@@ -546,6 +553,7 @@ namespace Smartphone
                     phoneAppSearchQuery = "";
                     Game1.playSound("shwip");
                 }
+                phoneAppClickHandledOnPress = true;
                 return;
             }
 
@@ -572,6 +580,7 @@ namespace Smartphone
                         }
                         phoneAppIsConfirmingDelete = false;
                         phoneAppDeletingContactIndex = -1;
+                        phoneAppClickHandledOnPress = true;
                         return;
                     }
                     if (btnNo.Contains(x, y))
@@ -579,8 +588,10 @@ namespace Smartphone
                         phoneAppIsConfirmingDelete = false;
                         phoneAppDeletingContactIndex = -1;
                         Game1.playSound("cancel");
+                        phoneAppClickHandledOnPress = true;
                         return;
                     }
+                    phoneAppClickHandledOnPress = true;
                     return;
                 }
 
@@ -597,12 +608,14 @@ namespace Smartphone
                     {
                         phoneAppActiveField = 0;
                         Game1.playSound("smallSelect");
+                        phoneAppClickHandledOnPress = true;
                         return;
                     }
                     if (numFieldRect.Contains(x, y))
                     {
                         phoneAppActiveField = 1;
                         Game1.playSound("smallSelect");
+                        phoneAppClickHandledOnPress = true;
                         return;
                     }
                     if (btnSave.Contains(x, y))
@@ -629,6 +642,7 @@ namespace Smartphone
                             phoneAppEditingContactIndex = -1;
                         }
                         else Game1.playSound("cancel");
+                        phoneAppClickHandledOnPress = true;
                         return;
                     }
                     if (btnCancel.Contains(x, y))
@@ -636,8 +650,10 @@ namespace Smartphone
                         phoneAppIsEditingExistingContact = false;
                         phoneAppEditingContactIndex = -1;
                         Game1.playSound("cancel");
+                        phoneAppClickHandledOnPress = true;
                         return;
                     }
+                    phoneAppClickHandledOnPress = true;
                     return;
                 }
 
@@ -646,6 +662,7 @@ namespace Smartphone
                 {
                     phoneAppIsEditingContacts = !phoneAppIsEditingContacts;
                     Game1.playSound("shwip");
+                    phoneAppClickHandledOnPress = true;
                     return;
                 }
 
@@ -673,14 +690,18 @@ namespace Smartphone
                             Game1.playSound("coin");
                         }
                         else Game1.playSound("cancel");
+                        phoneAppClickHandledOnPress = true;
                         return;
                     }
                     if (btnCancel.Contains(x, y))
                     {
                         phoneAppIsAddingContact = false;
                         Game1.playSound("cancel");
+                        phoneAppClickHandledOnPress = true;
                         return;
                     }
+                    phoneAppClickHandledOnPress = true;
+                    return;
                 }
                 else
                 {
@@ -703,6 +724,7 @@ namespace Smartphone
                         }
 
                         Game1.playSound("smallSelect");
+                        phoneAppClickHandledOnPress = true;
                         return;
                     }
 
@@ -726,6 +748,7 @@ namespace Smartphone
                                     phoneAppKeypadBuffer += numbers[r, c];
                                     Game1.playSound("clank");
                                 }
+                                phoneAppClickHandledOnPress = true;
                                 return;
                             }
                         }
@@ -755,6 +778,7 @@ namespace Smartphone
                             ExecuteCallAction(destinationName, phoneAppKeypadBuffer, isNpcCall);
                         }
                         else Game1.playSound("cancel");
+                        phoneAppClickHandledOnPress = true;
                         return;
                     }
 
@@ -765,6 +789,8 @@ namespace Smartphone
                         {
                             phoneAppKeypadBuffer = phoneAppKeypadBuffer.Substring(0, phoneAppKeypadBuffer.Length - 1);
                             Game1.playSound("thudStep");
+                            phoneAppClickHandledOnPress = true;
+                            return;
                         }
                     }
                 }
@@ -802,7 +828,12 @@ namespace Smartphone
 
         public void ReceiveScrollWheelActionPhoneApp(int direction)
         {
-            if (phoneAppViewingContactDetail) return;
+            if (phoneAppViewingContactDetail)
+            {
+                int scrollScaleContact = ScaleUiValue(40);
+                phoneAppContactDetailScroll = Math.Clamp(phoneAppContactDetailScroll + (direction > 0 ? -scrollScaleContact : scrollScaleContact), 0, phoneAppContactDetailMaxScroll);
+                return;
+            }
 
             int scrollScale = ScaleUiValue(40);
             int rowHeight = (int)(ScaleUiValue(55) * 1.25f);
@@ -820,7 +851,11 @@ namespace Smartphone
 
         public void ApplyTouchScrollDeltaPhoneApp(int pixelDelta)
         {
-            if (phoneAppViewingContactDetail) return;
+            if (phoneAppViewingContactDetail)
+            {
+                phoneAppContactDetailScroll = Math.Clamp(phoneAppContactDetailScroll + pixelDelta, 0, phoneAppContactDetailMaxScroll);
+                return;
+            }
 
             int rowHeight = (int)(ScaleUiValue(55) * 1.25f);
             if (phoneAppCurrentTab == 0)
@@ -837,7 +872,17 @@ namespace Smartphone
 
         public void ReleaseLeftClickPhoneApp(int x, int y)
         {
-            if (phoneAppViewingContactDetail) return;
+            if (phoneAppClickHandledOnPress)
+            {
+                phoneAppClickHandledOnPress = false;
+                return;
+            }
+
+            if (phoneAppViewingContactDetail)
+            {
+                ReleaseLeftClickPhoneContactDetail(x, y);
+                return;
+            }
 
             Rectangle bounds = GetPhoneContentBounds();
             int tabHeight = ScaleUiValue(70);
@@ -890,9 +935,9 @@ namespace Smartphone
                         }
                         else
                         {
-                            // Shift to newly added detail view upon clicking contact
                             Game1.playSound("smallSelect");
                             phoneAppSelectedContactDetail = item;
+                            phoneAppContactDetailScroll = 0;
                             phoneAppViewingContactDetail = true;
                         }
                         return;
@@ -1120,6 +1165,7 @@ namespace Smartphone
                 }
                 return true;
             });
+            ModEntry.NotifyContactableNpcsChanged();
         }
     }
 }

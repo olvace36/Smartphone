@@ -29,6 +29,129 @@ namespace Smartphone
             this.monitor = monitor;
         }
 
+        private Action<List<string>>? contactableNpcsChanged;
+
+        public event Action<List<string>> ContactableNpcsChanged
+        {
+            add
+            {
+                contactableNpcsChanged += value;
+                try
+                {
+                    value?.Invoke(GetContactableNpcsInternal());
+                }
+                catch (Exception ex)
+                {
+                    this.monitor?.Log($"Error invoking ContactableNpcsChanged callback on subscription: {ex.Message}", LogLevel.Error);
+                }
+            }
+            remove
+            {
+                contactableNpcsChanged -= value;
+            }
+        }
+
+        public void TriggerContactableNpcsChanged(List<string> list)
+        {
+            contactableNpcsChanged?.Invoke(list);
+        }
+
+        public List<string> GetContactableNpcsInternal()
+        {
+            if (ModEntry.NpcNumbers.Count == 0)
+            {
+                // Populate NpcNumbers from existing villagers' modData if it's empty (e.g. on client side or early loading)
+                try
+                {
+                    Utility.ForEachVillager(npc =>
+                    {
+                        if (npc != null && npc.CanSocialize)
+                        {
+                            if (npc.modData.TryGetValue("d5a1lamdtd.Smartphone.PhoneNumber", out string number) && !string.IsNullOrWhiteSpace(number))
+                            {
+                                ModEntry.NpcNumbers[number] = npc.Name;
+                            }
+                        }
+                        return true;
+                    });
+                }
+                catch (Exception ex)
+                {
+                    this.monitor?.Log($"Error populating NpcNumbers dynamically: {ex.Message}", LogLevel.Error);
+                }
+            }
+
+            List<PhoneMenu.Contact> contacts = null;
+            if (ModEntry.phoneMenu != null)
+            {
+                contacts = ModEntry.phoneMenu.GetContacts();
+            }
+            else
+            {
+                // If the phoneMenu is null (not yet created/opened), read directly from the player's save directory JSON file
+                try
+                {
+                    string saveName = ModEntry.GetActiveSaveFolderName();
+                    if (!string.IsNullOrWhiteSpace(saveName))
+                    {
+                        string folderPath = Path.Combine(ModEntry.SHelper.DirectoryPath, "userdata", saveName);
+                        string filePath = Path.Combine(folderPath, "phone_app_data.json");
+
+                        if (File.Exists(filePath))
+                        {
+                            string json = File.ReadAllText(filePath);
+                            var data = Newtonsoft.Json.Linq.JObject.Parse(json);
+
+                            if (data["Contacts"] != null)
+                                contacts = data["Contacts"].ToObject<List<PhoneMenu.Contact>>();
+                            else if (data["CustomContacts"] != null)
+                                contacts = data["CustomContacts"].ToObject<List<PhoneMenu.Contact>>();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ModEntry.SMonitor?.Log($"Error reading contacts for GetContactableNpcs: {ex.Message}", LogLevel.Error);
+                }
+            }
+
+            if (contacts == null)
+                contacts = new List<PhoneMenu.Contact>();
+
+            // Find all NPC internal names corresponding to the phone numbers in the contacts list
+            List<string> npcNames = new();
+            foreach (var contact in contacts)
+            {
+                if (ModEntry.NpcNumbers.TryGetValue(contact.Number, out string npcName))
+                {
+                    if (!string.IsNullOrWhiteSpace(npcName) && !npcNames.Contains(npcName))
+                    {
+                        npcNames.Add(npcName);
+                    }
+                }
+            }
+
+            return npcNames;
+        }
+
+        public bool RegisterContactActionCard(string modId, string cardTitle, IList<IContactActionCardButton> buttons, List<string> npcNames = null)
+        {
+            if (buttons == null || buttons.Count == 0 || buttons.Count > 4) return false;
+
+            // Remove any existing card with the same ModId and Title so it can be updated
+            ModEntry.ContactActionCardsManager.Cards.RemoveAll(c => c.ModId == modId && c.Title == cardTitle);
+
+            // Register the new card
+            ModEntry.ContactActionCardsManager.Cards.Add(new ModEntry.ContactActionCardsManager.Card
+            {
+                ModId = modId,
+                Title = cardTitle,
+                Buttons = buttons,
+                AvailableNpcNames = npcNames
+            });
+
+            return true;
+        }
         public void SendSmartphoneNotification(string message, string notificationName = "", string playerId = "")
         {
             NotificationManager.AddNotification(message, notificationName);
@@ -340,18 +463,45 @@ namespace Smartphone
 
     public partial class ModEntry : Mod
     {
+        public static class ContactActionCardsManager
+        {
+            public class Card
+            {
+                public string ModId { get; set; } = string.Empty;
+                public string Title { get; set; } = string.Empty;
+                public IList<IContactActionCardButton> Buttons { get; set; } = new List<IContactActionCardButton>();
+                public List<string>? AvailableNpcNames { get; set; } = null;
+            }
 
+            public static List<Card> Cards = new();
+        }
 
         public static ModEntry Instance;
 
         public static IMonitor SMonitor;
         public static IModHelper SHelper;
 
-        private ModApi apiInstance;
+        internal ModApi apiInstance;
 
         public override object GetApi()
         {
             return this.apiInstance ??= new ModApi(Monitor);
+        }
+
+        public static void NotifyContactableNpcsChanged()
+        {
+            try
+            {
+                if (Instance?.apiInstance != null)
+                {
+                    var list = Instance.apiInstance.GetContactableNpcsInternal();
+                    Instance.apiInstance.TriggerContactableNpcsChanged(list);
+                }
+            }
+            catch (Exception ex)
+            {
+                SMonitor?.Log($"Error notifying contactable NPCs changed: {ex.Message}", LogLevel.Error);
+            }
         }
 
         public static ModConfig Config;
