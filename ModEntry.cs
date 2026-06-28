@@ -280,10 +280,6 @@ namespace Smartphone
             ModEntry.RetrievePhotosInternal(limit, getTexture, getMetadata, onComplete, squareOnly);
         }
 
-        public bool IsSmallPhoneSize()
-        {
-            return ModEntry.Config?.UseSmallPhoneSize == true;
-        }
 
         public float GetPhoneUiScale()
         {

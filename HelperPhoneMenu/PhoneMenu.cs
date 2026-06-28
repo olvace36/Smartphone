@@ -61,6 +61,7 @@ namespace Smartphone
         private int touchScrollStartX = 0;
         private bool hasTouchSwiped = false;
         internal bool HasTouchSwiped => hasTouchSwiped;
+        private bool touchStartInContentBounds = false;
         private const float ChatScrollPixelsPerWheelNotch = 48f;
         private const float ChatScrollLerpSpeed = 16f;
         private const int ScrollDrawOverscanBase = 72;
@@ -461,7 +462,7 @@ namespace Smartphone
             base.releaseLeftClick(x, y);
 
             // Detect swipe left/right
-            if (currentApp == null && layoutManager != null && !layoutManager.IsReorderMode)
+            if (currentApp == null && layoutManager != null && !layoutManager.IsReorderMode && touchStartInContentBounds)
             {
                 int deltaX = x - touchScrollStartX;
                 int deltaY = y - touchScrollStartY;
@@ -625,6 +626,7 @@ namespace Smartphone
             lastScrollMouseY = y;
             touchScrollStartY = y;
             touchScrollStartX = x;
+            touchStartInContentBounds = GetPhoneContentBounds().Contains(x, y);
             hasTouchScrolled = false;
             hasTouchSwiped = false;
             isScrolling = false;

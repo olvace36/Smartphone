@@ -297,7 +297,26 @@ namespace Smartphone
 
                 if (appStoreHoverText != null)
                 {
-                    IClickableMenu.drawHoverText(b, appStoreHoverText, Game1.smallFont);
+                    Vector2 textSize = MeasurePhoneText(Game1.smallFont, appStoreHoverText);
+                    int paddingX = ScaleUiValue(12);
+                    int paddingY = ScaleUiValue(8);
+                    int cardWidth = (int)textSize.X + paddingX * 2;
+                    int cardHeight = (int)textSize.Y + paddingY * 2;
+
+                    int tooltipX = Game1.getMouseX() + ScaleUiValue(32);
+                    int tooltipY = Game1.getMouseY() + ScaleUiValue(32);
+
+                    if (tooltipX + cardWidth > Game1.viewport.Width)
+                    {
+                        tooltipX = Game1.viewport.Width - cardWidth;
+                    }
+                    if (tooltipY + cardHeight > Game1.viewport.Height)
+                    {
+                        tooltipY = Game1.viewport.Height - cardHeight;
+                    }
+
+                    Textures.DrawCard(b, tooltipX, tooltipY, cardWidth, cardHeight, Color.White, 1f, false);
+                    DrawPhoneText(b, Game1.smallFont, appStoreHoverText, new Vector2(tooltipX + paddingX, tooltipY + paddingY), Color.Black);
                 }
             }
             else if (appStoreCurrentState == AppStoreState.Detail && appStoreSelectedMod != null)

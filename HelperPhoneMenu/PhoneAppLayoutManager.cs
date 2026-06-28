@@ -1258,11 +1258,31 @@ namespace Smartphone
         private void DrawBadge(SpriteBatch b, Rectangle iconRect, int badgeCount)
         {
             string text = Math.Min(99, badgeCount).ToString();
-            Vector2 textSize = Game1.smallFont.MeasureString(text);
+            float textScale = _menu.PhoneUiScale * 0.75f;
+            Vector2 textSize = Game1.smallFont.MeasureString(text) * textScale;
             int bw = Math.Max(ScaleUi(24), (int)textSize.X + ScaleUi(10));
-            int bh = Math.Max(ScaleUi(18), (int)textSize.Y + ScaleUi(4));
-            Textures.DrawCard(b,
-                iconRect.Right - bw / 2 - ScaleUi(4), iconRect.Top - bh / 2 + ScaleUi(4), bw, bh, new Color(255, 0, 0, 220), 1f, false);
+            int bh = Math.Max(ScaleUi(18), (int)textSize.Y);
+            int badgeX = iconRect.Right - bw / 2 - ScaleUi(4);
+            int badgeY = iconRect.Top - bh / 2 + ScaleUi(6);
+
+            Textures.DrawCard(b, badgeX, badgeY, bw, bh, new Color(255, 0, 0, 220), ScaleUi(1 / 60), false);
+
+            Vector2 textPos = new Vector2(
+                badgeX + (bw - textSize.X) / 2f,
+                badgeY + (bh - textSize.Y) / 2f
+            );
+
+            b.DrawString(
+                Game1.smallFont,
+                text,
+                textPos,
+                Color.White,
+                0f,
+                Vector2.Zero,
+                textScale,
+                SpriteEffects.None,
+                1f
+            );
         }
 
         private void DrawPageIndicator(SpriteBatch b)
@@ -1272,11 +1292,11 @@ namespace Smartphone
             int dotSize = ScaleUi(8), dotSpacing = ScaleUi(14);
             int totalW = _pages.Count * dotSpacing;
             int startX = contentBounds.X + ScaleUi(260) - totalW / 2;
-            int dotY = contentBounds.Y + ScaleUi(665);
+            int dotY = contentBounds.Y + ScaleUi(693);
 
             for (int i = 0; i < _pages.Count; i++)
             {
-                b.Draw(Game1.staminaRect, new Rectangle(startX + i * dotSpacing, dotY, dotSize, dotSize), i == _currentPage ? Color.White : Color.White * 0.4f);
+                b.Draw(Game1.staminaRect, new Rectangle(startX + i * dotSpacing, dotY, dotSize, dotSize), i == _currentPage ? Color.White : Color.White * 0.6f);
             }
             _prevPageBounds = new Rectangle(contentBounds.X + ScaleUi(10), contentBounds.Y + ScaleUi(655), ScaleUi(50), ScaleUi(30));
             _nextPageBounds = new Rectangle(contentBounds.Right - ScaleUi(60), contentBounds.Y + ScaleUi(655), ScaleUi(50), ScaleUi(30));

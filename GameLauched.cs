@@ -547,7 +547,7 @@ namespace Smartphone
                 badgeSize,
                 badgeSize,
                 new Color(222, 44, 44, 235),
-                1f,
+                (float)badgeSize / 60f,
                 false);
 
             const string alertSymbol = "!";

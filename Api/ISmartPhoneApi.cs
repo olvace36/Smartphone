@@ -187,13 +187,6 @@ namespace Smartphone
         /// ======================================
 
         /// <summary>
-        /// Gets whether the phone is currently using the small size.
-        /// When true the UI scale is 0.75×; when false it is 1×.
-        /// </summary>
-        /// <returns>True if the user has the small phone size enabled; otherwise false.</returns>
-        bool IsSmallPhoneSize();
-
-        /// <summary>
         /// Gets the current phone UI scale factor.
         /// Returns 0.75 when small phone size is enabled, or 1.0 for the regular size.
         /// </summary>

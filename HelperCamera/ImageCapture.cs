@@ -537,7 +537,7 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(saveLocation))
             {
                 SetImageTags(filename, tagList, resolvedLocationName, timeString);
-                EnforcePhotoRetention(folderPath, GetPhotoRetentionLimit(isPlayerPhoto), path);
+                EnforcePhotoRetention(folderPath, GetPhotoRetentionLimit(), path);
             }
 
             if (isPlayerPhoto && string.IsNullOrWhiteSpace(saveLocation))
@@ -666,12 +666,9 @@ namespace Smartphone
             return Math.Clamp((int)Math.Round(destinationCoordinate * scale), 0, sourceLength - 1);
         }
 
-        private static int GetPhotoRetentionLimit(bool isPlayerPhoto)
+        private static int GetPhotoRetentionLimit()
         {
-            int configuredLimit = isPlayerPhoto
-                ? Config?.PlayerMaxPhoto ?? 100
-                : Config?.NpcMaxPhoto ?? 200;
-
+            int configuredLimit = Config?.PlayerMaxPhoto ?? 100;
             return Math.Clamp(configuredLimit, 1, 500);
         }
 

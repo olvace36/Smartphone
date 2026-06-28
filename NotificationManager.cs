@@ -32,7 +32,7 @@ namespace Smartphone
         public static void AddNotification(string notificationMessage, string notificationName = "")
         {
             NotificationList.Add(notificationMessage);
-            if (ModEntry.Config?.notifyNotification ?? true)
+            if (ModEntry.Config?.NotifyNotification ?? true)
             {
                 if (!string.IsNullOrWhiteSpace(notificationName))
                     Game1.addHUDMessage(new HUDMessage($"New notification from {notificationName}", HUDMessage.newQuest_type));

@@ -39,14 +39,6 @@ namespace Smartphone
                 setValue: value => Config.ModKey = value
             );
 
-            configMenu.AddTextOption(
-                mod: ModManifest,
-                name: () => Helper.Translation.Get("config.name.language"),
-                tooltip: () => Helper.Translation.Get("config.tooltip.language"),
-                getValue: () => string.IsNullOrWhiteSpace(Config.Language) ? "English" : Config.Language,
-                setValue: value => Config.Language = string.IsNullOrWhiteSpace(value) ? "English" : value.Trim()
-            );
-
             configMenu.AddBoolOption(
                 mod: ModManifest,
                 name: () => Helper.Translation.Get("config.name.disable_update_warning"),
@@ -55,18 +47,12 @@ namespace Smartphone
                 setValue: value => Config.DisableUpdateWarning = value
             );
 
-            configMenu.AddTextOption(
-                mod: ModManifest,
-                name: () => "Blacklist NPC",
-                tooltip: () => "NPC names listed here will not receive a phone number or trigger sharing dialogues.",
-                getValue: () => Config.BlacklistNpc,
-                setValue: value => Config.BlacklistNpc = value
-            );
+
 
             configMenu.AddTextOption(
                 mod: ModManifest,
                 name: () => "Friendship Requirement",
-                tooltip: () => "Relationship tier requirement to trigger number sharing dialogues.",
+                tooltip: () => "When can the NPC give you their contact number.",
                 getValue: () => Config.FriendshipRequirement,
                 setValue: value => Config.FriendshipRequirement = value,
                 allowedValues: new string[] { "Meet", "Friend" }
@@ -93,6 +79,13 @@ namespace Smartphone
                 tooltip: () => Helper.Translation.Get("config.tooltip.notifications")
             );
 
+            configMenu.AddPageLink(
+                mod: ModManifest,
+                pageId: "misc",
+                text: () => Helper.Translation.Get("config.page.misc"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.misc")
+            );
+
             // storage and limits page
             configMenu.AddPage(mod: ModManifest, pageId: "storage-limits", pageTitle: () => Helper.Translation.Get("config.page.storage_limits"));
 
@@ -106,34 +99,8 @@ namespace Smartphone
                 max: 500
             );
 
-            configMenu.AddNumberOption(
-                mod: ModManifest,
-                name: () => Helper.Translation.Get("config.name.npc_photos_to_keep"),
-                tooltip: () => Helper.Translation.Get("config.tooltip.npc_photos_to_keep"),
-                getValue: () => Config.NpcMaxPhoto,
-                setValue: value => Config.NpcMaxPhoto = Math.Clamp(value, 1, 500),
-                min: 1,
-                max: 500
-            );
-
             // display page
             configMenu.AddPage(mod: ModManifest, pageId: "display", pageTitle: () => Helper.Translation.Get("config.page.display"));
-
-            configMenu.AddNumberOption(
-                mod: ModManifest,
-                name: () => Helper.Translation.Get("config.name.camera_flash_radius"),
-                tooltip: () => Helper.Translation.Get("config.tooltip.camera_flash_radius"),
-                getValue: () => Math.Clamp(Config.PlayerCaptureWorldFlashRadius, 1f, 10f),
-                setValue: value =>
-                {
-                    float clamped = Math.Clamp(value, 1f, 10f);
-                    Config.PlayerCaptureWorldFlashRadius = MathF.Round(clamped * 10f) / 10f;
-                },
-                min: 1f,
-                max: 10f,
-                interval: 0.1f,
-                formatValue: value => $"{value:0.0}"
-            );
 
             configMenu.AddParagraph(
                 mod: ModManifest,
@@ -182,6 +149,11 @@ namespace Smartphone
                 formatAllowedValue: value => Helper.Translation.Get($"config.value.show_size_button.{value.ToLower()}")
             );
 
+            configMenu.AddParagraph(
+                mod: ModManifest,
+                text: () => Helper.Translation.Get("config.paragraph.phone_icon")
+            );
+
             configMenu.AddBoolOption(
                 mod: ModManifest,
                 name: () => Helper.Translation.Get("config.name.show_phone_icon"),
@@ -219,8 +191,35 @@ namespace Smartphone
                 mod: ModManifest,
                 name: () => Helper.Translation.Get("config.name.notification_popups"),
                 tooltip: () => Helper.Translation.Get("config.tooltip.notification_popups"),
-                getValue: () => Config.notifyNotification,
-                setValue: value => Config.notifyNotification = value
+                getValue: () => Config.NotifyNotification,
+                setValue: value => Config.NotifyNotification = value
+            );
+
+            // misc page
+            configMenu.AddPage(mod: ModManifest, pageId: "misc", pageTitle: () => Helper.Translation.Get("config.page.misc"));
+
+            configMenu.AddTextOption(
+                mod: ModManifest,
+                name: () => "Blacklist NPC",
+                tooltip: () => "NPC names listed here will not receive a phone number or trigger sharing dialogues.",
+                getValue: () => Config.BlacklistNpc,
+                setValue: value => Config.BlacklistNpc = value
+            );
+
+            configMenu.AddNumberOption(
+                mod: ModManifest,
+                name: () => Helper.Translation.Get("config.name.camera_flash_radius"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.camera_flash_radius"),
+                getValue: () => Math.Clamp(Config.PlayerCaptureWorldFlashRadius, 1f, 10f),
+                setValue: value =>
+                {
+                    float clamped = Math.Clamp(value, 1f, 10f);
+                    Config.PlayerCaptureWorldFlashRadius = MathF.Round(clamped * 10f) / 10f;
+                },
+                min: 1f,
+                max: 10f,
+                interval: 0.1f,
+                formatValue: value => $"{value:0.0}"
             );
         }
 
