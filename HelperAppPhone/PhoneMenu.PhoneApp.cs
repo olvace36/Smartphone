@@ -39,7 +39,7 @@ namespace Smartphone
         private List<RecentCall> phoneAppRecentCalls = new();
         private List<Contact> phoneAppContacts = new();
         private List<string> phoneAppFavoriteNumbers = new(); // Stores favorites by Number
-        private bool phoneAppDataLoaded = false;
+        internal static bool phoneAppDataLoaded = false;
 
         public class RecentCall
         {
@@ -1007,13 +1007,11 @@ namespace Smartphone
                     {
                         bool isShift = Game1.oldKBState.IsKeyDown(Keys.LeftShift) || Game1.oldKBState.IsKeyDown(Keys.RightShift);
                         phoneAppSearchQuery += isShift ? character.ToUpper() : character.ToLower();
-                        Game1.playSound("cowboy_monster_hit");
                     }
                 }
                 else if (key == Keys.Space && phoneAppSearchQuery.Length < 20)
                 {
                     phoneAppSearchQuery += " ";
-                    Game1.playSound("cowboy_monster_hit");
                 }
                 return;
             }
@@ -1106,18 +1104,15 @@ namespace Smartphone
                 {
                     bool isShift = Game1.oldKBState.IsKeyDown(Keys.LeftShift) || Game1.oldKBState.IsKeyDown(Keys.RightShift);
                     phoneAppNewContactName += isShift ? inputCharForEdit.ToUpper() : inputCharForEdit.ToLower();
-                    Game1.playSound("cowboy_monster_hit");
                 }
                 else if (phoneAppActiveField == 1 && phoneAppKeypadBuffer.Length < 15)
                 {
                     phoneAppKeypadBuffer += inputCharForEdit;
-                    Game1.playSound("cowboy_monster_hit");
                 }
             }
             else if (key == Keys.Space && phoneAppActiveField == 0 && phoneAppNewContactName.Length < 15)
             {
                 phoneAppNewContactName += " ";
-                Game1.playSound("cowboy_monster_hit");
             }
         }
 

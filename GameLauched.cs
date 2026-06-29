@@ -90,6 +90,7 @@ namespace Smartphone
             helper.Events.GameLoop.GameLaunched += OnGameLauched;
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
             helper.Events.GameLoop.Saving += OnSaving;
+            helper.Events.Player.InventoryChanged += OnInventoryChanged;
             helper.Events.Display.MenuChanged += OnMenuChanged;
             helper.Events.GameLoop.TimeChanged += OnTimeChange;
             helper.Events.GameLoop.DayStarted += OnDayStarted;
@@ -102,7 +103,8 @@ namespace Smartphone
             solidPixel = new Texture2D(Game1.graphics.GraphicsDevice, 1, 1);
             solidPixel.SetData(new[] { Color.White });
 
-
+            ShopManager shopManager = new ShopManager(helper, Monitor);
+            shopManager.Initialize();
         }
 
 
@@ -124,6 +126,11 @@ namespace Smartphone
                 {
                     var blacklist = Config.BlacklistNpc.Split(',').Select(p => p.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
                     if (blacklist.Contains(npcName)) return;
+                }
+
+                if (!lastSpeaker.modData.TryGetValue("d5a1lamdtd.Smartphone.PhoneNumber", out string phoneNumber) || phoneNumber == "000000")
+                {
+                    return;
                 }
 
                 int requiredHearts = Config.FriendshipRequirement == "Friend" ? 500 : 1;
@@ -296,6 +303,8 @@ namespace Smartphone
 
         private void OnDayStarted(object sender, DayStartedEventArgs e)
         {
+            if (!Context.IsWorldReady) return;
+
             NotificationManager.LoadNotificationData();
             PhoneMenu.RefreshCalendarData();
 
@@ -303,6 +312,32 @@ namespace Smartphone
                 PhoneMenu.AssignNpcNumber();
             else
                 ModEntry.NotifyContactableNpcsChanged();
+
+            PhoneMenu.CheckPhoneBookAction();
+        }
+
+        private void OnInventoryChanged(object sender, InventoryChangedEventArgs e)
+        {
+            if (!Context.IsWorldReady || !e.IsLocalPlayer) return;
+
+            // Check if the target item was added to the player's inventory
+            foreach (var item in e.Added)
+            {
+                // Replace with your item's Qualified ID or Name check
+                if (item != null && item.QualifiedItemId == "(O)d5a1lamdtd.Smartphone.PhoneBook")
+                {
+                    // Set the flag on the player. This is saved automatically with the game save file.
+                    Game1.player.modData["d5a1lamdtd.Smartphone.BoughtAllNumbers"] = "true";
+
+                    // Remove the item immediately since it's consumed
+                    Game1.player.removeItemFromInventory(item);
+
+                    NotificationManager.AddNotification(
+                    ModEntry.SHelper.Translation.Get("ui.phone.bought_phonebook_message")
+                );
+                    break;
+                }
+            }
         }
 
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
