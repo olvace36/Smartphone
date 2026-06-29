@@ -13,6 +13,7 @@ namespace Smartphone
         private float notificationScrollOffset = 0f;
         private float notificationScrollTarget = 0f;
         private ClickableTextureComponent removeButton;
+        private int readCountAtOpen = 0;
 
         private const int NotificationViewportYOffsetBase = 176;
         private const int NotificationViewportHeightBase = 800;
@@ -34,10 +35,29 @@ namespace Smartphone
         private int NotificationBubbleInnerPadding => Math.Max(1, ScaleUiValue(NotificationBubbleInnerPaddingBase));
         private int NotificationBubbleSpacing => Math.Max(1, ScaleUiValue(NotificationBubbleSpacingBase));
 
+        private int NotificationCardPadding => ScaleUiValue(10);
+        private int NotificationTextPaddingLeft => ScaleUiValue(15);
+        private int NotificationTextPaddingRight => ScaleUiValue(15);
+        private int NotificationTextPaddingTop => ScaleUiValue(15);
+        private int NotificationTextPaddingBottom => ScaleUiValue(15);
+
+        private int GetNotificationWrapWidthBase()
+        {
+            int bgWidth = texturePhoneBackground != null ? texturePhoneBackground.Width : 520;
+            return bgWidth - 50;
+        }
+
+        private int GetNotificationCardHeight(bool hasTitle, int wrappedLinesCount, int titleLineHeight, int messageLineHeight)
+        {
+            int textHeight = (hasTitle ? titleLineHeight + ScaleUiValue(4) : 0) + Math.Max(1, wrappedLinesCount) * messageLineHeight;
+            return textHeight + ScaleUiValue(30);
+        }
+
         public void OpenNotification()
         {
-            NotificationManager.ResetUnreadNotification();
             notificationHistory = NotificationManager.GetNotificationList();
+            readCountAtOpen = Math.Max(0, notificationHistory.Count - NotificationManager.GetUnreadNotification());
+            NotificationManager.ResetUnreadNotification();
             notificationScrollOffset = 0f;
             notificationScrollTarget = 0f;
         }
@@ -91,55 +111,77 @@ namespace Smartphone
             int visibleTop = notificationClipRect.Top - ScrollDrawOverscan;
             int visibleBottom = notificationClipRect.Bottom + ScrollDrawOverscan;
 
+            Rectangle contentBounds = GetPhoneContentBounds();
+            int cardX = contentBounds.X + NotificationCardPadding;
+            int cardWidth = contentBounds.Width - 2 * NotificationCardPadding;
+            int wrapWidthBase = GetNotificationWrapWidthBase();
+
             // Show newest notifications first and animate their pixel offset.
             for (int i = notificationMessages.Count - 1; i >= 0; i--)
             {
-                string msg = notificationMessages[i];
+                string rawMsg = notificationMessages[i];
+                string msg = rawMsg;
+                string title = "";
+
+                if (rawMsg.Contains("::"))
+                {
+                    var parts = rawMsg.Split(new[] { "::" }, 2, StringSplitOptions.None);
+                    title = parts[0];
+                    msg = parts[1];
+                }
+
+                int wrapWidth = (int)Math.Round(GetPhoneScaledWrapWidth(wrapWidthBase) / 0.75f);
                 List<string> wrappedLines = SplitNotificationIntoLines(
                     msg,
                     font,
-                    GetPhoneScaledWrapWidth(NotificationBubbleTextWrapWidth));
+                    wrapWidth);
 
-                int lineHeight = GetPhoneScaledLineHeight(font);
-                int bubbleHeight = Math.Max(1, wrappedLines.Count) * lineHeight + NotificationBubbleInnerPadding;
-                int bubbleWidth = 0;
+                int titleLineHeight = GetPhoneScaledLineHeight(font, 0.85f);
+                int messageLineHeight = GetPhoneScaledLineHeight(font, 0.75f);
+                int cardHeight = GetNotificationCardHeight(!string.IsNullOrEmpty(title), wrappedLines.Count, titleLineHeight, messageLineHeight);
 
-                foreach (var line in wrappedLines)
-                    bubbleWidth = Math.Max(bubbleWidth, (int)Math.Ceiling(MeasurePhoneText(font, line).X) + NotificationBubbleHorizontalPadding);
-
-                Rectangle bubbleRect = new Rectangle(xPositionOnScreen + NotificationBubbleXOffset, messageY, bubbleWidth, bubbleHeight);
-
-                int bubbleTop = bubbleRect.Y;
-                int bubbleBottom = bubbleRect.Bottom + NotificationBubbleSpacing;
+                int bubbleTop = messageY;
+                int bubbleBottom = messageY + cardHeight + NotificationBubbleSpacing;
                 if (bubbleBottom < visibleTop)
                 {
-                    messageY += bubbleHeight + NotificationBubbleSpacing;
+                    messageY += cardHeight + NotificationBubbleSpacing;
                     continue;
                 }
 
                 if (bubbleTop > visibleBottom)
                     break;
 
+                bool isUnread = i >= readCountAtOpen;
+                Color cardColor = isUnread ? new Color(160, 220, 160) : new Color(0, 0, 0, 100);
+                Color textColor = isUnread ? new Color(30, 45, 30) : Color.White;
+
                 Textures.DrawCard(
                     b,
-                    bubbleRect.X - ScaleUiValue(5),
-                    bubbleRect.Y,
-                    bubbleRect.Width + ScaleUiValue(12),
-                    bubbleRect.Height + ScaleUiValue(10),
-                    new Color(0, 0, 0, 100),
+                    cardX,
+                    messageY,
+                    cardWidth,
+                    cardHeight,
+                    cardColor,
                     1f,
                     false
                 );
 
-                int textY = bubbleRect.Y + NotificationBubbleTextTopPadding;
-                foreach (var line in wrappedLines)
+                int textY = messageY + NotificationTextPaddingTop;
+                if (!string.IsNullOrEmpty(title))
                 {
-                    Vector2 linePos = new Vector2(bubbleRect.X + NotificationBubbleTextLeftPadding, textY);
-                    DrawPhoneText(b, font, line, linePos, Color.White);
-                    textY += lineHeight;
+                    Vector2 titlePos = new Vector2(cardX + NotificationTextPaddingLeft, textY);
+                    DrawPhoneText(b, font, title, titlePos, isUnread ? new Color(10, 25, 10) : Color.LightGray, 0.85f);
+                    textY += titleLineHeight + ScaleUiValue(4);
                 }
 
-                messageY += bubbleHeight + NotificationBubbleSpacing;
+                foreach (var line in wrappedLines)
+                {
+                    Vector2 linePos = new Vector2(cardX + NotificationTextPaddingLeft, textY);
+                    DrawPhoneText(b, font, line, linePos, textColor, 0.75f);
+                    textY += messageLineHeight;
+                }
+
+                messageY += cardHeight + NotificationBubbleSpacing;
             }
 
             // Reset clipping
@@ -165,6 +207,7 @@ namespace Smartphone
             {
                 NotificationManager.ClearNotification();
                 notificationHistory = NotificationManager.GetNotificationList();
+                readCountAtOpen = 0;
                 notificationScrollOffset = 0f;
                 notificationScrollTarget = 0f;
                 return true;
@@ -195,17 +238,30 @@ namespace Smartphone
                 return 0;
 
             SpriteFont font = Game1.smallFont;
-            int lineHeight = GetPhoneScaledLineHeight(font);
+            int titleLineHeight = GetPhoneScaledLineHeight(font, 0.85f);
+            int messageLineHeight = GetPhoneScaledLineHeight(font, 0.75f);
             int totalHeight = 0;
+            int wrapWidthBase = GetNotificationWrapWidthBase();
 
-            foreach (string msg in msgList)
+            foreach (string rawMsg in msgList)
             {
+                string msg = rawMsg;
+                string title = "";
+
+                if (rawMsg.Contains("::"))
+                {
+                    var parts = rawMsg.Split(new[] { "::" }, 2, StringSplitOptions.None);
+                    title = parts[0];
+                    msg = parts[1];
+                }
+
+                int wrapWidth = (int)Math.Round(GetPhoneScaledWrapWidth(wrapWidthBase) / 0.75f);
                 List<string> wrappedLines = SplitNotificationIntoLines(
                     msg,
                     font,
-                    GetPhoneScaledWrapWidth(NotificationBubbleTextWrapWidth));
-                int bubbleHeight = Math.Max(1, wrappedLines.Count) * lineHeight + NotificationBubbleInnerPadding;
-                totalHeight += bubbleHeight + NotificationBubbleSpacing;
+                    wrapWidth);
+                int cardHeight = GetNotificationCardHeight(!string.IsNullOrEmpty(title), wrappedLines.Count, titleLineHeight, messageLineHeight);
+                totalHeight += cardHeight + NotificationBubbleSpacing;
             }
 
             return totalHeight;

@@ -31,7 +31,10 @@ namespace Smartphone
 
         public static void AddNotification(string notificationMessage, string notificationName = "")
         {
-            NotificationList.Add(notificationMessage);
+            string entry = string.IsNullOrEmpty(notificationName)
+                ? notificationMessage
+                : notificationName + "::" + notificationMessage;
+            NotificationList.Add(entry);
             if (ModEntry.Config?.NotifyNotification ?? true)
             {
                 if (!string.IsNullOrWhiteSpace(notificationName))
@@ -41,7 +44,7 @@ namespace Smartphone
             }
 
             DelayedAction.playSoundAfterDelay(ModEntry.currentPhoneSound, 0);
-            if (ModEntry.phoneMenu != null && PhoneMenu.currentApp != "appNotification")
+            if (ModEntry.phoneMenu == null || PhoneMenu.currentApp != "appNotification")
                 AddUnreadNotification();
         }
 

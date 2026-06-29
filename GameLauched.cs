@@ -329,6 +329,12 @@ namespace Smartphone
 
                 pendingInitNotification = false;
             }
+
+            NotificationManager.AddNotification("message message message message message message message message message message message message message message message message ", "title1");
+            NotificationManager.AddNotification("message message message message message message message message message message message message message message message message ", "title2");
+            NotificationManager.AddNotification("message message message message message message message message message message message message message message message message ", "title3");
+            NotificationManager.AddNotification("message message message message message message message message message message message message message message message message ", "title4");
+            NotificationManager.AddNotification("message message message message message message message message message message message message message message message message ", "title5");
         }
 
 

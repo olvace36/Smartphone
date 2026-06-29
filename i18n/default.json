@@ -119,6 +119,7 @@
   "ui.lockscreen.initializing": "Initializing hapykeOS",
   "ui.lockscreen.update_available": "New version available",
   "ui.lockscreen.tap_to_unlock": "Tap to unlock",
+  "ui.lockscreen.swipe_to_unlock": "Swipe up to unlock",
   "ui.weather.today": "Today",
   "ui.weather.forecast": "Forecast",
   "ui.photo.avatar": "Avatar",

@@ -129,6 +129,7 @@ namespace Smartphone
             this.xPositionOnScreen = Game1.uiViewport.Width / 2 - ModEntry.GetScaledPhoneDefaultMenuOffsetX(newScale);
             this.yPositionOnScreen = Game1.uiViewport.Height / 2 - ModEntry.GetScaledPhoneDefaultMenuOffsetY(newScale);
 
+            this.DisposeLockScreenWeatherIconSoftCache();
             this.UpdateSystemButtonsBounds();
 
             if (this.layoutManager != null)
@@ -170,12 +171,12 @@ namespace Smartphone
         private int GetPhoneScaledLineHeight(SpriteFont font, float localScale = 1f, int extraPadding = 4)
         {
             int baseLineHeight = (int)font.MeasureString("A").Y + extraPadding;
-            return Math.Max(1, (int)Math.Ceiling(baseLineHeight * GetPhoneTextScale(localScale)));
+            return Math.Max(1, (int)Math.Ceiling(baseLineHeight * GetPhoneTextScale(localScale) * phoneUiScale));
         }
 
         private Vector2 MeasurePhoneText(SpriteFont font, string text, float localScale = 1f)
         {
-            return font.MeasureString(text ?? string.Empty) * GetPhoneTextScale(localScale);
+            return font.MeasureString(text ?? string.Empty) * GetPhoneTextScale(localScale) * phoneUiScale;
         }
 
         private void DrawPhoneText(SpriteBatch b, SpriteFont font, string text, Vector2 position, Color color, float localScale = 1f, float layerDepth = 1f)
@@ -187,7 +188,7 @@ namespace Smartphone
                 color,
                 0f,
                 Vector2.Zero,
-                GetPhoneTextScale(localScale),
+                GetPhoneTextScale(localScale) * phoneUiScale,
                 SpriteEffects.None,
                 layerDepth);
         }
@@ -462,6 +463,51 @@ namespace Smartphone
         {
             base.releaseLeftClick(x, y);
 
+            if (rootLandingState == RootLandingState.LockScreen)
+            {
+                Rectangle contentBounds = GetPhoneContentBounds();
+                if (touchStartInContentBounds)
+                {
+                    if (touchScrollStartY >= contentBounds.Bottom - ScaleUiValue(72))
+                    {
+                        float dragDeltaY = touchScrollStartY - y;
+                        float unlockThreshold = ScaleUiValue(100);
+                        if (dragDeltaY >= unlockThreshold)
+                        {
+                            // Unlock!
+                            lockScreenUnlockAnimating = true;
+                            lockScreenUnlockElapsedSeconds = 0d;
+                            Game1.playSound("shwip");
+                        }
+                        else
+                        {
+                            // Snap back
+                            lockScreenUnlockDragOffset = 0f;
+                        }
+                    }
+                    else
+                    {
+                        ClampLockScreenScroll();
+                        if (!hasTouchScrolled)
+                        {
+                            if (lockScreenClearNotificationsBounds.Contains(x, y))
+                            {
+                                NotificationManager.ResetUnreadNotification();
+                                Game1.playSound("smallSelect");
+                            }
+                            else
+                            {
+                                CheckLockScreenCardClick(x, y);
+                            }
+                        }
+                    }
+                }
+                ResetCameraZoomHoldState();
+                isDragging = false;
+                isScrolling = false;
+                return;
+            }
+
             // Detect swipe left/right
             if (currentApp == null && layoutManager != null && !layoutManager.IsReorderMode && touchStartInContentBounds)
             {
@@ -522,6 +568,7 @@ namespace Smartphone
             EnsureFreeControllerCursor();
             UpdateLockScreenInitialization(time);
             UpdateLockScreenUnlockAnimation(time);
+            UpdateLockScreenScroll(time);
 
             appLabelMarqueeElapsedSeconds += time.ElapsedGameTime.TotalSeconds;
             if (appLabelMarqueeElapsedSeconds >= 1_000_000d)
@@ -574,6 +621,28 @@ namespace Smartphone
         public override void leftClickHeld(int x, int y)
         {
             base.leftClickHeld(x, y);
+
+            if (rootLandingState == RootLandingState.LockScreen)
+            {
+                if (touchStartInContentBounds)
+                {
+                    Rectangle contentBounds = GetPhoneContentBounds();
+                    int deltaY = touchScrollStartY - y;
+                    if (touchScrollStartY >= contentBounds.Bottom - ScaleUiValue(72))
+                    {
+                        lockScreenUnlockDragOffset = Math.Max(0f, deltaY);
+                    }
+                    else
+                    {
+                        if (Math.Abs(deltaY) > 5)
+                            hasTouchScrolled = true;
+                        
+                        float maxScroll = GetMaxLockScreenScroll();
+                        lockScreenContentScrollTarget = Math.Clamp(lockScreenStartScrollOffset + deltaY, -ScaleUiValue(100), maxScroll + ScaleUiValue(100));
+                    }
+                }
+                return;
+            }
 
             if (cameraZoomHoldDirection != 0)
             {
@@ -628,6 +697,10 @@ namespace Smartphone
             touchScrollStartY = y;
             touchScrollStartX = x;
             touchStartInContentBounds = GetPhoneContentBounds().Contains(x, y);
+            if (rootLandingState == RootLandingState.LockScreen)
+            {
+                lockScreenStartScrollOffset = lockScreenContentScrollTarget;
+            }
             hasTouchScrolled = false;
             hasTouchSwiped = false;
             isScrolling = false;
@@ -635,9 +708,6 @@ namespace Smartphone
 
 
             if (HandleAndroidKeyboardTap(x, y))
-                return;
-
-            if (HandleLockScreenTap(x, y))
                 return;
 
             if (IsHomeLandingInteractive())
@@ -720,6 +790,18 @@ namespace Smartphone
 
         public override void receiveScrollWheelAction(int direction)
         {
+            if (rootLandingState == RootLandingState.LockScreen)
+            {
+                float wheelSteps = direction / 120f;
+                float maxScroll = GetMaxLockScreenScroll();
+                lockScreenContentScrollTarget = Math.Clamp(
+                    lockScreenContentScrollTarget - wheelSteps * ChatScrollPixelsPerWheelNotch,
+                    0f,
+                    maxScroll);
+                lockScreenContentScrollOffset = Math.Clamp(lockScreenContentScrollOffset, 0f, maxScroll);
+                return;
+            }
+
             if (IsHomeLandingInteractive() || (currentApp == null && layoutManager?.IsReorderMode == true))
             {
                 if (layoutManager != null && layoutManager.TryChangePageScroll(direction > 0 ? -1 : 1))
@@ -1074,17 +1156,6 @@ namespace Smartphone
 
             b.Draw(Game1.staminaRect, GetUiViewportBounds(), Color.Black * 0.6f);
 
-            if (lockScreenUnlockAnimating)
-            {
-                DrawHomeLandingScreen(b, xOffset: 0, drawApps: true);
-
-                float progress = GetLockScreenUnlockProgress();
-                int swipeOffset = (int)Math.Round(-GetPhoneContentBounds().Width * progress);
-                DrawLockScreenScreen(b, swipeOffset);
-                DrawPhoneFrame(b);
-                return;
-            }
-
             if (rootLandingState == RootLandingState.Initializing)
             {
                 DrawLockScreenInitializationScreen(b, xOffset: 0);
@@ -1092,8 +1163,9 @@ namespace Smartphone
                 return;
             }
 
-            if (rootLandingState == RootLandingState.LockScreen)
+            if (rootLandingState == RootLandingState.LockScreen || lockScreenUnlockAnimating)
             {
+                DrawHomeLandingScreen(b, xOffset: 0, drawApps: true);
                 DrawLockScreenScreen(b, xOffset: 0);
                 DrawPhoneFrame(b);
                 return;
@@ -1522,6 +1594,10 @@ namespace Smartphone
         {
             this.VerifyPhonePosition();
             OpenHomeScreen();
+
+            lockScreenContentScrollOffset = 0f;
+            lockScreenContentScrollTarget = 0f;
+            lockScreenUnlockDragOffset = 0f;
 
             if (ModEntry.pendingPhoneOsInitialization)
             {

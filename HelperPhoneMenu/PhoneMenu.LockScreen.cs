@@ -36,6 +36,13 @@ namespace Smartphone
         /// <summary>Soft corner cache for weather textures to match the UI style.</summary>
         private readonly Dictionary<int, Texture2D> lockScreenWeatherIconSoftCache = new();
 
+        private float lockScreenUnlockDragOffset = 0f;
+        private float lockScreenContentScrollOffset = 0f;
+        private float lockScreenContentScrollTarget = 0f;
+        private float lockScreenStartScrollOffset = 0f;
+        private readonly List<(Rectangle Bounds, int OriginalIndex)> lockScreenCardBounds = new();
+        private Rectangle lockScreenClearNotificationsBounds = Rectangle.Empty;
+
         #endregion
 
         #region Lock Screen Constants
@@ -81,60 +88,245 @@ namespace Smartphone
 
             DrawWithinPhoneContentClip(b, () =>
             {
-                DrawPhoneScreenBackground(b, xOffset, applyBackgroundImage: true);
+                float verticalUnlockOffset;
+                if (lockScreenUnlockAnimating)
+                {
+                    verticalUnlockOffset = MathHelper.Lerp(lockScreenUnlockDragOffset, contentBounds.Height, GetLockScreenUnlockProgress());
+                }
+                else
+                {
+                    verticalUnlockOffset = lockScreenUnlockDragOffset;
+                }
+
+                // Draw background vertically shifted
+                DrawLockScreenBackground(b, (int)Math.Round(verticalUnlockOffset));
+
+                float centerX = contentBounds.Center.X + xOffset;
+
+                float scrollYOffset = lockScreenContentScrollOffset;
+                float totalTopYOffset = scrollYOffset + verticalUnlockOffset;
+
+                float timeScale = GetPhoneTextScale(LockScreenTimeTextScale);
+                float dateScale = GetPhoneTextScale(LockScreenDateTextScale);
+                float hintScale = GetPhoneTextScale(LockScreenHintTextScale);
 
                 string timeText = Game1.getTimeOfDayString(Game1.timeOfDay);
                 string dateText = BuildLockScreenDateText();
 
-                Vector2 timeSize = Game1.dialogueFont.MeasureString(timeText) * LockScreenTimeTextScale;
-                Vector2 dateSize = Game1.smallFont.MeasureString(dateText) * LockScreenDateTextScale;
+                Vector2 timeSize = Game1.dialogueFont.MeasureString(timeText) * timeScale;
+                Vector2 dateSize = Game1.smallFont.MeasureString(dateText) * dateScale;
 
-                float centerX = contentBounds.Center.X + xOffset;
-                float topY = contentBounds.Top + 82f;
+                // Use static Y calculations without offset first
+                float staticTopY = contentBounds.Top + ScaleUiValue(82f);
 
-                Vector2 timePosition = new Vector2(centerX - (timeSize.X / 2f), topY);
-                Vector2 datePosition = new Vector2(centerX - (dateSize.X / 2f), topY + timeSize.Y + 10f);
+                Vector2 staticTimePosition = new Vector2(centerX - (timeSize.X / 2f), staticTopY);
+                Vector2 staticDatePosition = new Vector2(centerX - (dateSize.X / 2f), staticTopY + timeSize.Y + ScaleUiValue(10f));
 
+                int footerHeight = ScaleUiValue(72);
+
+                // Scissor test clip for scrollable elements (Time, Date, Weather, Notifications)
+                b.End();
+
+                int clipHeight = Math.Max(0, contentBounds.Height - footerHeight - ScaleUiValue(10) - (int)Math.Round(verticalUnlockOffset));
+                Rectangle lockScreenClipRect = new Rectangle(
+                    contentBounds.X,
+                    contentBounds.Y,
+                    contentBounds.Width,
+                    clipHeight
+                );
+
+                Rectangle viewportBounds = Game1.graphics.GraphicsDevice.Viewport.Bounds;
+                Rectangle intersectedClipRect = Rectangle.Intersect(lockScreenClipRect, viewportBounds);
+
+                Rectangle previousScissorRect = Game1.graphics.GraphicsDevice.ScissorRectangle;
+                Game1.graphics.GraphicsDevice.ScissorRectangle = intersectedClipRect;
+
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState() { ScissorTestEnable = true });
+
+                // Draw Time, Date, Weather shifted by totalTopYOffset exactly once
                 DrawShadowedText(
                     b,
                     Game1.dialogueFont,
                     timeText,
-                    timePosition,
+                    new Vector2(staticTimePosition.X, staticTimePosition.Y - totalTopYOffset),
                     Color.White,
                     new Color(0, 0, 0, 180),
-                    LockScreenTimeTextScale);
+                    timeScale);
 
                 DrawShadowedText(
                     b,
                     Game1.smallFont,
                     dateText,
-                    datePosition,
+                    new Vector2(staticDatePosition.X, staticDatePosition.Y - totalTopYOffset),
                     Color.White,
                     new Color(0, 0, 0, 180),
-                    LockScreenDateTextScale);
+                    dateScale);
 
                 DrawLockScreenWeatherSummary(
                     b,
                     contentBounds,
                     centerX,
-                    datePosition.Y + dateSize.Y + LockScreenWeatherPanelTopSpacing);
+                    staticDatePosition.Y + dateSize.Y + ScaleUiValue(LockScreenWeatherPanelTopSpacing) - totalTopYOffset);
+
+                // Draw active unread notifications
+                List<string> msgs = NotificationManager.GetNotificationList();
+                int unreadCount = NotificationManager.GetUnreadNotification();
+                int startIndex = Math.Max(0, msgs.Count - unreadCount);
+
+                int headerY = GetNotificationCenterStartY(staticDatePosition, dateSize);
+                int headerHeight = GetPhoneScaledLineHeight(Game1.smallFont, 1.15f);
+                int staticMessageY = headerY;
+
+                if (unreadCount > 0)
+                {
+                    string headerText = "Notification center";
+                    Vector2 headerTextSize = Game1.smallFont.MeasureString(headerText) * GetPhoneTextScale(1.15f);
+                    Vector2 headerTextPos = new Vector2(contentBounds.X + ScaleUiValue(12), headerY - totalTopYOffset + (headerHeight - headerTextSize.Y) / 2f);
+
+                    DrawShadowedText(
+                        b,
+                        Game1.smallFont,
+                        headerText,
+                        headerTextPos,
+                        Color.White * 0.7f,
+                        new Color(0, 0, 0, 150),
+                        GetPhoneTextScale(1.15f)
+                    );
+
+                    string xText = "clear";
+                    Vector2 xTextSize = Game1.smallFont.MeasureString(xText) * GetPhoneTextScale(0.85f) * phoneUiScale;
+                    int xButtonWidth = (int)Math.Round(xTextSize.X + ScaleUiValue(16));
+                    int xButtonHeight = (int)Math.Round(xTextSize.Y + ScaleUiValue(8));
+                    int xButtonX = contentBounds.Right - ScaleUiValue(12) - xButtonWidth;
+                    int xButtonY = headerY - (int)Math.Round(totalTopYOffset) + (headerHeight - xButtonHeight) / 2;
+
+                    int drawnXButtonY = headerY - (int)Math.Round(scrollYOffset + verticalUnlockOffset) + (headerHeight - xButtonHeight) / 2;
+                    lockScreenClearNotificationsBounds = new Rectangle(xButtonX, drawnXButtonY, xButtonWidth, xButtonHeight);
+
+                    int mouseX = Game1.getMouseX();
+                    int mouseY = Game1.getMouseY();
+                    bool isHovered = new Rectangle(xButtonX, xButtonY, xButtonWidth, xButtonHeight).Contains(mouseX, mouseY);
+
+                    Color xBgColor = isHovered ? new Color(100, 100, 100, 180) : new Color(60, 60, 60, 150);
+                    Color xTextColor = isHovered ? Color.White : Color.White * 0.7f;
+
+                    Textures.DrawCard(
+                        b,
+                        xButtonX,
+                        xButtonY,
+                        xButtonWidth,
+                        xButtonHeight,
+                        xBgColor,
+                        1f,
+                        false
+                    );
+
+                    Vector2 xPos = new Vector2(xButtonX + (xButtonWidth - xTextSize.X) / 2f, xButtonY + (xButtonHeight - xTextSize.Y) / 2f);
+                    b.DrawString(Game1.smallFont, xText, xPos, xTextColor, 0f, Vector2.Zero, GetPhoneTextScale(0.85f) * phoneUiScale, SpriteEffects.None, 1f);
+
+                    staticMessageY += headerHeight + ScaleUiValue(10);
+                }
+                else
+                {
+                    lockScreenClearNotificationsBounds = Rectangle.Empty;
+                }
+
+                int cardSpacing = ScaleUiValue(12);
+
+                SpriteFont font = Game1.smallFont;
+                int titleLineHeight = GetPhoneScaledLineHeight(font, 0.85f);
+                int messageLineHeight = GetPhoneScaledLineHeight(font, 0.75f);
+                int wrapWidthBase = GetNotificationWrapWidthBase();
+                int cardWidth = contentBounds.Width - 2 * ScaleUiValue(10);
+                int cardX = contentBounds.X + ScaleUiValue(10);
+
+                lockScreenCardBounds.Clear();
+
+                for (int i = msgs.Count - 1; i >= startIndex; i--)
+                {
+                    string rawMsg = msgs[i];
+                    string msg = rawMsg;
+                    string title = "";
+
+                    if (rawMsg.Contains("::"))
+                    {
+                        var parts = rawMsg.Split(new[] { "::" }, 2, StringSplitOptions.None);
+                        title = parts[0];
+                        msg = parts[1];
+                    }
+
+                    int wrapWidth = (int)Math.Round(GetPhoneScaledWrapWidth(wrapWidthBase) / 0.75f);
+                    var messageLines = SplitNotificationIntoLines(msg, font, wrapWidth);
+                    if (messageLines.Count > 2)
+                    {
+                        messageLines = new List<string> { messageLines[0], messageLines[1] + "..." };
+                    }
+
+                    int cardHeight = GetLockScreenCardHeight(!string.IsNullOrEmpty(title), messageLines.Count, titleLineHeight, messageLineHeight);
+
+                    int drawCardY = (int)Math.Round(staticMessageY - totalTopYOffset);
+                    Rectangle cardBounds = new Rectangle(cardX, drawCardY, cardWidth, cardHeight);
+
+                    if (!lockScreenUnlockAnimating)
+                    {
+                        lockScreenCardBounds.Add((cardBounds, i));
+                    }
+
+                    Textures.DrawCard(
+                        b,
+                        cardBounds.X,
+                        cardBounds.Y,
+                        cardBounds.Width,
+                        cardBounds.Height,
+                        Color.Silver,
+                        1f,
+                        false
+                    );
+
+                    int textY = cardBounds.Y + ScaleUiValue(12);
+                    if (!string.IsNullOrEmpty(title))
+                    {
+                        Vector2 titlePos = new Vector2(cardBounds.X + ScaleUiValue(15), textY);
+                        DrawPhoneText(b, font, title, titlePos, new Color(10, 25, 10), 0.85f);
+                        textY += titleLineHeight + ScaleUiValue(4);
+                    }
+
+                    foreach (var line in messageLines)
+                    {
+                        Vector2 linePos = new Vector2(cardBounds.X + ScaleUiValue(15), textY);
+                        DrawPhoneText(b, font, line, linePos, new Color(30, 45, 30), 0.75f);
+                        textY += messageLineHeight;
+                    }
+
+                    staticMessageY += cardHeight + cardSpacing;
+                }
+
+                // Restore previous scissor clipping rectangle and end scissor test drawing
+                b.End();
+                Game1.graphics.GraphicsDevice.ScissorRectangle = previousScissorRect;
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+
+                // Draw fixed footer text at bottom (no card background)
+                int footerY = contentBounds.Bottom - footerHeight - (int)Math.Round(verticalUnlockOffset);
+                Rectangle footerBounds = new Rectangle(contentBounds.X, footerY, contentBounds.Width, footerHeight);
 
                 bool showUpdateHint = ModEntry.hasNewVersionAvailable;
                 string hintText = showUpdateHint
                     ? ModEntry.SHelper.Translation.Get("ui.lockscreen.update_available")
-                    : ModEntry.SHelper.Translation.Get("ui.lockscreen.tap_to_unlock");
-                Vector2 hintSize = Game1.smallFont.MeasureString(hintText) * LockScreenHintTextScale;
+                    : ModEntry.SHelper.Translation.Get("ui.lockscreen.swipe_to_unlock");
+
+                Vector2 hintSize = Game1.smallFont.MeasureString(hintText) * hintScale;
                 Vector2 hintPosition = new Vector2(
                     centerX - (hintSize.X / 2f),
-                    contentBounds.Bottom - hintSize.Y - 28f);
+                    footerBounds.Center.Y - (hintSize.Y / 2f));
 
                 if (showUpdateHint)
                 {
                     Rectangle hintBoxBounds = new Rectangle(
-                        (int)Math.Round(hintPosition.X - 22f),
-                        (int)Math.Round(hintPosition.Y - 8f),
-                        (int)Math.Round(hintSize.X + 44f),
-                        (int)Math.Round(hintSize.Y + 18f));
+                        (int)Math.Round(hintPosition.X - ScaleUiValue(22f)),
+                        (int)Math.Round(hintPosition.Y - ScaleUiValue(8f)),
+                        (int)Math.Round(hintSize.X + ScaleUiValue(44f)),
+                        (int)Math.Round(hintSize.Y + ScaleUiValue(18f)));
 
                     Textures.DrawCard(
                         b,
@@ -154,7 +346,7 @@ namespace Smartphone
                     hintPosition,
                     showUpdateHint ? Color.White : Color.White * 0.9f,
                     showUpdateHint ? new Color(32, 0, 0, 185) : new Color(0, 0, 0, 170),
-                    LockScreenHintTextScale);
+                    hintScale);
             });
         }
 
@@ -208,14 +400,16 @@ namespace Smartphone
         /// </summary>
         private void DrawLockScreenWeatherSummary(SpriteBatch b, Rectangle contentBounds, float centerX, float topY)
         {
-            float leftCenterX = centerX - LockScreenWeatherColumnHalfSpacing;
-            float rightCenterX = centerX + LockScreenWeatherColumnHalfSpacing;
+            float weatherColumnHalfSpacing = ScaleUiValue(LockScreenWeatherColumnHalfSpacing);
+            float leftCenterX = centerX - weatherColumnHalfSpacing;
+            float rightCenterX = centerX + weatherColumnHalfSpacing;
 
             string todayLabel = ModEntry.SHelper.Translation.Get("ui.weather.today");
             string forecastLabel = ModEntry.SHelper.Translation.Get("ui.weather.forecast");
 
-            Vector2 todayLabelSize = Game1.smallFont.MeasureString(todayLabel) * LockScreenWeatherLabelTextScale;
-            Vector2 forecastLabelSize = Game1.smallFont.MeasureString(forecastLabel) * LockScreenWeatherLabelTextScale;
+            float weatherLabelScale = GetPhoneTextScale(LockScreenWeatherLabelTextScale);
+            Vector2 todayLabelSize = Game1.smallFont.MeasureString(todayLabel) * weatherLabelScale;
+            Vector2 forecastLabelSize = Game1.smallFont.MeasureString(forecastLabel) * weatherLabelScale;
 
             Vector2 todayLabelPosition = new Vector2(leftCenterX - (todayLabelSize.X / 2f), topY);
             Vector2 forecastLabelPosition = new Vector2(rightCenterX - (forecastLabelSize.X / 2f), topY);
@@ -227,7 +421,7 @@ namespace Smartphone
                 todayLabelPosition,
                 Color.White,
                 new Color(0, 0, 0, 170),
-                LockScreenWeatherLabelTextScale);
+                weatherLabelScale);
 
             DrawShadowedText(
                 b,
@@ -236,20 +430,22 @@ namespace Smartphone
                 forecastLabelPosition,
                 Color.White,
                 new Color(0, 0, 0, 170),
-                LockScreenWeatherLabelTextScale);
+                weatherLabelScale);
 
             int todayIconIndex = GetTodayWeatherIconIndex();
             int forecastIconIndex = GetForecastWeatherIconIndex(GetForecastWeatherId(), GetTomorrowSeason());
 
-            float iconTopY = topY + Math.Max(todayLabelSize.Y, forecastLabelSize.Y) + 4f;
-            float iconWidth = LockScreenWeatherIconWidth * LockScreenWeatherIconScale;
+            float iconTopY = topY + Math.Max(todayLabelSize.Y, forecastLabelSize.Y) + ScaleUiValue(4f);
 
-            DrawLockScreenWeatherIcon(b, new Vector2(leftCenterX - (iconWidth / 2f), iconTopY), todayIconIndex);
-            DrawLockScreenWeatherIcon(b, new Vector2(rightCenterX - (iconWidth / 2f), iconTopY), forecastIconIndex);
+            Texture2D todayIconTexture = GetOrCreateLockScreenSoftWeatherIconTexture(todayIconIndex);
+            Texture2D forecastIconTexture = GetOrCreateLockScreenSoftWeatherIconTexture(forecastIconIndex);
+
+            b.Draw(todayIconTexture, new Vector2(leftCenterX - (todayIconTexture.Width / 2f), iconTopY), Color.White);
+            b.Draw(forecastIconTexture, new Vector2(rightCenterX - (forecastIconTexture.Width / 2f), iconTopY), Color.White);
 
             int dividerX = (int)Math.Round(centerX);
-            int dividerY = (int)Math.Round(topY + 4f);
-            int dividerBottom = (int)Math.Round(iconTopY + (LockScreenWeatherIconHeight * LockScreenWeatherIconScale) + 6f);
+            int dividerY = (int)Math.Round(topY + ScaleUiValue(4f));
+            int dividerBottom = (int)Math.Round(iconTopY + Math.Max(todayIconTexture.Height, forecastIconTexture.Height) + ScaleUiValue(6f));
             int dividerHeight = Math.Max(0, dividerBottom - dividerY);
 
             if (dividerHeight > 0)
@@ -303,7 +499,7 @@ namespace Smartphone
                     LockScreenWeatherIconHeight);
             }
 
-            Texture2D iconTexture = BuildLockScreenSoftWeatherIconTexture(sourceTexture, sourceRect);
+            Texture2D iconTexture = BuildLockScreenSoftWeatherIconTexture(sourceTexture, sourceRect, phoneUiScale);
             lockScreenWeatherIconSoftCache[safeIconIndex] = iconTexture;
             return iconTexture;
         }
@@ -311,11 +507,11 @@ namespace Smartphone
         /// <summary>
         /// Generates a softened, rounded weather icon texture from a base tilesheet region.
         /// </summary>
-        private static Texture2D BuildLockScreenSoftWeatherIconTexture(Texture2D sourceTexture, Rectangle sourceRect)
+        private static Texture2D BuildLockScreenSoftWeatherIconTexture(Texture2D sourceTexture, Rectangle sourceRect, float uiScale)
         {
             int sourceWidth = Math.Max(1, sourceRect.Width);
             int sourceHeight = Math.Max(1, sourceRect.Height);
-            float iconScale = Math.Max(0.01f, LockScreenWeatherIconScale);
+            float iconScale = Math.Max(0.01f, LockScreenWeatherIconScale * uiScale);
 
             int targetWidth = Math.Max(1, (int)Math.Round(sourceWidth * iconScale));
             int targetHeight = Math.Max(1, (int)Math.Round(sourceHeight * iconScale));
@@ -500,6 +696,10 @@ namespace Smartphone
             lockScreenUnlockElapsedSeconds = 0d;
             lockScreenTapBounds = Rectangle.Empty;
 
+            lockScreenContentScrollOffset = 0f;
+            lockScreenContentScrollTarget = 0f;
+            lockScreenUnlockDragOffset = 0f;
+
             lockScreenInitializationProgressPercent = 0;
             lockScreenInitializationElapsedSeconds = 0d;
             lockScreenInitializationNextTickSeconds = GetNextLockScreenInitializationTickSeconds();
@@ -609,6 +809,139 @@ namespace Smartphone
             lockScreenUnlockElapsedSeconds = 0d;
             rootLandingState = RootLandingState.Home;
             lockScreenTapBounds = Rectangle.Empty;
+        }
+
+        private int GetNotificationCenterStartY(Vector2 datePosition, Vector2 dateSize)
+        {
+            float weatherLabelHeight = Game1.smallFont.MeasureString("Forecast").Y * GetPhoneTextScale(LockScreenWeatherLabelTextScale);
+            float iconHeight = LockScreenWeatherIconHeight * LockScreenWeatherIconScale * phoneUiScale;
+            return (int)Math.Round(datePosition.Y + dateSize.Y + ScaleUiValue(LockScreenWeatherPanelTopSpacing) + weatherLabelHeight + ScaleUiValue(4f) + iconHeight + ScaleUiValue(20f));
+        }
+
+        private void DrawLockScreenBackground(SpriteBatch b, int yOffset)
+        {
+            Rectangle contentBounds = GetPhoneContentBounds();
+            Rectangle shiftedBounds = new Rectangle(contentBounds.X, contentBounds.Y - yOffset, contentBounds.Width, contentBounds.Height);
+
+            b.Draw(texturePhoneBackground, shiftedBounds, Color.White);
+            if (phoneBackgroundImage != null)
+            {
+                b.Draw(phoneBackgroundImage, shiftedBounds, Color.White * 0.8f);
+            }
+        }
+
+        private int GetLockScreenCardHeight(bool hasTitle, int messageLinesCount, int titleLineHeight, int messageLineHeight)
+        {
+            int textHeight = (hasTitle ? titleLineHeight + ScaleUiValue(4) : 0) + messageLinesCount * messageLineHeight;
+            return textHeight + ScaleUiValue(24);
+        }
+
+        private float GetMaxLockScreenScroll()
+        {
+            Rectangle contentBounds = GetPhoneContentBounds();
+
+            // 1. Calculate time, date, weather block height
+            string timeText = Game1.getTimeOfDayString(Game1.timeOfDay);
+            string dateText = BuildLockScreenDateText();
+
+            float timeScale = GetPhoneTextScale(LockScreenTimeTextScale);
+            float dateScale = GetPhoneTextScale(LockScreenDateTextScale);
+
+            Vector2 timeSize = Game1.dialogueFont.MeasureString(timeText) * timeScale;
+            Vector2 dateSize = Game1.smallFont.MeasureString(dateText) * dateScale;
+
+            float topY = contentBounds.Top + ScaleUiValue(82f);
+            Vector2 datePosition = new Vector2(contentBounds.Center.X - (dateSize.X / 2f), topY + timeSize.Y + ScaleUiValue(10f));
+
+            int startY = GetNotificationCenterStartY(datePosition, dateSize);
+            int topBlockHeight = startY - contentBounds.Top;
+
+            // 2. Calculate height of notifications list
+            List<string> msgs = NotificationManager.GetNotificationList();
+            int unreadCount = NotificationManager.GetUnreadNotification();
+            int startIndex = Math.Max(0, msgs.Count - unreadCount);
+
+            SpriteFont font = Game1.smallFont;
+            int titleLineHeight = GetPhoneScaledLineHeight(font, 0.85f);
+            int messageLineHeight = GetPhoneScaledLineHeight(font, 0.75f);
+            int wrapWidthBase = GetNotificationWrapWidthBase();
+            int notificationsHeight = 0;
+
+            int cardSpacing = ScaleUiValue(12);
+            for (int i = startIndex; i < msgs.Count; i++)
+            {
+                string rawMsg = msgs[i];
+                string msg = rawMsg;
+                string title = "";
+
+                if (rawMsg.Contains("::"))
+                {
+                    var parts = rawMsg.Split(new[] { "::" }, 2, StringSplitOptions.None);
+                    title = parts[0];
+                    msg = parts[1];
+                }
+
+                int wrapWidth = (int)Math.Round(GetPhoneScaledWrapWidth(wrapWidthBase) / 0.75f);
+                var messageLines = SplitNotificationIntoLines(msg, font, wrapWidth);
+                if (messageLines.Count > 2)
+                {
+                    messageLines = new List<string> { messageLines[0], messageLines[1] + "..." };
+                }
+
+                int cardHeight = GetLockScreenCardHeight(!string.IsNullOrEmpty(title), messageLines.Count, titleLineHeight, messageLineHeight);
+                notificationsHeight += cardHeight + cardSpacing;
+            }
+
+            if (msgs.Count > startIndex)
+            {
+                notificationsHeight -= cardSpacing;
+            }
+
+            int totalContentHeight = topBlockHeight + notificationsHeight;
+            if (unreadCount > 0)
+            {
+                totalContentHeight += GetPhoneScaledLineHeight(font, 1.15f) + ScaleUiValue(10);
+            }
+            int footerHeight = ScaleUiValue(72);
+            int viewportHeight = contentBounds.Height - footerHeight - ScaleUiValue(10);
+
+            return Math.Max(0f, totalContentHeight - viewportHeight);
+        }
+
+        private void ClampLockScreenScroll()
+        {
+            float maxScroll = GetMaxLockScreenScroll();
+            lockScreenContentScrollTarget = Math.Clamp(lockScreenContentScrollTarget, 0f, maxScroll);
+            lockScreenContentScrollOffset = Math.Clamp(lockScreenContentScrollOffset, 0f, maxScroll);
+        }
+
+        private void CheckLockScreenCardClick(int x, int y)
+        {
+            foreach (var card in lockScreenCardBounds)
+            {
+                if (card.Bounds.Contains(x, y))
+                {
+                    OpenNotification();
+                    currentApp = "appNotification";
+                    rootLandingState = RootLandingState.Home;
+                    lockScreenUnlockAnimating = false;
+                    lockScreenUnlockElapsedSeconds = 0d;
+                    Game1.playSound("smallSelect");
+                    break;
+                }
+            }
+        }
+
+        private void UpdateLockScreenScroll(GameTime time)
+        {
+            float lerpAmount = (float)(time.ElapsedGameTime.TotalSeconds * ChatScrollLerpSpeed);
+            lerpAmount = Math.Clamp(lerpAmount, 0f, 1f);
+
+            ClampLockScreenScroll();
+            lockScreenContentScrollOffset = MathHelper.Lerp(lockScreenContentScrollOffset, lockScreenContentScrollTarget, lerpAmount);
+
+            if (Math.Abs(lockScreenContentScrollOffset - lockScreenContentScrollTarget) <= 0.5f)
+                lockScreenContentScrollOffset = lockScreenContentScrollTarget;
         }
 
         #endregion
