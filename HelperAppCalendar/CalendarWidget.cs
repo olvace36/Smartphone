@@ -26,8 +26,8 @@ namespace Smartphone
                 string seasonName = Utility.getSeasonNameFromNumber(Utility.getSeasonNumber(Game1.currentSeason));
                 string dayOfWeek = Game1.shortDayNameFromDayOfSeason(Game1.dayOfMonth);
 
-                cachedLine1 = $"{dayOfWeek}. {Game1.dayOfMonth}";
-                cachedLine2 = $"{seasonName}, Year {Game1.year}";
+                cachedLine1 = ModEntry.SHelper.Translation.Get("ui.calendar.day_format", new { dayOfWeek = dayOfWeek, dayOfMonth = Game1.dayOfMonth });
+                cachedLine2 = ModEntry.SHelper.Translation.Get("ui.calendar.year_format", new { seasonName = seasonName, year = Game1.year });
 
                 // 2. Discover if any event or festival is active today
                 cachedEventText = null;
@@ -56,28 +56,28 @@ namespace Smartphone
 
                     if (string.IsNullOrEmpty(cachedEventText))
                     {
-                        cachedEventText = "Festival day";
+                        cachedEventText = ModEntry.SHelper.Translation.Get("ui.calendar.festival_day");
                     }
                 }
                 else if (Game1.currentSeason == "fall" && Game1.dayOfMonth == 16)
                 {
-                    cachedEventText = "Stardew Fair";
+                    cachedEventText = ModEntry.SHelper.Translation.Get("ui.calendar.stardew_fair");
                 }
                 else if (Game1.currentSeason == "winter" && Game1.dayOfMonth >= 15 && Game1.dayOfMonth <= 17)
                 {
-                    cachedEventText = "Night Market";
+                    cachedEventText = ModEntry.SHelper.Translation.Get("ui.calendar.night_market");
                 }
                 else if (Game1.currentSeason == "spring" && Game1.dayOfMonth >= 15 && Game1.dayOfMonth <= 17)
                 {
-                    cachedEventText = "Desert Festival";
+                    cachedEventText = ModEntry.SHelper.Translation.Get("ui.calendar.desert_festival");
                 }
                 else if (Game1.currentSeason == "summer" && Game1.dayOfMonth >= 20 && Game1.dayOfMonth <= 21)
                 {
-                    cachedEventText = "Trout Derby";
+                    cachedEventText = ModEntry.SHelper.Translation.Get("ui.calendar.trout_derby");
                 }
                 else if (Game1.currentSeason == "winter" && Game1.dayOfMonth >= 9 && Game1.dayOfMonth <= 10)
                 {
-                    cachedEventText = "SquidFest";
+                    cachedEventText = ModEntry.SHelper.Translation.Get("ui.calendar.squidfest");
                 }
 
                 // 3. Scan for any active villager birthdays today

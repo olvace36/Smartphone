@@ -82,11 +82,11 @@ namespace Smartphone
                     string text = "";
                     if (appStoreWidgetDisplayMode == 0)
                     {
-                        text = $"{newAppsCount} new apps";
+                        text = ModEntry.SHelper.Translation.Get("ui.appstore.widget.new_apps", new { count = newAppsCount });
                     }
                     else
                     {
-                        text = $"{updatesCount} update available";
+                        text = ModEntry.SHelper.Translation.Get("ui.appstore.widget.updates_available", new { count = updatesCount });
                     }
                     // 6. Layout Alignment (Right 50% Quadrant Box Bounds, shifted left slightly)
                     int shiftLeft = ScaleUiValue(13); // Shift bounds to the left to give more horizontal room

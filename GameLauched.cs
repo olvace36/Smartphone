@@ -137,9 +137,9 @@ namespace Smartphone
 
                     string npcPhone = lastSpeaker.modData.TryGetValue("d5a1lamdtd.Smartphone.PhoneNumber", out string num) ? num : "000000";
 
-                    string customDialogue = $"Hey {Game1.player.Name}! Since we're becoming such good friends, here is my phone number: {npcPhone}. Feel free to call me anytime! #$e#";
+                    string customDialogue = ModEntry.SHelper.Translation.Get("ui.message.npc_share_number", new { playerName = Game1.player.Name, phoneNumber = npcPhone });
 
-                    Game1.chatBox.addInfoMessage($"{npcName}'s phone number is {npcPhone}. I should save it before I lost it!");
+                    Game1.chatBox.addInfoMessage(ModEntry.SHelper.Translation.Get("ui.chat.save_number", new { npcName = npcName, phoneNumber = npcPhone }));
 
                     lastSpeaker.CurrentDialogue.Push(new Dialogue(lastSpeaker, "key", customDialogue));
 

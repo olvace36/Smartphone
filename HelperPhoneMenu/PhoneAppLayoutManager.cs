@@ -1314,7 +1314,7 @@ namespace Smartphone
             Textures.DrawCard(b,
                 _doneButtonBounds.X, _doneButtonBounds.Y, _doneButtonBounds.Width, _doneButtonBounds.Height, new Color(80, 200, 120, 240), 1f, false);
 
-            string label = ModEntry.SHelper.Translation.Get("ui.reorder.done").Default("Done");
+            string label = ModEntry.SHelper.Translation.Get("ui.reorder.done");
             Vector2 size = Game1.smallFont.MeasureString(label) * 0.7f;
             b.DrawString(Game1.smallFont, label, new Vector2(_doneButtonBounds.X + (_doneButtonBounds.Width - size.X) / 2f, _doneButtonBounds.Y + (_doneButtonBounds.Height - size.Y) / 2f), Color.White, 0f, Vector2.Zero, 0.7f, SpriteEffects.None, 1f);
         }
@@ -1331,7 +1331,7 @@ namespace Smartphone
             Textures.DrawCard(b,
                 _resetButtonBounds.X, _resetButtonBounds.Y, _resetButtonBounds.Width, _resetButtonBounds.Height, new Color(220, 80, 80, 240), 1f, false);
 
-            string label = ModEntry.SHelper.Translation.Get("ui.reorder.reset").Default("Reset");
+            string label = ModEntry.SHelper.Translation.Get("ui.reorder.reset");
             Vector2 size = Game1.smallFont.MeasureString(label) * 0.7f;
             b.DrawString(Game1.smallFont, label, new Vector2(_resetButtonBounds.X + (_resetButtonBounds.Width - size.X) / 2f, _resetButtonBounds.Y + (_resetButtonBounds.Height - size.Y) / 2f), Color.White, 0f, Vector2.Zero, 0.7f, SpriteEffects.None, 1f);
         }
@@ -1507,8 +1507,8 @@ namespace Smartphone
         private void BuildDropdownItems(Rectangle anchorBounds, HomeAppEntryProxy? app)
         {
             _dropdownItems.Clear();
-            int itemH = ScaleUi(32), itemW = ScaleUi(140);
-            int x = anchorBounds.X, y = anchorBounds.Bottom + ScaleUi(4);
+            int itemH = ScaleUi(32), itemW = ScaleUi(90);
+            int x = anchorBounds.X + ScaleUi(11), y = anchorBounds.Bottom + ScaleUi(4);
 
             List<(AppSize size, DropdownOption option, string label)> allOptions = new()
             {
@@ -1547,7 +1547,7 @@ namespace Smartphone
 
             if (options.Count == 0)
             {
-                options.Add((DropdownOption.ChangeSize1x1, "1×1 Size"));
+                options.Add((DropdownOption.ChangeSize1x1, ModEntry.SHelper.Translation.Get("ui.reorder.size_1x1")));
             }
 
             Rectangle contentBounds = _menu.GetPhoneContentBounds();
@@ -2212,8 +2212,8 @@ namespace Smartphone
                 themes = new List<string> { "default" };
             }
 
-            int itemH = ScaleUi(32), itemW = ScaleUi(140);
-            int x = anchorBounds.X, y = anchorBounds.Bottom + ScaleUi(4);
+            int itemH = ScaleUi(32), itemW = ScaleUi(110);
+            int x = anchorBounds.X + ScaleUi(1), y = anchorBounds.Bottom + ScaleUi(4);
 
             // Dynamic viewport bounding protection so choices don't bleed past the bottom phone edge
             Rectangle contentBounds = _menu.GetPhoneContentBounds();

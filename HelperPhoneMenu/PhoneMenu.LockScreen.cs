@@ -179,7 +179,7 @@ namespace Smartphone
 
                 if (unreadCount > 0)
                 {
-                    string headerText = "Notification center";
+                    string headerText = ModEntry.SHelper.Translation.Get("ui.lockscreen.notification_center");
                     Vector2 headerTextSize = Game1.smallFont.MeasureString(headerText) * GetPhoneTextScale(1.15f);
                     Vector2 headerTextPos = new Vector2(contentBounds.X + ScaleUiValue(12), headerY - totalTopYOffset + (headerHeight - headerTextSize.Y) / 2f);
 
@@ -193,7 +193,7 @@ namespace Smartphone
                         GetPhoneTextScale(1.15f)
                     );
 
-                    string xText = "clear";
+                    string xText = ModEntry.SHelper.Translation.Get("ui.lockscreen.clear");
                     Vector2 xTextSize = Game1.smallFont.MeasureString(xText) * GetPhoneTextScale(0.85f) * phoneUiScale;
                     int xButtonWidth = (int)Math.Round(xTextSize.X + ScaleUiValue(16));
                     int xButtonHeight = (int)Math.Round(xTextSize.Y + ScaleUiValue(8));
@@ -679,7 +679,7 @@ namespace Smartphone
 
             int day = Math.Max(1, Game1.dayOfMonth);
             int year = Math.Max(1, Game1.year);
-            return $"{seasonName} {day}, Year {year}";
+            return ModEntry.SHelper.Translation.Get("ui.lockscreen.date_format", new { seasonName = seasonName, day = day, year = year });
         }
 
         #endregion

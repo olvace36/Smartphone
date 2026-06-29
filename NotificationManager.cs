@@ -38,9 +38,9 @@ namespace Smartphone
             if (ModEntry.Config?.NotifyNotification ?? true)
             {
                 if (!string.IsNullOrWhiteSpace(notificationName))
-                    Game1.addHUDMessage(new HUDMessage($"New notification from {notificationName}", HUDMessage.newQuest_type));
+                    Game1.addHUDMessage(new HUDMessage(ModEntry.SHelper.Translation.Get("ui.hud.new_notification_from", new { notificationName = notificationName }), HUDMessage.newQuest_type));
                 else
-                    Game1.addHUDMessage(new HUDMessage("New notification", HUDMessage.newQuest_type));
+                    Game1.addHUDMessage(new HUDMessage(ModEntry.SHelper.Translation.Get("ui.hud.new_notification"), HUDMessage.newQuest_type));
             }
 
             DelayedAction.playSoundAfterDelay(ModEntry.currentPhoneSound, 0);

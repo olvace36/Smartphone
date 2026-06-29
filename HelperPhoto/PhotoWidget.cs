@@ -199,7 +199,7 @@ namespace Smartphone
 
         private static void DrawNoPhotoText(SpriteBatch b, Rectangle rect)
         {
-            string message = "No photo yet";
+            string message = ModEntry.SHelper.Translation.Get("ui.photo.no_photo_yet");
             float uiScale = ModEntry.GetActivePhoneUiScale();
             float scale = 1.0f * uiScale;
             Vector2 textSize = Game1.smallFont.MeasureString(message) * scale;

@@ -68,6 +68,21 @@ namespace Smartphone
             return ModEntry.GetRegisteredAppDisplayName(compKey);
         }
 
+        private static string GetThemeComponentFriendlyName(string compKey)
+        {
+            return compKey switch
+            {
+                "phone" => ModEntry.SHelper.Translation.Get("ui.setting.theme.phone"),
+                "app_appstore" => ModEntry.SHelper.Translation.Get("app.appstore.name"),
+                "app_calendar" => ModEntry.SHelper.Translation.Get("app.calendar.name"),
+                "app_camera" => ModEntry.SHelper.Translation.Get("app.camera.name"),
+                "app_notification" => ModEntry.SHelper.Translation.Get("app.notification.name"),
+                "app_photo" => ModEntry.SHelper.Translation.Get("app.photos.name"),
+                "app_setting" => ModEntry.SHelper.Translation.Get("app.settings.name"),
+                _ => GetFriendlyComponentName(compKey)
+            };
+        }
+
         private const int SettingsTitleXOffsetBase = 155;
         private const int SettingsTitleYOffsetBase = 117;
         private const int SettingsMainOptionsStartYBase = 180;
@@ -136,17 +151,7 @@ namespace Smartphone
                 SettingMenuSoundState => ModEntry.SHelper.Translation.Get("ui.setting.sound"),
                 SettingMenuTextColorState => ModEntry.SHelper.Translation.Get("ui.setting.text_color"),
                 SettingMenuThemeState => ModEntry.SHelper.Translation.Get("ui.setting.theme"),
-                SettingMenuThemeComponentListState => currentSelectedThemeComponent switch
-                {
-                    "phone" => "Phone",
-                    "app_appstore" => "AppStore",
-                    "app_calendar" => "Calendar",
-                    "app_camera" => "Camera",
-                    "app_notification" => "Notification",
-                    "app_photo" => "Photo",
-                    "app_setting" => "Settings",
-                    _ => GetFriendlyComponentName(currentSelectedThemeComponent)
-                },
+                SettingMenuThemeComponentListState => GetThemeComponentFriendlyName(currentSelectedThemeComponent),
                 _ => ModEntry.SHelper.Translation.Get("ui.setting.title")
             };
 
@@ -276,17 +281,7 @@ namespace Smartphone
                 if (y > visibleBottom) break;
 
                 int nameX = PhoneX(SettingsListNameXOffsetBase);
-                string friendlyName = compKey switch
-                {
-                    "phone" => "Phone",
-                    "app_appstore" => "AppStore",
-                    "app_calendar" => "Calendar",
-                    "app_camera" => "Camera",
-                    "app_notification" => "Notification",
-                    "app_photo" => "Photo",
-                    "app_setting" => "Settings",
-                    _ => GetFriendlyComponentName(compKey)
-                };
+                string friendlyName = GetThemeComponentFriendlyName(compKey);
 
                 Rectangle rowBounds = new Rectangle(nameX - ScaleUiValue(10), y + ScaleUiValue(54), ScaleUiValue(380), ScaleUiValue(55));
                 themeComponentRowBounds[compKey] = rowBounds;
@@ -360,10 +355,11 @@ namespace Smartphone
                     break;
 
                 int nameX = PhoneX(SettingsListNameXOffsetBase);
+                string friendlySoundName = ModEntry.SHelper.Translation.Get("ui.setting.sound." + soundString);
                 DrawPhoneText(
                     b,
                     Game1.smallFont,
-                    soundString,
+                    friendlySoundName,
                     new Vector2(nameX, y + ScaleUiValue(SettingsListNameYOffsetBase)),
                     Color.Black);
 
@@ -431,10 +427,11 @@ namespace Smartphone
                     break;
 
                 int nameX = PhoneX(SettingsListNameXOffsetBase);
+                string friendlyColorName = ModEntry.SHelper.Translation.Get("ui.setting.color." + colorName);
                 DrawPhoneText(
                     b,
                     Game1.smallFont,
-                    colorName,
+                    friendlyColorName,
                     new Vector2(nameX, y + ScaleUiValue(SettingsListNameYOffsetBase)),
                     Color.Black);
 

@@ -636,7 +636,7 @@ namespace Smartphone
                     {
                         if (Math.Abs(deltaY) > 5)
                             hasTouchScrolled = true;
-                        
+
                         float maxScroll = GetMaxLockScreenScroll();
                         lockScreenContentScrollTarget = Math.Clamp(lockScreenStartScrollOffset + deltaY, -ScaleUiValue(100), maxScroll + ScaleUiValue(100));
                     }
@@ -1252,7 +1252,7 @@ namespace Smartphone
                 new HomeAppEntryProxy
                 {
                     Id = BuiltinAppPhoneId,
-                    DisplayName = "Contacts",
+                    DisplayName = ModEntry.SHelper.Translation.Get("app.contacts.name"),
                     IconTexture = Textures.GetAppTexture(BuiltinAppPhoneId, AppSize.Size1x1),
                     OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppPhoneId, rect, size),
                     SupportedSizes = new List<AppSize> { AppSize.Size1x1, AppSize.Size2x2 }

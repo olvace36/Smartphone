@@ -196,9 +196,9 @@ namespace Smartphone
             Rectangle clipArea = new Rectangle(bounds.X, contentY, bounds.Width, contentHeight);
 
             // --- HEADER TITLE PROCESSING ---
-            string title = phoneAppCurrentTab == 0 ? "Contacts" : (phoneAppCurrentTab == 1 ? "Recents" : "Keypad");
-            if (phoneAppIsAddingContact) title = "New Contact";
-            if (phoneAppIsEditingExistingContact) title = "Edit Contact";
+            string title = phoneAppCurrentTab == 0 ? ModEntry.SHelper.Translation.Get("ui.phone.contacts") : (phoneAppCurrentTab == 1 ? ModEntry.SHelper.Translation.Get("ui.phone.recents") : ModEntry.SHelper.Translation.Get("ui.phone.keypad"));
+            if (phoneAppIsAddingContact) title = ModEntry.SHelper.Translation.Get("ui.phone.new_contact");
+            if (phoneAppIsEditingExistingContact) title = ModEntry.SHelper.Translation.Get("ui.phone.edit_contact");
 
             if (phoneAppCurrentTab == 0 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact && !phoneAppIsConfirmingDelete)
             {
@@ -218,6 +218,8 @@ namespace Smartphone
                 Vector2 titleSize = Game1.dialogueFont.MeasureString(title) * titleScale;
                 b.DrawString(Game1.dialogueFont, title, new Vector2(bounds.X + (bounds.Width - titleSize.X) / 2, bounds.Y + (headerHeight - titleSize.Y) / 2), Color.Black, 0f, Vector2.Zero, titleScale, SpriteEffects.None, 1f);
             }
+
+            // Draw line divider under header
             b.Draw(Game1.staminaRect, new Rectangle(bounds.X, bounds.Y + headerHeight, bounds.Width, ScaleUiValue(2)), Color.LightGray);
 
             // --- HEADERS ACTION DRAW BUTTONS ---
@@ -226,7 +228,7 @@ namespace Smartphone
             {
                 Color btnColor = phoneAppIsEditingContacts ? Color.LightGreen : Color.LightGray;
                 Textures.DrawCard(b, topActionBtn.X, topActionBtn.Y, topActionBtn.Width, topActionBtn.Height, btnColor);
-                string btnText = phoneAppIsEditingContacts ? "Done" : "Edit";
+                string btnText = phoneAppIsEditingContacts ? ModEntry.SHelper.Translation.Get("ui.reorder.done") : ModEntry.SHelper.Translation.Get("ui.phone.edit");
                 float btnScale = 0.75f * uiScale;
                 Vector2 sz = Game1.smallFont.MeasureString(btnText) * btnScale;
                 b.DrawString(Game1.smallFont, btnText, new Vector2(topActionBtn.X + (topActionBtn.Width - sz.X) / 2, topActionBtn.Y + (topActionBtn.Height - sz.Y) / 2), Color.Black, 0f, Vector2.Zero, btnScale, SpriteEffects.None, 1f);
@@ -234,7 +236,7 @@ namespace Smartphone
             else if (phoneAppCurrentTab == 2 && !phoneAppIsAddingContact && phoneAppKeypadBuffer.Length > 0)
             {
                 Textures.DrawCard(b, topActionBtn.X, topActionBtn.Y, topActionBtn.Width, topActionBtn.Height, Color.LightSkyBlue);
-                string btnText = "Add";
+                string btnText = ModEntry.SHelper.Translation.Get("ui.phone.add");
                 float btnScale = 0.75f * uiScale;
                 Vector2 sz = Game1.smallFont.MeasureString(btnText) * btnScale;
                 b.DrawString(Game1.smallFont, btnText, new Vector2(topActionBtn.X + (topActionBtn.Width - sz.X) / 2, topActionBtn.Y + (topActionBtn.Height - sz.Y) / 2), Color.Black, 0f, Vector2.Zero, btnScale, SpriteEffects.None, 1f);
@@ -251,16 +253,20 @@ namespace Smartphone
             Color colorKeypad = phoneAppCurrentTab == 2 ? Color.DodgerBlue : Color.DimGray;
 
             float tabScale = 0.85f * uiScale;
-            Vector2 sContacts = Game1.smallFont.MeasureString("Contacts") * tabScale;
-            Vector2 sRecents = Game1.smallFont.MeasureString("Recents") * tabScale;
-            Vector2 sKeypad = Game1.smallFont.MeasureString("Keypad") * tabScale;
+            string contactsLabel = ModEntry.SHelper.Translation.Get("ui.phone.contacts");
+            string recentsLabel = ModEntry.SHelper.Translation.Get("ui.phone.recents");
+            string keypadLabel = ModEntry.SHelper.Translation.Get("ui.phone.keypad");
+            Vector2 sContacts = Game1.smallFont.MeasureString(contactsLabel) * tabScale;
+            Vector2 sRecents = Game1.smallFont.MeasureString(recentsLabel) * tabScale;
+            Vector2 sKeypad = Game1.smallFont.MeasureString(keypadLabel) * tabScale;
 
-            b.DrawString(Game1.smallFont, "Contacts", new Vector2(bounds.X + (tabCellWidth - sContacts.X) / 2, tabBackground.Y + (tabHeight - sContacts.Y) / 2), colorContacts, 0f, Vector2.Zero, tabScale, SpriteEffects.None, 1f);
-            b.DrawString(Game1.smallFont, "Recents", new Vector2(bounds.X + tabCellWidth + (tabCellWidth - sRecents.X) / 2, tabBackground.Y + (tabHeight - sRecents.Y) / 2), colorRecents, 0f, Vector2.Zero, tabScale, SpriteEffects.None, 1f);
-            b.DrawString(Game1.smallFont, "Keypad", new Vector2(bounds.X + tabCellWidth * 2 + (bounds.Width - tabCellWidth * 2 - sKeypad.X) / 2, tabBackground.Y + (tabHeight - sKeypad.Y) / 2), colorKeypad, 0f, Vector2.Zero, tabScale, SpriteEffects.None, 1f);
+            b.DrawString(Game1.smallFont, contactsLabel, new Vector2(bounds.X + (tabCellWidth - sContacts.X) / 2, tabBackground.Y + (tabHeight - sContacts.Y) / 2), colorContacts, 0f, Vector2.Zero, tabScale, SpriteEffects.None, 1f);
+            b.DrawString(Game1.smallFont, recentsLabel, new Vector2(bounds.X + tabCellWidth + (tabCellWidth - sRecents.X) / 2, tabBackground.Y + (tabHeight - sRecents.Y) / 2), colorRecents, 0f, Vector2.Zero, tabScale, SpriteEffects.None, 1f);
+            b.DrawString(Game1.smallFont, keypadLabel, new Vector2(bounds.X + tabCellWidth * 2 + (bounds.Width - tabCellWidth * 2 - sKeypad.X) / 2, tabBackground.Y + (tabHeight - sKeypad.Y) / 2), colorKeypad, 0f, Vector2.Zero, tabScale, SpriteEffects.None, 1f);
 
             int rowHeight = (int)(ScaleUiValue(55) * 1.25f);
 
+            // --- MAIN LIST SCROLLING AREA ---
             if (phoneAppCurrentTab == 0 || phoneAppCurrentTab == 1)
             {
                 if (phoneAppIsConfirmingDelete)
@@ -268,7 +274,7 @@ namespace Smartphone
                     Rectangle confBox = new Rectangle(bounds.X + ScaleUiValue(20), contentY + ScaleUiValue(50), bounds.Width - ScaleUiValue(40), ScaleUiValue(200));
                     Textures.DrawCard(b, confBox.X, confBox.Y, confBox.Width, confBox.Height, Color.White);
 
-                    string confText = "Delete this contact?";
+                    string confText = ModEntry.SHelper.Translation.Get("ui.phone.delete_contact_confirm");
                     float cfScale = 1f * uiScale;
                     Vector2 txSz = Game1.smallFont.MeasureString(confText) * cfScale;
                     b.DrawString(Game1.smallFont, confText, new Vector2(confBox.X + (confBox.Width - txSz.X) / 2, confBox.Y + ScaleUiValue(30)), Color.Black, 0f, Vector2.Zero, cfScale, SpriteEffects.None, 1f);
@@ -280,11 +286,13 @@ namespace Smartphone
                     Textures.DrawCard(b, btnNo.X, btnNo.Y, btnNo.Width, btnNo.Height, Color.LightGray);
 
                     float ynScale = 0.9f * uiScale;
-                    Vector2 ySz = Game1.smallFont.MeasureString("Yes") * ynScale;
-                    Vector2 nSz = Game1.smallFont.MeasureString("No") * ynScale;
+                    string yesText = ModEntry.SHelper.Translation.Get("ui.button.yes");
+                    string noText = ModEntry.SHelper.Translation.Get("ui.button.no");
+                    Vector2 ySz = Game1.smallFont.MeasureString(yesText) * ynScale;
+                    Vector2 nSz = Game1.smallFont.MeasureString(noText) * ynScale;
 
-                    b.DrawString(Game1.smallFont, "Yes", new Vector2(btnYes.X + (btnYes.Width - ySz.X) / 2, btnYes.Y + (btnYes.Height - ySz.Y) / 2), Color.Black, 0f, Vector2.Zero, ynScale, SpriteEffects.None, 1f);
-                    b.DrawString(Game1.smallFont, "No", new Vector2(btnNo.X + (btnNo.Width - nSz.X) / 2, btnNo.Y + (btnNo.Height - nSz.Y) / 2), Color.Black, 0f, Vector2.Zero, ynScale, SpriteEffects.None, 1f);
+                    b.DrawString(Game1.smallFont, yesText, new Vector2(btnYes.X + (btnYes.Width - ySz.X) / 2, btnYes.Y + (btnYes.Height - ySz.Y) / 2), Color.Black, 0f, Vector2.Zero, ynScale, SpriteEffects.None, 1f);
+                    b.DrawString(Game1.smallFont, noText, new Vector2(btnNo.X + (btnNo.Width - nSz.X) / 2, btnNo.Y + (btnNo.Height - nSz.Y) / 2), Color.Black, 0f, Vector2.Zero, ynScale, SpriteEffects.None, 1f);
                 }
                 else if (phoneAppIsEditingExistingContact)
                 {
@@ -293,7 +301,7 @@ namespace Smartphone
                     float labelScale = 0.95f * uiScale;
                     float inputTxtScale = 0.9f * uiScale;
 
-                    b.DrawString(Game1.smallFont, "Edit Contact Name:", new Vector2(fX, contentY + ScaleUiValue(15)), Color.Black, 0f, Vector2.Zero, labelScale, SpriteEffects.None, 1f);
+                    b.DrawString(Game1.smallFont, ModEntry.SHelper.Translation.Get("ui.phone.edit_contact_name_label"), new Vector2(fX, contentY + ScaleUiValue(15)), Color.Black, 0f, Vector2.Zero, labelScale, SpriteEffects.None, 1f);
                     Rectangle nameFieldRect = new Rectangle(fX, contentY + ScaleUiValue(45), fW, ScaleUiValue(60));
                     Textures.DrawCard(b, nameFieldRect.X, nameFieldRect.Y, nameFieldRect.Width, nameFieldRect.Height, phoneAppActiveField == 0 ? Color.LightCyan : Color.White);
 
@@ -302,7 +310,7 @@ namespace Smartphone
                     Vector2 pNameSz = Game1.smallFont.MeasureString(printableName) * inputTxtScale;
                     b.DrawString(Game1.smallFont, printableName, new Vector2(nameFieldRect.X + ScaleUiValue(12), nameFieldRect.Y + (nameFieldRect.Height - pNameSz.Y) / 2), Color.Black, 0f, Vector2.Zero, inputTxtScale, SpriteEffects.None, 1f);
 
-                    b.DrawString(Game1.smallFont, "Edit Contact Number:", new Vector2(fX, contentY + ScaleUiValue(120)), Color.Black, 0f, Vector2.Zero, labelScale, SpriteEffects.None, 1f);
+                    b.DrawString(Game1.smallFont, ModEntry.SHelper.Translation.Get("ui.phone.edit_contact_number_label"), new Vector2(fX, contentY + ScaleUiValue(120)), Color.Black, 0f, Vector2.Zero, labelScale, SpriteEffects.None, 1f);
                     Rectangle numFieldRect = new Rectangle(fX, contentY + ScaleUiValue(150), fW, ScaleUiValue(60));
                     Textures.DrawCard(b, numFieldRect.X, numFieldRect.Y, numFieldRect.Width, numFieldRect.Height, phoneAppActiveField == 1 ? Color.LightCyan : Color.White);
 
@@ -318,10 +326,12 @@ namespace Smartphone
                     Textures.DrawCard(b, btnCancel.X, btnCancel.Y, btnCancel.Width, btnCancel.Height, Color.LightCoral);
 
                     float actScale = 0.9f * uiScale;
-                    Vector2 sSz = Game1.smallFont.MeasureString("Save") * actScale;
-                    Vector2 cSz = Game1.smallFont.MeasureString("Cancel") * actScale;
-                    b.DrawString(Game1.smallFont, "Save", new Vector2(btnSave.X + (btnSave.Width - sSz.X) / 2, btnSave.Y + (btnSave.Height - sSz.Y) / 2), Color.Black, 0f, Vector2.Zero, actScale, SpriteEffects.None, 1f);
-                    b.DrawString(Game1.smallFont, "Cancel", new Vector2(btnCancel.X + (btnCancel.Width - cSz.X) / 2, btnCancel.Y + (btnCancel.Height - cSz.Y) / 2), Color.Black, 0f, Vector2.Zero, actScale, SpriteEffects.None, 1f);
+                    string saveText = ModEntry.SHelper.Translation.Get("ui.button.save");
+                    string cancelText = ModEntry.SHelper.Translation.Get("ui.button.cancel");
+                    Vector2 sSz = Game1.smallFont.MeasureString(saveText) * actScale;
+                    Vector2 cSz = Game1.smallFont.MeasureString(cancelText) * actScale;
+                    b.DrawString(Game1.smallFont, saveText, new Vector2(btnSave.X + (btnSave.Width - sSz.X) / 2, btnSave.Y + (btnSave.Height - sSz.Y) / 2), Color.Black, 0f, Vector2.Zero, actScale, SpriteEffects.None, 1f);
+                    b.DrawString(Game1.smallFont, cancelText, new Vector2(btnCancel.X + (btnCancel.Width - cSz.X) / 2, btnCancel.Y + (btnCancel.Height - cSz.Y) / 2), Color.Black, 0f, Vector2.Zero, actScale, SpriteEffects.None, 1f);
                 }
                 else
                 {
@@ -369,8 +379,9 @@ namespace Smartphone
                                 Rectangle delBtn = new Rectangle(cardRect.Right - ScaleUiValue(75), cardRect.Y + ScaleUiValue(8), ScaleUiValue(65), cardRect.Height - ScaleUiValue(16));
                                 Textures.DrawCard(b, delBtn.X, delBtn.Y, delBtn.Width, delBtn.Height, Color.Tomato);
                                 float delScale = 0.7f * uiScale;
-                                Vector2 delSz = Game1.smallFont.MeasureString("Delete") * delScale;
-                                b.DrawString(Game1.smallFont, "Delete", new Vector2(delBtn.X + (delBtn.Width - delSz.X) / 2, delBtn.Y + (delBtn.Height - delSz.Y) / 2), Color.White, 0f, Vector2.Zero, delScale, SpriteEffects.None, 1f);
+                                string delText = ModEntry.SHelper.Translation.Get("ui.photo.delete");
+                                Vector2 delSz = Game1.smallFont.MeasureString(delText) * delScale;
+                                b.DrawString(Game1.smallFont, delText, new Vector2(delBtn.X + (delBtn.Width - delSz.X) / 2, delBtn.Y + (delBtn.Height - delSz.Y) / 2), Color.White, 0f, Vector2.Zero, delScale, SpriteEffects.None, 1f);
                             }
                             else
                             {
@@ -384,8 +395,9 @@ namespace Smartphone
                         if (contacts.Count == 0)
                         {
                             float phScale = 1f * uiScale;
-                            Vector2 noContactSz = Game1.smallFont.MeasureString("No Contacts Added") * phScale;
-                            b.DrawString(Game1.smallFont, "No Contacts Added", new Vector2(bounds.X + (bounds.Width - noContactSz.X) / 2, contentY + ScaleUiValue(60)), Color.Gray, 0f, Vector2.Zero, phScale, SpriteEffects.None, 1f);
+                            string noContactText = ModEntry.SHelper.Translation.Get("ui.phone.no_contacts_added");
+                            Vector2 noContactSz = Game1.smallFont.MeasureString(noContactText) * phScale;
+                            b.DrawString(Game1.smallFont, noContactText, new Vector2(bounds.X + (bounds.Width - noContactSz.X) / 2, contentY + ScaleUiValue(60)), Color.Gray, 0f, Vector2.Zero, phScale, SpriteEffects.None, 1f);
                         }
                     }
                     else // Recents View
@@ -430,8 +442,9 @@ namespace Smartphone
                         if (phoneAppRecentCalls.Count == 0)
                         {
                             float phScale = 1f * uiScale;
-                            Vector2 noCallSz = Game1.smallFont.MeasureString("No Recent Calls") * phScale;
-                            b.DrawString(Game1.smallFont, "No Recent Calls", new Vector2(bounds.X + (bounds.Width - noCallSz.X) / 2, contentY + ScaleUiValue(60)), Color.Gray, 0f, Vector2.Zero, phScale, SpriteEffects.None, 1f);
+                            string noCallText = ModEntry.SHelper.Translation.Get("ui.phone.no_recent_calls");
+                            Vector2 noCallSz = Game1.smallFont.MeasureString(noCallText) * phScale;
+                            b.DrawString(Game1.smallFont, noCallText, new Vector2(bounds.X + (bounds.Width - noCallSz.X) / 2, contentY + ScaleUiValue(60)), Color.Gray, 0f, Vector2.Zero, phScale, SpriteEffects.None, 1f);
                         }
                     }
 
@@ -449,7 +462,7 @@ namespace Smartphone
                     float labelScale = 0.95f * uiScale;
                     float inputTxtScale = 0.9f * uiScale;
 
-                    b.DrawString(Game1.smallFont, "Contact Name:", new Vector2(fX, contentY + ScaleUiValue(20)), Color.Black, 0f, Vector2.Zero, labelScale, SpriteEffects.None, 1f);
+                    b.DrawString(Game1.smallFont, ModEntry.SHelper.Translation.Get("ui.phone.contact_name_label"), new Vector2(fX, contentY + ScaleUiValue(20)), Color.Black, 0f, Vector2.Zero, labelScale, SpriteEffects.None, 1f);
                     Rectangle fieldRect = new Rectangle(fX, contentY + ScaleUiValue(50), fW, ScaleUiValue(60));
                     Textures.DrawCard(b, fieldRect.X, fieldRect.Y, fieldRect.Width, fieldRect.Height, Color.White);
 
@@ -458,7 +471,7 @@ namespace Smartphone
                     Vector2 pStrSz = Game1.smallFont.MeasureString(printable) * inputTxtScale;
                     b.DrawString(Game1.smallFont, printable, new Vector2(fieldRect.X + ScaleUiValue(12), fieldRect.Y + (fieldRect.Height - pStrSz.Y) / 2), Color.Black, 0f, Vector2.Zero, inputTxtScale, SpriteEffects.None, 1f);
 
-                    b.DrawString(Game1.smallFont, $"Number: {phoneAppKeypadBuffer}", new Vector2(fX, contentY + ScaleUiValue(125)), Color.DarkSlateGray, 0f, Vector2.Zero, 0.9f * uiScale, SpriteEffects.None, 1f);
+                    b.DrawString(Game1.smallFont, ModEntry.SHelper.Translation.Get("ui.phone.number_format", new { number = phoneAppKeypadBuffer }), new Vector2(fX, contentY + ScaleUiValue(125)), Color.DarkSlateGray, 0f, Vector2.Zero, 0.9f * uiScale, SpriteEffects.None, 1f);
 
                     Rectangle btnSave = new Rectangle(fX, contentY + ScaleUiValue(195), fW / 2 - ScaleUiValue(8), ScaleUiValue(45));
                     Rectangle btnCancel = new Rectangle(fX + fW / 2 + ScaleUiValue(8), contentY + ScaleUiValue(195), fW / 2 - ScaleUiValue(8), ScaleUiValue(45));
@@ -467,10 +480,12 @@ namespace Smartphone
                     Textures.DrawCard(b, btnCancel.X, btnCancel.Y, btnCancel.Width, btnCancel.Height, Color.LightCoral);
 
                     float actScale = 0.9f * uiScale;
-                    Vector2 sSz = Game1.smallFont.MeasureString("Save") * actScale;
-                    Vector2 cSz = Game1.smallFont.MeasureString("Cancel") * actScale;
-                    b.DrawString(Game1.smallFont, "Save", new Vector2(btnSave.X + (btnSave.Width - sSz.X) / 2, btnSave.Y + (btnSave.Height - sSz.Y) / 2), Color.Black, 0f, Vector2.Zero, actScale, SpriteEffects.None, 1f);
-                    b.DrawString(Game1.smallFont, "Cancel", new Vector2(btnCancel.X + (btnCancel.Width - cSz.X) / 2, btnCancel.Y + (btnCancel.Height - cSz.Y) / 2), Color.Black, 0f, Vector2.Zero, actScale, SpriteEffects.None, 1f);
+                    string saveText = ModEntry.SHelper.Translation.Get("ui.button.save");
+                    string cancelText = ModEntry.SHelper.Translation.Get("ui.button.cancel");
+                    Vector2 sSz = Game1.smallFont.MeasureString(saveText) * actScale;
+                    Vector2 cSz = Game1.smallFont.MeasureString(cancelText) * actScale;
+                    b.DrawString(Game1.smallFont, saveText, new Vector2(btnSave.X + (btnSave.Width - sSz.X) / 2, btnSave.Y + (btnSave.Height - sSz.Y) / 2), Color.Black, 0f, Vector2.Zero, actScale, SpriteEffects.None, 1f);
+                    b.DrawString(Game1.smallFont, cancelText, new Vector2(btnCancel.X + (btnCancel.Width - cSz.X) / 2, btnCancel.Y + (btnCancel.Height - cSz.Y) / 2), Color.Black, 0f, Vector2.Zero, actScale, SpriteEffects.None, 1f);
                 }
                 else
                 {
@@ -509,8 +524,9 @@ namespace Smartphone
                     Rectangle callBtn = new Rectangle(keyStartX + btnSize + spaceX, actionRowY, btnSize, btnSize);
                     Textures.DrawCard(b, callBtn.X, callBtn.Y, callBtn.Width, callBtn.Height, Color.LimeGreen);
                     float callTxtScale = 0.85f * uiScale;
-                    Vector2 callTextSz = Game1.smallFont.MeasureString("Call") * callTxtScale;
-                    b.DrawString(Game1.smallFont, "Call", new Vector2(callBtn.X + (callBtn.Width - callTextSz.X) / 2, callBtn.Y + (callBtn.Height - callTextSz.Y) / 2), Color.White, 0f, Vector2.Zero, callTxtScale, SpriteEffects.None, 1f);
+                    string callBtnLabel = ModEntry.SHelper.Translation.Get("ui.phone.call");
+                    Vector2 callTextSz = Game1.smallFont.MeasureString(callBtnLabel) * callTxtScale;
+                    b.DrawString(Game1.smallFont, callBtnLabel, new Vector2(callBtn.X + (callBtn.Width - callTextSz.X) / 2, callBtn.Y + (callBtn.Height - callTextSz.Y) / 2), Color.White, 0f, Vector2.Zero, callTxtScale, SpriteEffects.None, 1f);
 
                     if (phoneAppKeypadBuffer.Length > 0)
                     {
@@ -800,8 +816,9 @@ namespace Smartphone
         private void ExecuteCallAction(string name, string number, bool isNpc)
         {
             string rawSeason = Game1.currentSeason;
-            string readableSeason = rawSeason.Length > 0 ? char.ToUpper(rawSeason[0]) + rawSeason.Substring(1) : "";
-            string timestamp = $"{readableSeason} {Game1.dayOfMonth}, {Game1.getTimeOfDayString(Game1.timeOfDay)}";
+            string readableSeason = Utility.getSeasonNameFromNumber(Utility.getSeasonNumber(rawSeason));
+            string timeStrVal = Game1.getTimeOfDayString(Game1.timeOfDay);
+            string timestamp = ModEntry.SHelper.Translation.Get("ui.phone.time_format", new { seasonName = readableSeason, day = Game1.dayOfMonth, time = timeStrVal });
 
             bool reallyNpc = ModEntry.NpcNumbers.TryGetValue(number, out string npcInternalName);
             string savedName = reallyNpc ? npcInternalName : name;
@@ -822,7 +839,7 @@ namespace Smartphone
             }
             else
             {
-                Game1.activeClickableMenu = new DialogueBox($"Calling {name} ({number})... No answer available.");
+                Game1.activeClickableMenu = new DialogueBox(ModEntry.SHelper.Translation.Get("ui.phone.calling_no_answer", new { name = name, number = number }));
             }
         }
 

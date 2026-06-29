@@ -326,7 +326,7 @@ namespace Smartphone
                     var showMethod = keyboardInputType.GetMethod("Show", new[] { typeof(string), typeof(string), typeof(string), typeof(bool) });
                     if (showMethod != null)
                     {
-                        pendingKeyboardTask = (Task<string>)showMethod.Invoke(null, new object[] { "Input", "Enter text", currentText, false });
+                        pendingKeyboardTask = (Task<string>)showMethod.Invoke(null, new object[] { ModEntry.SHelper.Translation.Get("ui.photo.keyboard_input_title"), ModEntry.SHelper.Translation.Get("ui.photo.enter_text"), currentText, false });
                     }
                 }
             }
@@ -677,11 +677,11 @@ namespace Smartphone
 
             string title;
             if (photoFilterType == "all")
-                title = "Photo";
+                title = ModEntry.SHelper.Translation.Get("ui.photo.title");
             else if (photoFilterType == "favourites")
-                title = "Favourites";
+                title = ModEntry.SHelper.Translation.Get("ui.photo.favourites");
             else
-                title = photoCurrentFilter ?? "Album";
+                title = photoCurrentFilter ?? ModEntry.SHelper.Translation.Get("ui.photo.album");
 
             Vector2 titleSize = Game1.smallFont.MeasureString(title) * textScale;
 
@@ -700,8 +700,8 @@ namespace Smartphone
                 photoBtnActionBounds = Rectangle.Empty;
                 photoBtnDoneBounds = Rectangle.Empty;
 
-                DrawPhoneRoundButton(b, photoBtnApiCancelBounds, "Cancel", Color.Black, Color.White);
-                DrawPhoneRoundButton(b, photoBtnApiDoneBounds, "Done", Color.Black, Color.White);
+                DrawPhoneRoundButton(b, photoBtnApiCancelBounds, ModEntry.SHelper.Translation.Get("ui.button.cancel"), Color.Black, Color.White);
+                DrawPhoneRoundButton(b, photoBtnApiDoneBounds, ModEntry.SHelper.Translation.Get("ui.photo.done"), Color.Black, Color.White);
             }
             else if (photoSelectMode)
             {
@@ -713,10 +713,10 @@ namespace Smartphone
                 photoBtnApiDoneBounds = Rectangle.Empty;
 
                 string selLabel = photoSelectedIndices.Count == 0
-                    ? "Select"
-                    : $"Action";
+                    ? ModEntry.SHelper.Translation.Get("ui.photo.select")
+                    : ModEntry.SHelper.Translation.Get("ui.photo.action");
                 DrawPhoneRoundButton(b, photoBtnActionBounds, selLabel, Color.Black, Color.White);
-                DrawPhoneRoundButton(b, photoBtnDoneBounds, "Done", Color.Black, Color.White);
+                DrawPhoneRoundButton(b, photoBtnDoneBounds, ModEntry.SHelper.Translation.Get("ui.photo.done"), Color.Black, Color.White);
             }
             else
             {
@@ -726,7 +726,7 @@ namespace Smartphone
                 photoBtnDoneBounds = Rectangle.Empty;
                 photoBtnApiCancelBounds = Rectangle.Empty;
                 photoBtnApiDoneBounds = Rectangle.Empty;
-                DrawPhoneRoundButton(b, photoBtnSelectBounds, "Select", Color.Black, Color.White);
+                DrawPhoneRoundButton(b, photoBtnSelectBounds, ModEntry.SHelper.Translation.Get("ui.photo.select"), Color.Black, Color.White);
             }
         }
 
@@ -862,7 +862,7 @@ namespace Smartphone
             int y = startY + sectionPad;
 
             // ── "Albums" ──────────────────────────────────────────────
-            DrawPhotoSectionTitle(b, viewport, y, "Albums", titleScale);
+            DrawPhotoSectionTitle(b, viewport, y, ModEntry.SHelper.Translation.Get("ui.photo.albums"), titleScale);
 
             if (photoSelectionApiMode)
             {
@@ -878,7 +878,7 @@ namespace Smartphone
                 photoBtnAlbumDeleteToggleBounds = new Rectangle(toggleX, toggleY, toggleW, toggleH);
 
                 Color toggleBg = photoAlbumDeleteMode ? new Color(220, 80, 80) : new Color(180, 180, 180);
-                DrawPhoneRoundButton(b, photoBtnAlbumDeleteToggleBounds, "Delete", Color.White, toggleBg);
+                DrawPhoneRoundButton(b, photoBtnAlbumDeleteToggleBounds, ModEntry.SHelper.Translation.Get("ui.photo.delete"), Color.White, toggleBg);
             }
 
             y += titleH;
@@ -901,7 +901,7 @@ namespace Smartphone
             var peopleGroups = GetPeopleGroups();
             if (peopleGroups.Count > 0)
             {
-                DrawPhotoSectionTitle(b, viewport, y, "People", titleScale);
+                DrawPhotoSectionTitle(b, viewport, y, ModEntry.SHelper.Translation.Get("ui.photo.people"), titleScale);
 
                 // Draw + / - collapse toggle button on the right side of People bar
                 int pToggleW = ScaleUiValue(50);
@@ -930,7 +930,7 @@ namespace Smartphone
             var locationGroups = GetLocationGroups();
             if (locationGroups.Count > 0)
             {
-                DrawPhotoSectionTitle(b, viewport, y, "Locations", titleScale);
+                DrawPhotoSectionTitle(b, viewport, y, ModEntry.SHelper.Translation.Get("ui.photo.locations"), titleScale);
 
                 // Draw + / - collapse toggle button on the right side of Locations bar
                 int lToggleW = ScaleUiValue(50);
@@ -1030,7 +1030,10 @@ namespace Smartphone
 
                     // Album name text
                     int photoCount = GetAlbumPhotoCount(name, type);
-                    string label = $"{name} | {photoCount}";
+                    string displayName = name;
+                    if (type == "favourites")
+                        displayName = ModEntry.SHelper.Translation.Get("ui.photo.favourites");
+                    string label = ModEntry.SHelper.Translation.Get("ui.photo.album_count_format", new { name = displayName, count = photoCount });
 
                     float nameScale = GetPhoneTextScale(0.75f);
                     int textPad = ScaleUiValue(PhotoAlbumTileNamePadBase);
@@ -1120,8 +1123,18 @@ namespace Smartphone
                 if (i > 0)
                     b.Draw(Game1.staminaRect, new Rectangle(dropX, r.Y, dropW, 1), new Color(80, 80, 80));
                 float scale = GetPhoneTextScale(0.8f);
-                Vector2 tSize = Game1.smallFont.MeasureString(items[i]) * scale;
-                b.DrawString(Game1.smallFont, items[i],
+                string displayLabel = items[i] switch
+                {
+                    "Delete" => ModEntry.SHelper.Translation.Get("ui.photo.delete"),
+                    "Add to Album" => ModEntry.SHelper.Translation.Get("ui.photo.add_to_album"),
+                    "Set wallpaper" => ModEntry.SHelper.Translation.Get("ui.photo.set_wallpaper"),
+                    "Share" => ModEntry.SHelper.Translation.Get("ui.photo.share"),
+                    "Select all" => ModEntry.SHelper.Translation.Get("ui.photo.select_all"),
+                    "Favourite" => ModEntry.SHelper.Translation.Get("ui.photo.favourite"),
+                    _ => items[i]
+                };
+                Vector2 tSize = Game1.smallFont.MeasureString(displayLabel) * scale;
+                b.DrawString(Game1.smallFont, displayLabel,
                     new Vector2(r.X + ScaleUiValue(12), r.Center.Y - tSize.Y / 2f),
                     items[i] == "Delete" ? new Color(255, 80, 80) : Color.Black,
                     0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
@@ -1142,9 +1155,9 @@ namespace Smartphone
             float btnScale = GetPhoneTextScale(0.7f);
 
             string title = photoSelectedIndices.Count > 1
-                ? $"Delete {photoSelectedIndices.Count} photos?"
-                : "Delete photo?";
-            string body = "This cannot be undone.";
+                ? ModEntry.SHelper.Translation.Get("ui.photo.delete_multiple_confirm", new { count = photoSelectedIndices.Count })
+                : ModEntry.SHelper.Translation.Get("ui.photo.delete_single_confirm");
+            string body = ModEntry.SHelper.Translation.Get("ui.photo.delete_warning");
 
             Vector2 titleSz = Game1.smallFont.MeasureString(title) * titleScale;
             Vector2 bodySz = Game1.smallFont.MeasureString(body) * bodyScale;
@@ -1176,8 +1189,8 @@ namespace Smartphone
             photoConfirmNoBounds = new(mX + pad, cy, halfW, btnH);
             photoConfirmYesBounds = new(mX + pad * 2 + halfW, cy, halfW, btnH);
 
-            DrawPhoneRoundButton(b, photoConfirmNoBounds, "Cancel", Color.Black, Color.White);
-            DrawPhoneRoundButton(b, photoConfirmYesBounds, "Delete", Color.White, new Color(200, 40, 40, 220));
+            DrawPhoneRoundButton(b, photoConfirmNoBounds, ModEntry.SHelper.Translation.Get("ui.button.cancel"), Color.Black, Color.White);
+            DrawPhoneRoundButton(b, photoConfirmYesBounds, ModEntry.SHelper.Translation.Get("ui.photo.delete"), Color.White, new Color(200, 40, 40, 220));
         }
 
         private void DrawAlbumDeleteConfirm(SpriteBatch b, Rectangle content)
@@ -1190,8 +1203,8 @@ namespace Smartphone
             float titleScale = GetPhoneTextScale(0.85f);
             float bodyScale = GetPhoneTextScale(0.72f);
 
-            string title = "Delete Album?";
-            string body = $"Are you sure you want to delete the album '{photoAlbumToDelete}'?";
+            string title = ModEntry.SHelper.Translation.Get("ui.photo.delete_album_confirm");
+            string body = ModEntry.SHelper.Translation.Get("ui.photo.delete_album_warning", new { albumName = photoAlbumToDelete });
 
             Vector2 titleSz = Game1.smallFont.MeasureString(title) * titleScale;
             Vector2 bodySz = Game1.smallFont.MeasureString(body) * bodyScale;
@@ -1226,8 +1239,8 @@ namespace Smartphone
             photoAlbumConfirmNoBounds = new(mX + pad, cy, halfW, btnH);
             photoAlbumConfirmYesBounds = new(mX + pad * 2 + halfW, cy, halfW, btnH);
 
-            DrawPhoneRoundButton(b, photoAlbumConfirmNoBounds, "Cancel", Color.Black, Color.White);
-            DrawPhoneRoundButton(b, photoAlbumConfirmYesBounds, "Delete", Color.White, new Color(200, 40, 40, 220));
+            DrawPhoneRoundButton(b, photoAlbumConfirmNoBounds, ModEntry.SHelper.Translation.Get("ui.button.cancel"), Color.Black, Color.White);
+            DrawPhoneRoundButton(b, photoAlbumConfirmYesBounds, ModEntry.SHelper.Translation.Get("ui.photo.delete"), Color.White, new Color(200, 40, 40, 220));
         }
 
         private void DrawPhotoAlbumPicker(SpriteBatch b, Rectangle content)
@@ -1262,7 +1275,7 @@ namespace Smartphone
             );
 
             // Title
-            string titleText = "Add to Album";
+            string titleText = ModEntry.SHelper.Translation.Get("ui.photo.add_to_album_title");
             b.DrawString(Game1.smallFont, titleText,
                 new Vector2(mX + pad, mY + pad),
                 Color.Black, 0f, Vector2.Zero, titleScale, SpriteEffects.None, 1f);
@@ -1274,8 +1287,11 @@ namespace Smartphone
                 photoAlbumPickerBounds.Add(r);
                 photoAlbumPickerKeys.Add(albumName);
                 b.Draw(Game1.staminaRect, new Rectangle(mX + pad, iy, mW - pad * 2, 1), Color.Black * 0.2f);
-                b.DrawString(Game1.smallFont, albumName,
-                    new Vector2(mX + pad, iy + itemH / 2f - Game1.smallFont.MeasureString(albumName).Y * scale / 2f),
+                string displayAlbumName = albumName == "+ New Album"
+                    ? ModEntry.SHelper.Translation.Get("ui.photo.new_album_option")
+                    : albumName;
+                b.DrawString(Game1.smallFont, displayAlbumName,
+                    new Vector2(mX + pad, iy + itemH / 2f - Game1.smallFont.MeasureString(displayAlbumName).Y * scale / 2f),
                     albumName == "+ New Album" ? new Color(0, 96, 200) : Color.Black,
                     0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
                 iy += itemH;
@@ -1294,7 +1310,7 @@ namespace Smartphone
             float btnScale = GetPhoneTextScale(0.72f);
             float inputScale = GetPhoneTextScale(0.72f);
 
-            string titleText = "New Album Name";
+            string titleText = ModEntry.SHelper.Translation.Get("ui.photo.new_album_title");
             Vector2 titleSz = Game1.smallFont.MeasureString(titleText) * titleScale;
 
             int mH = pad + (int)titleSz.Y + pad + inputH + pad + btnH + pad;
@@ -1341,8 +1357,8 @@ namespace Smartphone
             int halfW = (mW - pad * 3) / 2;
             photoAlbumInputCancelBounds = new(mX + pad, cy, halfW, btnH);
             photoAlbumInputConfirmBounds = new(mX + pad * 2 + halfW, cy, halfW, btnH);
-            DrawPhoneRoundButton(b, photoAlbumInputCancelBounds, "Cancel", Color.Black, Color.White);
-            DrawPhoneRoundButton(b, photoAlbumInputConfirmBounds, "Create", Color.Black, Color.White);
+            DrawPhoneRoundButton(b, photoAlbumInputCancelBounds, ModEntry.SHelper.Translation.Get("ui.button.cancel"), Color.Black, Color.White);
+            DrawPhoneRoundButton(b, photoAlbumInputConfirmBounds, ModEntry.SHelper.Translation.Get("ui.button.create"), Color.Black, Color.White);
         }
 
         private void DrawPhotoSelectModeBar(SpriteBatch b, Rectangle content)
@@ -1353,7 +1369,7 @@ namespace Smartphone
                 Rectangle bar = new(content.X, content.Bottom - barH, content.Width, barH);
                 b.Draw(Game1.staminaRect, bar, new Color(0, 0, 0, 210));
                 float scale = GetPhoneTextScale(0.7f);
-                string label = $"{photoSelectedIndices.Count}/{photoSelectionApiLimit} selected";
+                string label = ModEntry.SHelper.Translation.Get("ui.photo.selected_limit_format", new { count = photoSelectedIndices.Count, limit = photoSelectionApiLimit });
                 Vector2 sz = Game1.smallFont.MeasureString(label) * scale;
                 b.DrawString(Game1.smallFont, label,
                     new Vector2(bar.Center.X - sz.X / 2f, bar.Center.Y - sz.Y / 2f),
@@ -1366,7 +1382,7 @@ namespace Smartphone
             Rectangle barNormal = new(content.X, content.Bottom - barHNormal, content.Width, barHNormal);
             b.Draw(Game1.staminaRect, barNormal, new Color(0, 0, 0, 210));
             float scaleNormal = GetPhoneTextScale(0.7f);
-            string labelNormal = $"{photoSelectedIndices.Count} selected";
+            string labelNormal = ModEntry.SHelper.Translation.Get("ui.photo.selected_count", new { count = photoSelectedIndices.Count });
             Vector2 szNormal = Game1.smallFont.MeasureString(labelNormal) * scaleNormal;
             b.DrawString(Game1.smallFont, labelNormal,
                 new Vector2(barNormal.Center.X - szNormal.X / 2f, barNormal.Center.Y - szNormal.Y / 2f),
@@ -1435,7 +1451,7 @@ namespace Smartphone
             int actionW = ScaleUiValue(90);
             int actionH = ScaleUiValue(50);
             photoDetailActionBounds = new Rectangle(content.Right - btnPad - actionW, bottomBar.Center.Y - actionH / 2, actionW, actionH);
-            DrawPhoneRoundButton(b, photoDetailActionBounds, "Action", Color.Black, Color.White);
+            DrawPhoneRoundButton(b, photoDetailActionBounds, ModEntry.SHelper.Translation.Get("ui.photo.action"), Color.Black, Color.White);
 
             // Info button (Moved to bottom left)
             int infoW = ScaleUiValue(50);
@@ -1450,12 +1466,12 @@ namespace Smartphone
             {
                 string photoPath = capturedImages[photoDetailIndex];
                 string filename = Path.GetFileName(photoPath);
-                string loc = "Unknown Location";
+                string loc = ModEntry.SHelper.Translation.Get("ui.photo.unknown_location");
                 string ts = "";
 
                 if (ModEntry.ImageMetadataStore.TryGetValue(filename, out var metadata) && metadata != null)
                 {
-                    loc = string.IsNullOrWhiteSpace(metadata.Location) ? "Unknown Location" : metadata.Location;
+                    loc = string.IsNullOrWhiteSpace(metadata.Location) ? ModEntry.SHelper.Translation.Get("ui.photo.unknown_location") : metadata.Location;
                     ts = string.IsNullOrWhiteSpace(metadata.TimeString) ? "" : metadata.TimeString;
                 }
 
@@ -2663,9 +2679,9 @@ namespace Smartphone
             string filename = Path.GetFileName(photoPath);
             if (ModEntry.ImageMetadataStore.TryGetValue(filename, out var metadata) && metadata != null)
             {
-                string loc = string.IsNullOrWhiteSpace(metadata.Location) ? "Unknown Location" : metadata.Location;
+                string loc = string.IsNullOrWhiteSpace(metadata.Location) ? ModEntry.SHelper.Translation.Get("ui.photo.unknown_location") : metadata.Location;
                 string ts = string.IsNullOrWhiteSpace(metadata.TimeString) ? "" : metadata.TimeString;
-                return string.IsNullOrEmpty(ts) ? loc : $"{loc} ({ts})";
+                return string.IsNullOrEmpty(ts) ? loc : ModEntry.SHelper.Translation.Get("ui.photo.location_timestamp_format", new { location = loc, timestamp = ts });
             }
 
             string rawName = Path.GetFileNameWithoutExtension(photoPath);

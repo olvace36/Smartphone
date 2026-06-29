@@ -51,11 +51,12 @@ namespace Smartphone
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "Friendship Requirement",
-                tooltip: () => "When can the NPC give you their contact number.",
+                name: () => Helper.Translation.Get("config.name.friendship_requirement"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.friendship_requirement"),
                 getValue: () => Config.FriendshipRequirement,
                 setValue: value => Config.FriendshipRequirement = value,
-                allowedValues: new string[] { "Meet", "Friend" }
+                allowedValues: new string[] { "Meet", "Friend" },
+                formatAllowedValue: value => Helper.Translation.Get($"config.value.{value.ToLower()}")
             );
 
             configMenu.AddPageLink(
@@ -200,8 +201,8 @@ namespace Smartphone
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => "Blacklist NPC",
-                tooltip: () => "NPC names listed here will not receive a phone number or trigger sharing dialogues.",
+                name: () => Helper.Translation.Get("config.name.blacklist_npc"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.blacklist_npc"),
                 getValue: () => Config.BlacklistNpc,
                 setValue: value => Config.BlacklistNpc = value
             );

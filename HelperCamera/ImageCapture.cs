@@ -531,7 +531,7 @@ namespace Smartphone
                 squareNormalizedTexture?.Dispose();
             }
 
-            string timeString = $"{Game1.shortDayNameFromDayOfSeason(Game1.dayOfMonth)} {Game1.dayOfMonth} {Game1.currentSeason} Year {Game1.year}, {Game1.getTimeOfDayString(Game1.timeOfDay)}";
+            string timeString = ModEntry.SHelper.Translation.Get("ui.camera.photo_time_format", new { shortDayName = Game1.shortDayNameFromDayOfSeason(Game1.dayOfMonth), dayOfMonth = Game1.dayOfMonth, seasonName = Utility.getSeasonNameFromNumber(Utility.getSeasonNumber(Game1.currentSeason)), year = Game1.year, time = Game1.getTimeOfDayString(Game1.timeOfDay) });
             var tagList = (tags ?? Enumerable.Empty<string>()).ToList();
 
             if (string.IsNullOrWhiteSpace(saveLocation))
@@ -541,7 +541,7 @@ namespace Smartphone
             }
 
             if (isPlayerPhoto && string.IsNullOrWhiteSpace(saveLocation))
-                Game1.addHUDMessage(new HUDMessage("Photo saved!", HUDMessage.newQuest_type));
+                Game1.addHUDMessage(new HUDMessage(ModEntry.SHelper.Translation.Get("ui.camera.photo_saved"), HUDMessage.newQuest_type));
 
             var metadata = new Smartphone.Data.ImageMetadata
             {

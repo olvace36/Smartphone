@@ -703,7 +703,7 @@ namespace Smartphone
             }
             else
             {
-                Game1.activeClickableMenu = new DialogueBox($"{npc.displayName}: Hello! Thanks for calling.");
+                Game1.activeClickableMenu = new DialogueBox(SHelper.Translation.Get("ui.message.npc_hello_thanks_calling", new { npcName = npc.displayName }));
             }
         }
     }
