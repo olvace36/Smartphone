@@ -173,6 +173,7 @@ namespace Smartphone
             _dropdownOpen = false;
             _openFolder = null;
             _isEditingFolderName = false;
+            CleanupEmptyPages();
             SaveLayout();
         }
 
@@ -469,8 +470,9 @@ namespace Smartphone
                     if (_isEditingFolderName)
                     {
                         _openFolder.FolderName = string.IsNullOrWhiteSpace(_folderNameBuffer) ? "Folder" : _folderNameBuffer;
-                        SaveLayout();
                     }
+                    CleanupEmptyPages();
+                    SaveLayout();
                     _openFolder = null;
                     _openFolderIndex = -1;
                     _isEditingFolderName = false;
@@ -693,7 +695,8 @@ namespace Smartphone
             if (_openFolder != null)
             {
                 int folderTotalPages = (int)Math.Ceiling(_openFolder.FolderItems.Count / 9.0);
-                int nextFolderPage = Math.Clamp(_currentFolderPage + delta, 0, Math.Max(0, folderTotalPages));
+                int maxAllowedPage = IsReorderMode ? folderTotalPages : Math.Max(0, folderTotalPages - 1);
+                int nextFolderPage = Math.Clamp(_currentFolderPage + delta, 0, maxAllowedPage);
                 if (nextFolderPage == _currentFolderPage) return false;
                 _currentFolderPage = nextFolderPage;
                 return true;
@@ -867,6 +870,7 @@ namespace Smartphone
                             folder.FolderItems[i] = string.Empty;
                         }
                     }
+                    CleanupFolderPages(folder);
                 }
             }
 
@@ -2106,6 +2110,55 @@ namespace Smartphone
                 }
             }
             _currentPage = Math.Clamp(_currentPage, 0, _pages.Count - 1);
+
+            foreach (var page in _pages)
+            {
+                foreach (var item in page)
+                {
+                    if (item.IsFolder)
+                    {
+                        CleanupFolderPages(item);
+                    }
+                }
+            }
+
+            if (_openFolder != null)
+            {
+                int folderTotalPages = (int)Math.Ceiling(_openFolder.FolderItems.Count / 9.0);
+                _currentFolderPage = Math.Clamp(_currentFolderPage, 0, Math.Max(0, folderTotalPages - 1));
+            }
+        }
+
+        private void CleanupFolderPages(LayoutItem folder)
+        {
+            if (folder.FolderItems == null || folder.FolderItems.Count <= 9)
+                return;
+
+            int totalPages = (int)Math.Ceiling(folder.FolderItems.Count / 9.0);
+            for (int p = totalPages - 1; p >= 1; p--)
+            {
+                int start = p * 9;
+                int count = Math.Min(9, folder.FolderItems.Count - start);
+                bool isPageEmpty = true;
+                for (int i = 0; i < count; i++)
+                {
+                    if (!string.IsNullOrEmpty(folder.FolderItems[start + i]))
+                    {
+                        isPageEmpty = false;
+                        break;
+                    }
+                }
+
+                if (isPageEmpty)
+                {
+                    folder.FolderItems.RemoveRange(start, count);
+                }
+            }
+
+            while (folder.FolderItems.Count > 9 && string.IsNullOrEmpty(folder.FolderItems.Last()))
+            {
+                folder.FolderItems.RemoveAt(folder.FolderItems.Count - 1);
+            }
         }
 
         private void OpenFolderOverlay(LayoutItem folder, int index, Rectangle bounds)

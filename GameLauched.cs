@@ -182,7 +182,7 @@ namespace Smartphone
 
             bool canOpenPhoneMenu = Game1.activeClickableMenu == null && Game1.currentMinigame == null;
 
-            bool isPhoneMenuOpen = Game1.activeClickableMenu != null && (Game1.activeClickableMenu == phoneMenu || Game1.activeClickableMenu.GetType().Namespace?.StartsWith("Smartphone") == true);
+            bool isPhoneMenuOpen = Game1.activeClickableMenu != null && Game1.activeClickableMenu == phoneMenu;
             bool isTyping = Game1.keyboardDispatcher.Subscriber != null;
             if (!isTyping && (canOpenPhoneMenu || isPhoneMenuOpen) && e.Button == Config.DecreasePhoneSizeKey)
             {
