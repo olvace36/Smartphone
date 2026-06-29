@@ -677,7 +677,7 @@ namespace Smartphone
 
             string title;
             if (photoFilterType == "all")
-                title = "Photos";
+                title = "Photo";
             else if (photoFilterType == "favourites")
                 title = "Favourites";
             else

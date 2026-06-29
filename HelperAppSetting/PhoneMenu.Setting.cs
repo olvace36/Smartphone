@@ -143,7 +143,7 @@ namespace Smartphone
                     "app_calendar" => "Calendar",
                     "app_camera" => "Camera",
                     "app_notification" => "Notification",
-                    "app_photo" => "Photos",
+                    "app_photo" => "Photo",
                     "app_setting" => "Settings",
                     _ => GetFriendlyComponentName(currentSelectedThemeComponent)
                 },
@@ -283,7 +283,7 @@ namespace Smartphone
                     "app_calendar" => "Calendar",
                     "app_camera" => "Camera",
                     "app_notification" => "Notification",
-                    "app_photo" => "Photos",
+                    "app_photo" => "Photo",
                     "app_setting" => "Settings",
                     _ => GetFriendlyComponentName(compKey)
                 };

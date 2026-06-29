@@ -88,19 +88,19 @@ namespace Smartphone
                     {
                         text = $"{updatesCount} update available";
                     }
-
-                    // 6. Layout Alignment (Right 50% Quadrant Box Bounds)
-                    int rightHalfWidth = rect.Width / 2;
-                    Rectangle rightHalfRect = new Rectangle(rect.X + rightHalfWidth, rect.Y, rightHalfWidth, rect.Height);
+                    // 6. Layout Alignment (Right 50% Quadrant Box Bounds, shifted left slightly)
+                    int shiftLeft = ScaleUiValue(13); // Shift bounds to the left to give more horizontal room
+                    int rightHalfWidth = rect.Width / 2 + shiftLeft;
+                    Rectangle rightHalfRect = new Rectangle(rect.X + rect.Width / 2 - shiftLeft, rect.Y, rightHalfWidth, rect.Height);
 
                     // Word wrap text comfortably inside the local bounds area padding
-                    int paddingX = ScaleUiValue(12);
-                    float textScale = 0.7f * phoneUiScale;
-                    int wrapWidth = GetPhoneScaledWrapWidth(rightHalfWidth - paddingX * 2, textScale);
+                    int paddingX = ScaleUiValue(8); // Reduce padding to allow more width
+                    int unscaledMaxWidth = (int)Math.Max(1, (rightHalfWidth - paddingX * 2) / phoneUiScale);
+                    int wrapWidth = GetPhoneScaledWrapWidth(unscaledMaxWidth, 0.8f);
                     string wrappedText = Game1.parseText(text, Game1.smallFont, wrapWidth);
                     string[] lines = wrappedText.Split('\n');
 
-                    int lineHeight = GetPhoneScaledLineHeight(Game1.smallFont, textScale, 0);
+                    int lineHeight = GetPhoneScaledLineHeight(Game1.smallFont, 0.8f, 0);
                     float totalHeight = lines.Length * lineHeight;
                     float startY = rightHalfRect.Y + (rightHalfRect.Height - totalHeight) / 2f + ScaleUiValue(3);
 
@@ -108,10 +108,10 @@ namespace Smartphone
                     for (int i = 0; i < lines.Length; i++)
                     {
                         string line = lines[i];
-                        Vector2 lineSize = MeasurePhoneText(Game1.smallFont, line, textScale);
+                        Vector2 lineSize = MeasurePhoneText(Game1.smallFont, line, 0.8f);
                         float startX = rightHalfRect.X + (rightHalfRect.Width - lineSize.X) / 2f;
 
-                        DrawPhoneText(b, Game1.smallFont, line, new Vector2(startX, startY + i * lineHeight), Color.Black, textScale);
+                        DrawPhoneText(b, Game1.smallFont, line, new Vector2(startX, startY + i * lineHeight), Color.Black, 0.8f);
                     }
                 }
                 catch (Exception ex)

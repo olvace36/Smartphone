@@ -130,7 +130,7 @@ namespace Smartphone
                     msg = parts[1];
                 }
 
-                int wrapWidth = (int)Math.Round(GetPhoneScaledWrapWidth(wrapWidthBase) / 0.75f);
+                int wrapWidth = (int)Math.Round(GetPhoneScaledWrapWidth(wrapWidthBase) / 0.8f);
                 List<string> wrappedLines = SplitNotificationIntoLines(
                     msg,
                     font,
@@ -177,7 +177,7 @@ namespace Smartphone
                 foreach (var line in wrappedLines)
                 {
                     Vector2 linePos = new Vector2(cardX + NotificationTextPaddingLeft, textY);
-                    DrawPhoneText(b, font, line, linePos, textColor, 0.75f);
+                    DrawPhoneText(b, font, line, linePos, textColor, 0.8f);
                     textY += messageLineHeight;
                 }
 

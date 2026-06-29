@@ -255,7 +255,7 @@ namespace Smartphone
                         msg = parts[1];
                     }
 
-                    int wrapWidth = (int)Math.Round(GetPhoneScaledWrapWidth(wrapWidthBase) / 0.75f);
+                    int wrapWidth = (int)Math.Round(GetPhoneScaledWrapWidth(wrapWidthBase) / 0.8f);
                     var messageLines = SplitNotificationIntoLines(msg, font, wrapWidth);
                     if (messageLines.Count > 2)
                     {
@@ -294,7 +294,7 @@ namespace Smartphone
                     foreach (var line in messageLines)
                     {
                         Vector2 linePos = new Vector2(cardBounds.X + ScaleUiValue(15), textY);
-                        DrawPhoneText(b, font, line, linePos, new Color(30, 45, 30), 0.75f);
+                        DrawPhoneText(b, font, line, linePos, new Color(30, 45, 30), 0.8f);
                         textY += messageLineHeight;
                     }
 

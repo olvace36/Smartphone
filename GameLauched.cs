@@ -325,16 +325,10 @@ namespace Smartphone
             {
                 Game1.drawLetterMessage(ModEntry.SHelper.Translation.Get("mail.first_time"));
 
-                NotificationManager.AddNotification(ModEntry.SHelper.Translation.Get("notification.first_time"));
+                NotificationManager.AddNotification(ModEntry.SHelper.Translation.Get("notification.first_time"), "Smartphone");
 
                 pendingInitNotification = false;
             }
-
-            NotificationManager.AddNotification("message message message message message message message message message message message message message message message message ", "title1");
-            NotificationManager.AddNotification("message message message message message message message message message message message message message message message message ", "title2");
-            NotificationManager.AddNotification("message message message message message message message message message message message message message message message message ", "title3");
-            NotificationManager.AddNotification("message message message message message message message message message message message message message message message message ", "title4");
-            NotificationManager.AddNotification("message message message message message message message message message message message message message message message message ", "title5");
         }
 
 
