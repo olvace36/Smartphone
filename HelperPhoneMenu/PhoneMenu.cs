@@ -640,8 +640,8 @@ namespace Smartphone
                         float maxScroll = GetMaxLockScreenScroll();
                         lockScreenContentScrollTarget = Math.Clamp(lockScreenStartScrollOffset + deltaY, -ScaleUiValue(100), maxScroll + ScaleUiValue(100));
                     }
+                    return;
                 }
-                return;
             }
 
             if (cameraZoomHoldDirection != 0)
