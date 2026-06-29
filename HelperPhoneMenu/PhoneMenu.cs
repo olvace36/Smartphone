@@ -304,6 +304,7 @@ namespace Smartphone
             SetPhoneTextInputFocus(false);
             DisposeLockScreenWeatherIconSoftCache();
             RestoreControllerCursorSetting();
+            appStoreWidgetWasMenuOpen = false;
             base.cleanupBeforeExit();
         }
 
@@ -1140,8 +1141,9 @@ namespace Smartphone
                     Id = BuiltinAppStoreId,
                     DisplayName = ModEntry.SHelper.Translation.Get("app.appstore.name"),
                     IconTexture = textureAppAppStore,
+                    GetBadgeCount = () => GetAppStoreBadgeCount(),
                     OnDrawWidget = (b, rect, size) => DrawBuiltinAppWidget(b, BuiltinAppStoreId, rect, size),
-                    SupportedSizes = new List<AppSize> { AppSize.Size1x1, AppSize.Size2x2 }
+                    SupportedSizes = new List<AppSize> { AppSize.Size1x1, AppSize.Size2x1, AppSize.Size2x2 }
                 },
                 new HomeAppEntryProxy
                 {
@@ -1226,6 +1228,11 @@ namespace Smartphone
             if (appId == BuiltinAppPhotoId)
             {
                 DrawPhotoWidget(b, rect, size);
+            }
+
+            if (appId == BuiltinAppStoreId)
+            {
+                DrawAppStoreWidget2x1(b, rect);
             }
         }
 
