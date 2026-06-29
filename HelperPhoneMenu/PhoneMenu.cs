@@ -1232,7 +1232,7 @@ namespace Smartphone
 
             if (appId == BuiltinAppStoreId)
             {
-                DrawAppStoreWidget2x1(b, rect);
+                DrawAppStoreWidget(b, rect, size);
             }
         }
 

@@ -162,11 +162,6 @@ namespace Smartphone
             return ModEntry.CaptureNpcPhoto(targetLocation, captureCenter, npc, landscape, square, visibleNpcAtTarget, zoomLevel, captureTimeOfDay, saveLocation);
         }
 
-        public List<string> GetPlayerPhotoNames()
-        {
-            return ModEntry.GetPlayerPhotoNamesInternal();
-        }
-
         public Texture2D GetPlayerPhotoTexture(string photoName)
         {
             return ModEntry.GetPlayerPhotoTextureInternal(photoName);
@@ -175,11 +170,6 @@ namespace Smartphone
         public string GetPlayerPhotoMetadata(string photoName)
         {
             return ModEntry.GetPlayerPhotoMetadataInternal(photoName);
-        }
-
-        public Dictionary<string, Texture2D> GetAllPlayerPhotoTextures()
-        {
-            return ModEntry.GetAllPlayerPhotoTexturesInternal();
         }
 
         public bool RegisterPhoneApp(
@@ -649,11 +639,6 @@ namespace Smartphone
 
 
 
-        public static List<string> GetPlayerPhotoNamesInternal()
-        {
-            return ImageMetadataStore.Keys.ToList();
-        }
-
         public static Texture2D GetPlayerPhotoTextureInternal(string photoName)
         {
             string photoPath = Path.Combine(SHelper.DirectoryPath, "userdata", GetActiveSaveFolderName(), "photo_player", photoName);
@@ -672,33 +657,6 @@ namespace Smartphone
                 return Newtonsoft.Json.JsonConvert.SerializeObject(metadata);
             }
             return null;
-        }
-
-        public static Dictionary<string, Texture2D> GetAllPlayerPhotoTexturesInternal()
-        {
-            var dict = new Dictionary<string, Texture2D>();
-            string folderPath = Path.Combine(SHelper.DirectoryPath, "userdata", GetActiveSaveFolderName(), "photo_player");
-
-            if (Directory.Exists(folderPath))
-            {
-                var sortedFiles = Directory.GetFiles(folderPath, "*.jpg")
-                                           .Select(f => new FileInfo(f))
-                                           .OrderByDescending(fi => fi.LastWriteTime)
-                                           .Select(fi => fi.FullName);
-
-                foreach (string photoPath in sortedFiles)
-                {
-                    string photoName = Path.GetFileName(photoPath);
-                    try
-                    {
-                        using var stream = new FileStream(photoPath, FileMode.Open, FileAccess.Read);
-                        var texture = Texture2D.FromStream(Game1.graphics.GraphicsDevice, stream);
-                        dict[photoName] = texture;
-                    }
-                    catch { }
-                }
-            }
-            return dict;
         }
 
         // =========================================================================================
