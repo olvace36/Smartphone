@@ -72,6 +72,22 @@ namespace Smartphone
 
         private static void ParseCsv(string csv)
         {
+            char delimiter = ',';
+            if (!string.IsNullOrEmpty(csv))
+            {
+                int firstNewLine = csv.IndexOf('\n');
+                if (firstNewLine == -1) firstNewLine = csv.Length;
+                string firstLine = csv.Substring(0, firstNewLine);
+                int commaCount = firstLine.Count(c => c == ',');
+                int tabCount = firstLine.Count(c => c == '\t');
+                int semicolonCount = firstLine.Count(c => c == ';');
+
+                if (tabCount > commaCount && tabCount > semicolonCount)
+                    delimiter = '\t';
+                else if (semicolonCount > commaCount && semicolonCount > tabCount)
+                    delimiter = ';';
+            }
+
             var parsedMods = new List<AppStoreMod>();
             var currentLine = new List<string>();
             string currentPart = "";
@@ -95,7 +111,7 @@ namespace Smartphone
                         inQuotes = !inQuotes;
                     }
                 }
-                else if (c == ',' && !inQuotes)
+                else if (c == delimiter && !inQuotes)
                 {
                     currentLine.Add(currentPart);
                     currentPart = "";
@@ -201,6 +217,41 @@ namespace Smartphone
             ApplySortAndTypeFilter("Latest", "App");
         }
 
+        public static IModInfo GetInstalledMod(string uniqueID, string updateKey)
+        {
+            if (string.IsNullOrWhiteSpace(uniqueID) && string.IsNullOrWhiteSpace(updateKey))
+                return null;
+
+            if (!string.IsNullOrWhiteSpace(uniqueID))
+            {
+                var mod = ModEntry.SHelper?.ModRegistry?.Get(uniqueID);
+                if (mod != null) return mod;
+            }
+
+            if (!string.IsNullOrWhiteSpace(updateKey))
+            {
+                var allMods = ModEntry.SHelper?.ModRegistry?.GetAll();
+                if (allMods != null)
+                {
+                    foreach (var mod in allMods)
+                    {
+                        if (mod?.Manifest?.UpdateKeys != null)
+                        {
+                            foreach (var key in mod.Manifest.UpdateKeys)
+                            {
+                                if (string.Equals(key?.Trim(), updateKey.Trim(), StringComparison.OrdinalIgnoreCase))
+                                {
+                                    return mod;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
         public static void ApplySortAndTypeFilter(string sortOption, string typeOption)
         {
             if (AllMods == null) return;
@@ -221,7 +272,7 @@ namespace Smartphone
                                    .ToList();
                     break;
                 case "Installed":
-                    Mods = filteredMods.Where(m => ModEntry.SHelper.ModRegistry.Get(m.UniqueID) != null)
+                    Mods = filteredMods.Where(m => GetInstalledMod(m.UniqueID, m.UpdateKey) != null)
                                    .OrderBy(m => m.Name)
                                    .ToList();
                     break;
@@ -381,6 +432,29 @@ namespace Smartphone
             // Disposal logic removed to preserve cache across phone menu opens/closes.
             // This ensures instant loading when returning to the App Store.
             ModEntry.SMonitor?.Log("AppStoreManager: DisposeTextures called, but disposal is disabled to preserve cache.", LogLevel.Debug);
+        }
+
+        public static bool IsNewerVersion(string currentVersionStr, string latestVersionStr)
+        {
+            if (string.IsNullOrWhiteSpace(latestVersionStr))
+                return false;
+            if (string.IsNullOrWhiteSpace(currentVersionStr))
+                return true;
+
+            try
+            {
+                string cleanCurrent = currentVersionStr.TrimStart('v', 'V').Trim();
+                string cleanLatest = latestVersionStr.TrimStart('v', 'V').Trim();
+
+                ISemanticVersion current = new SemanticVersion(cleanCurrent);
+                ISemanticVersion latest = new SemanticVersion(cleanLatest);
+
+                return latest.CompareTo(current) > 0;
+            }
+            catch
+            {
+                return currentVersionStr.Trim() != latestVersionStr.Trim();
+            }
         }
     }
 }

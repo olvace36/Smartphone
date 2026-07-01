@@ -104,7 +104,7 @@
   "ui.appstore.sort.installed": "Installed",
   "ui.appstore.type.app": "App",
   "ui.appstore.type.theme": "Theme",
-  "ui.appstore.type.translation": "Translation",
+  "ui.appstore.type.other": "Other",
   "ui.reorder.done": "Done",
   "ui.reorder.reset": "Reset",
   "ui.message.npc_share_number": "Hey {{playerName}}! Since we're becoming such good friends, here is my phone number: {{phoneNumber}}. Feel free to call me anytime! #$e#",

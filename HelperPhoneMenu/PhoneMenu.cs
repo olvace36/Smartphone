@@ -380,7 +380,7 @@ namespace Smartphone
             }
             else
             {
-                decreaseSizeButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(610), smallButtonY + ScaleUiValue(40), smallButtonW, smallButtonH);
+                decreaseSizeButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(610), smallButtonY + ScaleUiValue(45), smallButtonW, smallButtonH);
             }
         }
 
@@ -444,8 +444,8 @@ namespace Smartphone
 
                 if (showButtons)
                 {
-                    DrawPhoneRoundButton(b, decreaseSizeButton.bounds, "-", Color.Black, Color.White * 0.9f);
-                    DrawPhoneRoundButton(b, increaseSizeButton.bounds, "+", Color.Black, Color.White * 0.9f);
+                    DrawPhoneRoundButton(b, decreaseSizeButton.bounds, "-", Color.Black, Color.White * 0.6f);
+                    DrawPhoneRoundButton(b, increaseSizeButton.bounds, "+", Color.Black, Color.White * 0.6f);
                 }
             }
 

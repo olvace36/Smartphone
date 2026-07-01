@@ -405,10 +405,10 @@ namespace Smartphone
 
             if (showButtons)
             {
-                Textures.DrawCard(b, decRect.X, decRect.Y, decRect.Width, decRect.Height, Color.White * 0.9f, 1f, false);
-                Textures.DrawCard(b, incRect.X, incRect.Y, incRect.Width, incRect.Height, Color.White * 0.9f, 1f, false);
+                Textures.DrawCard(b, decRect.X, decRect.Y, decRect.Width, decRect.Height, Color.White * 0.6f, 1f, false);
+                Textures.DrawCard(b, incRect.X, incRect.Y, incRect.Width, incRect.Height, Color.White * 0.6f, 1f, false);
 
-                float scaleFactor = (uiScale < 0.999f ? 0.85f : 1f) * 0.7f;
+                float scaleFactor = 1f;
                 Vector2 decSize = Game1.smallFont.MeasureString("-") * scaleFactor;
                 b.DrawString(Game1.smallFont, "-", new Vector2(decRect.Center.X - decSize.X / 2f, decRect.Center.Y - decSize.Y / 2f), Color.Black, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 1f);
 

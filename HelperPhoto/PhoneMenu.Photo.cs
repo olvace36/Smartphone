@@ -2645,7 +2645,7 @@ namespace Smartphone
             );
 
             // Text drawing and centering logic remains the same
-            float scale = GetPhoneTextScale(0.7f);
+            float scale = GetPhoneTextScale(1f);
             Vector2 sz = Game1.smallFont.MeasureString(label) * scale;
 
             b.DrawString(

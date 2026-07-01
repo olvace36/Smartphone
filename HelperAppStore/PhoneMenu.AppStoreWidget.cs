@@ -40,11 +40,11 @@ namespace Smartphone
                             }
 
                             // Check if installed app has an update available
-                            var modInfo = ModEntry.SHelper.ModRegistry.Get(mod.UniqueID);
+                            var modInfo = AppStoreManager.GetInstalledMod(mod.UniqueID, mod.UpdateKey);
                             if (modInfo != null)
                             {
                                 string currentVersion = modInfo.Manifest.Version.ToString();
-                                if (currentVersion != mod.LatestVersion)
+                                if (AppStoreManager.IsNewerVersion(currentVersion, mod.LatestVersion))
                                 {
                                     updatesCount++;
                                 }
@@ -132,11 +132,11 @@ namespace Smartphone
                     {
                         if (mod == null) continue;
 
-                        var modInfo = ModEntry.SHelper?.ModRegistry?.Get(mod.UniqueID);
+                        var modInfo = AppStoreManager.GetInstalledMod(mod.UniqueID, mod.UpdateKey);
                         if (modInfo != null)
                         {
                             string currentVersion = modInfo.Manifest.Version.ToString();
-                            if (currentVersion != mod.LatestVersion)
+                            if (AppStoreManager.IsNewerVersion(currentVersion, mod.LatestVersion))
                             {
                                 updatesCount++;
                             }

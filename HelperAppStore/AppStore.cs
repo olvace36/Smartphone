@@ -35,7 +35,7 @@ namespace Smartphone
 
         private string appStoreCurrentType = "App";
         private bool appStoreTypeDropdownOpen = false;
-        private readonly string[] appStoreTypeOptions = { "App", "Theme", "Translation" };
+        private readonly string[] appStoreTypeOptions = { "App", "Theme", "Other" };
         private Rectangle appStoreTypeButtonRect;
 
         private Rectangle appStoreGoToModButtonRect;
@@ -111,13 +111,13 @@ namespace Smartphone
                     int maxTextWidth = slotRect.Width - (iconSize + ScaleUiValue(45));
 
                     // Check mod status for icons
-                    var modInfo = ModEntry.SHelper.ModRegistry.Get(mod.UniqueID);
+                    var modInfo = AppStoreManager.GetInstalledMod(mod.UniqueID, mod.UpdateKey);
                     bool isInstalled = modInfo != null;
                     bool isUpToDate = false;
                     if (isInstalled)
                     {
                         string currentVersion = modInfo.Manifest.Version.ToString();
-                        isUpToDate = currentVersion == mod.LatestVersion;
+                        isUpToDate = !AppStoreManager.IsNewerVersion(currentVersion, mod.LatestVersion);
                     }
 
                     bool isNew = false;
@@ -369,11 +369,11 @@ namespace Smartphone
                 DrawPhoneText(b, Game1.smallFont, endorsementText, new Vector2(paddingX, detailY), Color.DarkRed, 0.7f);
                 detailY += ScaleUiValue(25);
 
-                var modInfo = ModEntry.SHelper.ModRegistry.Get(appStoreSelectedMod.UniqueID);
+                var modInfo = AppStoreManager.GetInstalledMod(appStoreSelectedMod.UniqueID, appStoreSelectedMod.UpdateKey);
                 if (modInfo != null)
                 {
                     string currentVersion = modInfo.Manifest.Version.ToString();
-                    bool isUpToDate = currentVersion == appStoreSelectedMod.LatestVersion;
+                    bool isUpToDate = !AppStoreManager.IsNewerVersion(currentVersion, appStoreSelectedMod.LatestVersion);
                     string versionText = isUpToDate ? ModEntry.SHelper.Translation.Get("ui.appstore.latest_version_installed") : ModEntry.SHelper.Translation.Get("ui.appstore.new_version_available");
                     Color versionColor = isUpToDate ? Color.Green : Color.Red;
                     DrawPhoneText(b, Game1.smallFont, versionText, new Vector2(paddingX, detailY), versionColor, 0.7f);
