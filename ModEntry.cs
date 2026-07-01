@@ -368,22 +368,31 @@ namespace Smartphone
             return false;
         }
 
-        public void DrawPhoneSizeButtons(SpriteBatch b, int phoneX, int phoneY)
+        public void DrawPhoneSizeButtons(SpriteBatch b, int phoneX, int phoneY, bool landscape = false, bool forceOn = false)
         {
-            if (ModEntry.Config.ShowSizeButton == "Disable") return;
+            if (!forceOn && ModEntry.Config.ShowSizeButton == "Disable") return;
 
             float uiScale = ModEntry.GetActivePhoneUiScale();
             int scale(int val) => ModEntry.ScalePhoneUiValue(val, uiScale);
 
-            int buttonY = phoneY + scale(975);
-            int smallButtonY = buttonY + scale(68);
-            int smallButtonW = scale(28);
-            int smallButtonH = scale(28);
+            int smallButtonY = phoneY + scale(170);
+            int smallButtonW = scale(40);
+            int smallButtonH = scale(40);
 
-            var decRect = new Rectangle(phoneX + scale(315), smallButtonY, smallButtonW, smallButtonH);
-            var incRect = new Rectangle(phoneX + scale(351), smallButtonY, smallButtonW, smallButtonH);
+            Rectangle incRect, decRect;
+            if (landscape)
+            {
+                int frameWidth = ModEntry.GetScaledPhoneFrameWidth();
+                incRect = new Rectangle(phoneX + scale(170), phoneY + frameWidth - scale(610) - smallButtonW, smallButtonW, smallButtonH);
+                decRect = new Rectangle(phoneX + scale(170) + scale(45), phoneY + frameWidth - scale(610) - smallButtonW, smallButtonW, smallButtonH);
+            }
+            else
+            {
+                incRect = new Rectangle(phoneX + scale(610), smallButtonY, smallButtonW, smallButtonH);
+                decRect = new Rectangle(phoneX + scale(610), smallButtonY + scale(45), smallButtonW, smallButtonH);
+            }
 
-            bool showButtons = ModEntry.Config.ShowSizeButton == "Always";
+            bool showButtons = forceOn || ModEntry.Config.ShowSizeButton == "Always";
             if (!showButtons)
             {
                 int mx = Game1.getMouseX(true);
@@ -415,13 +424,12 @@ namespace Smartphone
             float uiScale = ModEntry.GetActivePhoneUiScale();
             int scale(int val) => ModEntry.ScalePhoneUiValue(val, uiScale);
 
-            int buttonY = phoneY + scale(975);
-            int smallButtonY = buttonY + scale(68);
-            int smallButtonW = scale(28);
-            int smallButtonH = scale(28);
+            int smallButtonY = phoneY + scale(170);
+            int smallButtonW = scale(40);
+            int smallButtonH = scale(40);
 
-            var decRect = new Rectangle(phoneX + scale(315), smallButtonY, smallButtonW, smallButtonH);
-            var incRect = new Rectangle(phoneX + scale(351), smallButtonY, smallButtonW, smallButtonH);
+            var incRect = new Rectangle(phoneX + scale(610), smallButtonY, smallButtonW, smallButtonH);
+            var decRect = new Rectangle(phoneX + scale(610), smallButtonY + scale(45), smallButtonW, smallButtonH);
 
             if (decRect.Contains(x, y))
             {

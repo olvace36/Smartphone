@@ -357,30 +357,30 @@ namespace Smartphone
                 homeButton.scale = ScaleUiValue(1.3f);
             }
 
-            int smallButtonY = buttonY + ScaleUiValue(68);
-            int smallButtonW = ScaleUiValue(28);
-            int smallButtonH = ScaleUiValue(28);
+            int smallButtonY = this.yPositionOnScreen + ScaleUiValue(170);
+            int smallButtonW = ScaleUiValue(40);
+            int smallButtonH = ScaleUiValue(40);
 
             if (decreaseSizeButton == null)
             {
                 decreaseSizeButton = new ClickableComponent(
-                    new Rectangle(this.xPositionOnScreen + ScaleUiValue(315), smallButtonY, smallButtonW, smallButtonH),
+                    new Rectangle(this.xPositionOnScreen + ScaleUiValue(610), smallButtonY + ScaleUiValue(45), smallButtonW, smallButtonH),
                     "decrease_size");
             }
             else
             {
-                decreaseSizeButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(315), smallButtonY, smallButtonW, smallButtonH);
+                increaseSizeButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(610), smallButtonY, smallButtonW, smallButtonH);
             }
 
             if (increaseSizeButton == null)
             {
                 increaseSizeButton = new ClickableComponent(
-                    new Rectangle(this.xPositionOnScreen + ScaleUiValue(351), smallButtonY, smallButtonW, smallButtonH),
+                    new Rectangle(this.xPositionOnScreen + ScaleUiValue(610), smallButtonY, smallButtonW, smallButtonH),
                     "increase_size");
             }
             else
             {
-                increaseSizeButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(351), smallButtonY, smallButtonW, smallButtonH);
+                decreaseSizeButton.bounds = new Rectangle(this.xPositionOnScreen + ScaleUiValue(610), smallButtonY + ScaleUiValue(40), smallButtonW, smallButtonH);
             }
         }
 

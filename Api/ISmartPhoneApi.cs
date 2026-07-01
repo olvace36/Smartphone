@@ -208,7 +208,7 @@ namespace Smartphone
         /// <summary>
         /// Draws the phone scale adjustment buttons (+ and -) if they are enabled in the configuration.
         /// </summary>
-        void DrawPhoneSizeButtons(SpriteBatch b, int phoneX, int phoneY);
+        void DrawPhoneSizeButtons(SpriteBatch b, int phoneX, int phoneY, bool landscape = false, bool forceOn = false);
 
         /// <summary>
         /// Handles clicks on the phone scale adjustment buttons.
