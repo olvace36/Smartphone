@@ -222,6 +222,26 @@ namespace Smartphone
                 interval: 0.1f,
                 formatValue: value => $"{value:0.0}"
             );
+
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => Helper.Translation.Get("config.name.restore_stamina"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.restore_stamina"),
+                getValue: () => Config.RestoreStamina,
+                setValue: value => Config.RestoreStamina = value
+            );
+
+            configMenu.AddNumberOption(
+                mod: ModManifest,
+                name: () => Helper.Translation.Get("config.name.stamina_restore_rate"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.stamina_restore_rate"),
+                getValue: () => Config.StaminaRestoreRate,
+                setValue: value => Config.StaminaRestoreRate = Math.Clamp(value, 0f, 3f),
+                min: 0f,
+                max: 3f,
+                interval: 0.1f,
+                formatValue: value => $"{value:0.0}"
+            );
         }
 
     }

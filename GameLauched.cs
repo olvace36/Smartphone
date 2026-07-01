@@ -98,6 +98,7 @@ namespace Smartphone
             helper.Events.Display.WindowResized += OnWindowResized;
             helper.Events.Display.Rendered += OnRendered;
             helper.Events.Display.RenderedHud += OnRenderedHud;
+            helper.Events.GameLoop.OneSecondUpdateTicked += OnOneSecondUpdateTicked;
 
             // dev tool: prepare for grid overlay
             solidPixel = new Texture2D(Game1.graphics.GraphicsDevice, 1, 1);
@@ -786,6 +787,47 @@ namespace Smartphone
 
             pendingInitNotification = isFirstTimeForSave;
             pendingPhoneOsInitialization = isFirstTimeForSave;
+        }
+
+        private void OnOneSecondUpdateTicked(object sender, OneSecondUpdateTickedEventArgs e)
+        {
+            if (!Context.IsWorldReady || Game1.player == null)
+                return;
+
+            if (Config.RestoreStamina && Game1.activeClickableMenu != null)
+            {
+                var menu = Game1.activeClickableMenu;
+                if (menu == phoneMenu || IsCustomPhoneMenu(menu))
+                {
+                    if (Game1.player.Stamina < Game1.player.MaxStamina)
+                    {
+                        Game1.player.Stamina = Math.Min(Game1.player.MaxStamina, Game1.player.Stamina + Config.StaminaRestoreRate);
+                    }
+                }
+            }
+        }
+
+        private bool IsCustomPhoneMenu(IClickableMenu menu)
+        {
+            if (menu == null) return false;
+            if (menu is PhoneMenu) return true;
+
+            try
+            {
+                var fields = menu.GetType().GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                foreach (var field in fields)
+                {
+                    if (field.FieldType.Name == "ISmartPhoneApi" || field.FieldType.GetInterface("ISmartPhoneApi") != null)
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback
+            }
+            return false;
         }
 
     }

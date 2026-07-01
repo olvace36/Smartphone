@@ -25,5 +25,8 @@ namespace Smartphone
 
         public string BlacklistNpc { get; set; } = "Leo, Krobus, Dwarf, Gunther, Birdie, Bouncer, MoonSBV, PanSBV, RaccoonSBV, Leximonster, Dianna, Torts";
         public string FriendshipRequirement { get; set; } = "Meet";
+
+        public bool RestoreStamina { get; set; } = true;
+        public float StaminaRestoreRate { get; set; } = 0.5f;
     }
 }
