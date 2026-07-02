@@ -14,28 +14,18 @@ namespace Smartphone
             // Check if the player bought the item yesterday
             if (Game1.player.modData.TryGetValue("d5a1lamdtd.Smartphone.BoughtAllNumbers", out string bought) && bought == "true")
             {
-                // 1. Ensure ModEntry.NpcNumbers is fully populated for the day
-                if (ModEntry.NpcNumbers.Count == 0)
-                {
-                    Utility.ForEachVillager(npc =>
-                    {
-                        if (npc != null && npc.CanSocialize)
-                        {
-                            if (npc.modData.TryGetValue("d5a1lamdtd.Smartphone.PhoneNumber", out string number) && !string.IsNullOrWhiteSpace(number))
-                            {
-                                ModEntry.NpcNumbers[number] = npc.Name;
-                            }
-                        }
-                        return true;
-                    });
-                }
+                // Ensure UpdateNpcNumbers has populated ModEntry.NpcNumbers and local JSON is loaded
+                UpdateNpcNumbers();
 
-                // 2. Load the existing contacts array from phone_app_data.json directly
+                // Load existing contacts
                 List<PhoneMenu.Contact> contactsList = new();
                 List<PhoneMenu.RecentCall> recentsList = new();
                 List<string> favoritesList = new();
+                List<PhoneMenu.NpcPhoneInfo> npcPhoneList = new();
 
                 string saveName = ModEntry.GetActiveSaveFolderName();
+                if (string.IsNullOrWhiteSpace(saveName)) return;
+
                 string folderPath = Path.Combine(ModEntry.SHelper.DirectoryPath, "userdata", saveName);
                 string filePath = Path.Combine(folderPath, "phone_app_data.json");
 
@@ -46,8 +36,10 @@ namespace Smartphone
                         string json = File.ReadAllText(filePath);
                         var data = Newtonsoft.Json.Linq.JObject.Parse(json);
                         if (data["Contacts"] != null) contactsList = data["Contacts"].ToObject<List<PhoneMenu.Contact>>() ?? new();
+                        else if (data["CustomContacts"] != null) contactsList = data["CustomContacts"].ToObject<List<PhoneMenu.Contact>>() ?? new();
                         if (data["RecentCalls"] != null) recentsList = data["RecentCalls"].ToObject<List<PhoneMenu.RecentCall>>() ?? new();
                         if (data["FavoriteNumbers"] != null) favoritesList = data["FavoriteNumbers"].ToObject<List<string>>() ?? new();
+                        if (data["NpcPhoneList"] != null) npcPhoneList = data["NpcPhoneList"].ToObject<List<PhoneMenu.NpcPhoneInfo>>() ?? new();
                     }
                     catch (Exception ex)
                     {
@@ -55,39 +47,43 @@ namespace Smartphone
                     }
                 }
 
-                // 3. Sync all available NPCs to the loaded contacts list and set their dialogue bypass flags
                 bool changesMade = false;
-                foreach (var pair in ModEntry.NpcNumbers)
+
+                // Sync all NPCs in npcPhoneList to the contactsList and set their HasSharedNumber flag
+                foreach (var npcInfo in npcPhoneList)
                 {
-                    string number = pair.Key;
-                    string npcInternalName = pair.Value;
+                    string npcName = npcInfo.NpcName;
+                    int requiredHearts = ModEntry.Config.FriendshipRequirement == "Friend" ? 250 : 1;
+                    int currentHearts = Game1.player.getFriendshipLevelForNPC(npcName);
 
-                    // Add the contact if it does not exist already
-                    if (!contactsList.Any(c => c.Number == number))
+                    if (currentHearts >= requiredHearts)
                     {
-                        contactsList.Add(new PhoneMenu.Contact
+                        // Add the contact if it does not exist already
+                        if (!contactsList.Any(c => c.Number == npcInfo.PhoneNumber))
                         {
-                            Name = npcInternalName,
-                            Number = number
-                        });
-                        changesMade = true;
-                    }
+                            contactsList.Add(new PhoneMenu.Contact
+                            {
+                                Name = npcInfo.NpcName,
+                                Number = npcInfo.PhoneNumber
+                            });
+                            changesMade = true;
+                        }
 
-                    // Set the mail flag so they don't prompt number-sharing dialogue
-                    string phoneFlag = $"d5a1lamdtd.Smartphone_HasPhone_{npcInternalName}";
-                    if (!Game1.player.mailReceived.Contains(phoneFlag))
-                    {
-                        Game1.player.mailReceived.Add(phoneFlag);
+                        // Set the HasSharedNumber flag to true
+                        if (!npcInfo.HasSharedNumber)
+                        {
+                            npcInfo.HasSharedNumber = true;
+                            changesMade = true;
+                        }
                     }
                 }
 
-                // 4. Save the synchronized contact changes back to disk
                 if (changesMade)
                 {
                     try
                     {
                         Directory.CreateDirectory(folderPath);
-                        var data = new { RecentCalls = recentsList, Contacts = contactsList, FavoriteNumbers = favoritesList };
+                        var data = new { RecentCalls = recentsList, Contacts = contactsList, FavoriteNumbers = favoritesList, NpcPhoneList = npcPhoneList };
                         string json = Newtonsoft.Json.JsonConvert.SerializeObject(data, Newtonsoft.Json.Formatting.Indented);
                         File.WriteAllText(filePath, json);
 
@@ -96,7 +92,6 @@ namespace Smartphone
                             PhoneMenu.phoneAppDataLoaded = false;
                         }
 
-                        // Notify internal API events that contacts array updated
                         ModEntry.NotifyContactableNpcsChanged();
                     }
                     catch (Exception ex)
@@ -105,10 +100,9 @@ namespace Smartphone
                     }
                 }
 
-                // 6. Remove the flag from the player so it doesn't execute repeatedly on subsequent days
+                // Remove the flag so it doesn't execute repeatedly
                 Game1.player.modData.Remove("d5a1lamdtd.Smartphone.BoughtAllNumbers");
 
-                // Send a native notification to the user's phone or HUD to show it completed successfully
                 NotificationManager.AddNotification(
                     ModEntry.SHelper.Translation.Get("ui.phone.all_contacts_loaded_notification")
                 );

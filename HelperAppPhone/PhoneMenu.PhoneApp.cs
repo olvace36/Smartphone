@@ -14,6 +14,7 @@ namespace Smartphone
     public partial class PhoneMenu : IClickableMenu
     {
         // App State Properties
+        private List<NpcPhoneInfo> phoneAppNpcPhoneList = new();
         private int phoneAppCurrentTab = 0; // 0 = Contacts, 1 = Recents, 2 = Keypad
         private int phoneAppContactsScroll = 0;
         private int phoneAppRecentsScroll = 0;
@@ -67,6 +68,8 @@ namespace Smartphone
             if (phoneAppDataLoaded) return;
             phoneAppDataLoaded = true;
 
+            UpdateNpcNumbers();
+
             try
             {
                 string folderPath = Path.Combine(ModEntry.SHelper.DirectoryPath, "userdata", ModEntry.GetActiveSaveFolderName());
@@ -87,6 +90,9 @@ namespace Smartphone
 
                     if (data["FavoriteNumbers"] != null)
                         phoneAppFavoriteNumbers = data["FavoriteNumbers"].ToObject<List<string>>() ?? new();
+
+                    if (data["NpcPhoneList"] != null)
+                        phoneAppNpcPhoneList = data["NpcPhoneList"].ToObject<List<NpcPhoneInfo>>() ?? new();
                 }
             }
             catch (Exception ex)
@@ -109,7 +115,7 @@ namespace Smartphone
                 Directory.CreateDirectory(folderPath);
                 string filePath = Path.Combine(folderPath, "phone_app_data.json");
 
-                var data = new { RecentCalls = phoneAppRecentCalls, Contacts = phoneAppContacts, FavoriteNumbers = phoneAppFavoriteNumbers };
+                var data = new { RecentCalls = phoneAppRecentCalls, Contacts = phoneAppContacts, FavoriteNumbers = phoneAppFavoriteNumbers, NpcPhoneList = phoneAppNpcPhoneList };
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(data, Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(filePath, json);
                 ModEntry.NotifyContactableNpcsChanged();
@@ -1116,68 +1122,207 @@ namespace Smartphone
             }
         }
 
-        public static void AssignNpcNumber()
+        public static void UpdateNpcNumbers()
         {
-            ModEntry.NpcNumbers.Clear();
-            HashSet<string> existingNumbers = new HashSet<string>();
-
-            HashSet<string> blacklist = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (ModEntry.Config != null && !string.IsNullOrWhiteSpace(ModEntry.Config.BlacklistNpc))
+            try
             {
-                foreach (var item in ModEntry.Config.BlacklistNpc.Split(','))
+                string saveName = ModEntry.GetActiveSaveFolderName();
+                if (string.IsNullOrWhiteSpace(saveName)) return;
+
+                string folderPath = Path.Combine(ModEntry.SHelper.DirectoryPath, "userdata", saveName);
+                string filePath = Path.Combine(folderPath, "phone_app_data.json");
+
+                List<PhoneMenu.Contact> contactsList = new();
+                List<PhoneMenu.RecentCall> recentsList = new();
+                List<string> favoritesList = new();
+                List<PhoneMenu.NpcPhoneInfo> npcPhoneList = new();
+
+                if (File.Exists(filePath))
                 {
-                    string trimmed = item.Trim();
-                    if (!string.IsNullOrEmpty(trimmed))
-                        blacklist.Add(trimmed);
+                    string json = File.ReadAllText(filePath);
+                    var data = Newtonsoft.Json.Linq.JObject.Parse(json);
+                    if (data["Contacts"] != null) contactsList = data["Contacts"].ToObject<List<PhoneMenu.Contact>>() ?? new();
+                    else if (data["CustomContacts"] != null) contactsList = data["CustomContacts"].ToObject<List<PhoneMenu.Contact>>() ?? new();
+                    if (data["RecentCalls"] != null) recentsList = data["RecentCalls"].ToObject<List<PhoneMenu.RecentCall>>() ?? new();
+                    if (data["FavoriteNumbers"] != null) favoritesList = data["FavoriteNumbers"].ToObject<List<string>>() ?? new();
+                    if (data["NpcPhoneList"] != null) npcPhoneList = data["NpcPhoneList"].ToObject<List<PhoneMenu.NpcPhoneInfo>>() ?? new();
+                }
+
+                HashSet<string> blacklist = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (ModEntry.Config != null && !string.IsNullOrWhiteSpace(ModEntry.Config.BlacklistNpc))
+                {
+                    foreach (var item in ModEntry.Config.BlacklistNpc.Split(','))
+                    {
+                        string trimmed = item.Trim();
+                        if (!string.IsNullOrEmpty(trimmed))
+                            blacklist.Add(trimmed);
+                    }
+                }
+
+                bool changed = false;
+                HashSet<string> existingNumbers = new HashSet<string>(npcPhoneList.Select(n => n.PhoneNumber), StringComparer.OrdinalIgnoreCase);
+                Random rand = new Random();
+
+                Utility.ForEachVillager(npc =>
+                {
+                    if (npc != null && npc.CanSocialize)
+                    {
+                        string npcName = npc.Name;
+
+                        if (blacklist.Contains(npcName))
+                        {
+                            if (npcPhoneList.Any(n => string.Equals(n.NpcName, npcName, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                npcPhoneList.RemoveAll(n => string.Equals(n.NpcName, npcName, StringComparison.OrdinalIgnoreCase));
+                                changed = true;
+                            }
+                            return true;
+                        }
+
+                        var existing = npcPhoneList.FirstOrDefault(n => string.Equals(n.NpcName, npcName, StringComparison.OrdinalIgnoreCase));
+                        if (existing == null)
+                        {
+                            string newNumber;
+                            do
+                            {
+                                newNumber = "0" + rand.Next(0, 100000).ToString("D5");
+                            } while (existingNumbers.Contains(newNumber));
+
+                            existingNumbers.Add(newNumber);
+                            npcPhoneList.Add(new PhoneMenu.NpcPhoneInfo
+                            {
+                                NpcName = npcName,
+                                PhoneNumber = newNumber,
+                                HasSharedNumber = false
+                            });
+                            changed = true;
+                        }
+                    }
+                    return true;
+                });
+
+                if (npcPhoneList.RemoveAll(n => blacklist.Contains(n.NpcName)) > 0)
+                {
+                    changed = true;
+                }
+
+                if (changed)
+                {
+                    Directory.CreateDirectory(folderPath);
+                    var data = new { RecentCalls = recentsList, Contacts = contactsList, FavoriteNumbers = favoritesList, NpcPhoneList = npcPhoneList };
+                    string json = Newtonsoft.Json.JsonConvert.SerializeObject(data, Newtonsoft.Json.Formatting.Indented);
+                    File.WriteAllText(filePath, json);
+
+                    if (ModEntry.phoneMenu != null)
+                    {
+                        PhoneMenu.phoneAppDataLoaded = false;
+                    }
+                }
+
+                ModEntry.NpcNumbers.Clear();
+                foreach (var info in npcPhoneList)
+                {
+                    ModEntry.NpcNumbers[info.PhoneNumber] = info.NpcName;
                 }
             }
-
-            Utility.ForEachVillager(npc =>
+            catch (Exception ex)
             {
-                if (npc != null && npc.CanSocialize)
+                ModEntry.SMonitor?.Log($"Error updating NPC numbers list: {ex.Message}", LogLevel.Error);
+            }
+        }
+
+        public static bool TryShareNpcNumber(string npcName, out string phoneNumber)
+        {
+            phoneNumber = "";
+            try
+            {
+                string saveName = ModEntry.GetActiveSaveFolderName();
+                if (string.IsNullOrWhiteSpace(saveName)) return false;
+
+                string folderPath = Path.Combine(ModEntry.SHelper.DirectoryPath, "userdata", saveName);
+                string filePath = Path.Combine(folderPath, "phone_app_data.json");
+
+                List<PhoneMenu.Contact> contactsList = new();
+                List<PhoneMenu.RecentCall> recentsList = new();
+                List<string> favoritesList = new();
+                List<PhoneMenu.NpcPhoneInfo> npcPhoneList = new();
+
+                if (File.Exists(filePath))
                 {
-                    if (blacklist.Contains(npc.Name))
+                    string json = File.ReadAllText(filePath);
+                    var data = Newtonsoft.Json.Linq.JObject.Parse(json);
+                    if (data["Contacts"] != null) contactsList = data["Contacts"].ToObject<List<PhoneMenu.Contact>>() ?? new();
+                    else if (data["CustomContacts"] != null) contactsList = data["CustomContacts"].ToObject<List<PhoneMenu.Contact>>() ?? new();
+                    if (data["RecentCalls"] != null) recentsList = data["RecentCalls"].ToObject<List<PhoneMenu.RecentCall>>() ?? new();
+                    if (data["FavoriteNumbers"] != null) favoritesList = data["FavoriteNumbers"].ToObject<List<string>>() ?? new();
+                    if (data["NpcPhoneList"] != null) npcPhoneList = data["NpcPhoneList"].ToObject<List<PhoneMenu.NpcPhoneInfo>>() ?? new();
+                }
+
+                var npcInfo = npcPhoneList.FirstOrDefault(n => string.Equals(n.NpcName, npcName, StringComparison.OrdinalIgnoreCase));
+                if (npcInfo == null) return false;
+
+                phoneNumber = npcInfo.PhoneNumber;
+                if (npcInfo.HasSharedNumber) return false;
+
+                npcInfo.HasSharedNumber = true;
+
+                Directory.CreateDirectory(folderPath);
+                var writeData = new { RecentCalls = recentsList, Contacts = contactsList, FavoriteNumbers = favoritesList, NpcPhoneList = npcPhoneList };
+                string jsonOut = Newtonsoft.Json.JsonConvert.SerializeObject(writeData, Newtonsoft.Json.Formatting.Indented);
+                File.WriteAllText(filePath, jsonOut);
+
+                if (ModEntry.phoneMenu != null)
+                {
+                    PhoneMenu.phoneAppDataLoaded = false;
+                }
+
+                ModEntry.NotifyContactableNpcsChanged();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                ModEntry.SMonitor?.Log($"Error sharing NPC number for {npcName}: {ex.Message}", LogLevel.Error);
+                return false;
+            }
+        }
+
+        public static bool HasNpcSharedNumber(string npcName)
+        {
+            try
+            {
+                string saveName = ModEntry.GetActiveSaveFolderName();
+                if (string.IsNullOrWhiteSpace(saveName)) return false;
+
+                string folderPath = Path.Combine(ModEntry.SHelper.DirectoryPath, "userdata", saveName);
+                string filePath = Path.Combine(folderPath, "phone_app_data.json");
+
+                if (File.Exists(filePath))
+                {
+                    string json = File.ReadAllText(filePath);
+                    var data = Newtonsoft.Json.Linq.JObject.Parse(json);
+                    if (data["NpcPhoneList"] != null)
                     {
-                        if (npc.modData.ContainsKey("d5a1lamdtd.Smartphone.PhoneNumber"))
+                        var list = data["NpcPhoneList"].ToObject<List<PhoneMenu.NpcPhoneInfo>>();
+                        if (list != null)
                         {
-                            npc.modData.Remove("d5a1lamdtd.Smartphone.PhoneNumber");
+                            var existing = list.FirstOrDefault(n => string.Equals(n.NpcName, npcName, StringComparison.OrdinalIgnoreCase));
+                            if (existing != null)
+                            {
+                                return existing.HasSharedNumber;
+                            }
                         }
-                        return true;
-                    }
-
-                    if (npc.modData.TryGetValue("d5a1lamdtd.Smartphone.PhoneNumber", out string existingNum) && !string.IsNullOrWhiteSpace(existingNum))
-                    {
-                        existingNumbers.Add(existingNum);
-                        ModEntry.NpcNumbers[existingNum] = npc.Name;
                     }
                 }
-                return true;
-            });
+            }
+            catch {}
+            return false;
+        }
 
-            Random rand = new Random();
-            Utility.ForEachVillager(npc =>
-            {
-                if (npc != null && npc.CanSocialize)
-                {
-                    if (blacklist.Contains(npc.Name))
-                        return true;
-
-                    if (!npc.modData.ContainsKey("d5a1lamdtd.Smartphone.PhoneNumber") || string.IsNullOrWhiteSpace(npc.modData["d5a1lamdtd.Smartphone.PhoneNumber"]))
-                    {
-                        string newNumber;
-                        do
-                        {
-                            newNumber = "0" + rand.Next(0, 100000).ToString("D5");
-                        } while (existingNumbers.Contains(newNumber));
-
-                        existingNumbers.Add(newNumber);
-                        npc.modData["d5a1lamdtd.Smartphone.PhoneNumber"] = newNumber;
-                        ModEntry.NpcNumbers[newNumber] = npc.Name;
-                    }
-                }
-                return true;
-            });
-            ModEntry.NotifyContactableNpcsChanged();
+        public class NpcPhoneInfo
+        {
+            public string NpcName { get; set; } = "";
+            public string PhoneNumber { get; set; } = "";
+            public bool HasSharedNumber { get; set; } = false;
         }
     }
 }

@@ -96,6 +96,7 @@ namespace Smartphone
             helper.Events.GameLoop.DayStarted += OnDayStarted;
             helper.Events.GameLoop.ReturnedToTitle += OnReturnedToTitle;
             helper.Events.Display.WindowResized += OnWindowResized;
+
             helper.Events.Display.Rendered += OnRendered;
             helper.Events.Display.RenderedHud += OnRenderedHud;
             helper.Events.GameLoop.OneSecondUpdateTicked += OnOneSecondUpdateTicked;
@@ -129,29 +130,21 @@ namespace Smartphone
                     if (blacklist.Contains(npcName)) return;
                 }
 
-                if (!lastSpeaker.modData.TryGetValue("d5a1lamdtd.Smartphone.PhoneNumber", out string phoneNumber) || phoneNumber == "000000")
-                {
-                    return;
-                }
-
-                int requiredHearts = Config.FriendshipRequirement == "Friend" ? 500 : 1;
+                int requiredHearts = Config.FriendshipRequirement == "Friend" ? 250 : 1;
                 int currentHearts = Game1.player.getFriendshipLevelForNPC(npcName);
 
-                string phoneFlag = $"d5a1lamdtd.Smartphone_HasPhone_{npcName}";
-
-                if (currentHearts >= requiredHearts && !Game1.player.mailReceived.Contains(phoneFlag) && !lastSpeaker.CurrentDialogue.Any())
+                if (currentHearts >= requiredHearts && !PhoneMenu.HasNpcSharedNumber(npcName) && !lastSpeaker.CurrentDialogue.Any())
                 {
-                    Game1.player.mailReceived.Add(phoneFlag);
+                    if (PhoneMenu.TryShareNpcNumber(npcName, out string npcPhone))
+                    {
+                        string customDialogue = ModEntry.SHelper.Translation.Get("ui.message.npc_share_number", new { playerName = Game1.player.Name, phoneNumber = npcPhone });
 
-                    string npcPhone = lastSpeaker.modData.TryGetValue("d5a1lamdtd.Smartphone.PhoneNumber", out string num) ? num : "000000";
+                        Game1.chatBox.addInfoMessage(ModEntry.SHelper.Translation.Get("ui.chat.save_number", new { npcName = npcName, phoneNumber = npcPhone }));
 
-                    string customDialogue = ModEntry.SHelper.Translation.Get("ui.message.npc_share_number", new { playerName = Game1.player.Name, phoneNumber = npcPhone });
+                        lastSpeaker.CurrentDialogue.Push(new Dialogue(lastSpeaker, "key", customDialogue));
 
-                    Game1.chatBox.addInfoMessage(ModEntry.SHelper.Translation.Get("ui.chat.save_number", new { npcName = npcName, phoneNumber = npcPhone }));
-
-                    lastSpeaker.CurrentDialogue.Push(new Dialogue(lastSpeaker, "key", customDialogue));
-
-                    Game1.activeClickableMenu = new DialogueBox(lastSpeaker.CurrentDialogue.Pop());
+                        Game1.activeClickableMenu = new DialogueBox(lastSpeaker.CurrentDialogue.Pop());
+                    }
                 }
             }
         }
@@ -267,6 +260,9 @@ namespace Smartphone
 
             LoadImageTags();
 
+            PhoneMenu.UpdateNpcNumbers();
+            ModEntry.NotifyContactableNpcsChanged();
+
             string targetModId = this.ModManifest.UniqueID;
             var modInfo = this.Helper.ModRegistry.Get(targetModId);
 
@@ -309,11 +305,8 @@ namespace Smartphone
             NotificationManager.LoadNotificationData();
             PhoneMenu.RefreshCalendarData();
 
-            if (Game1.IsMasterGame)
-                PhoneMenu.AssignNpcNumber();
-            else
-                ModEntry.NotifyContactableNpcsChanged();
-
+            PhoneMenu.UpdateNpcNumbers();
+            ModEntry.NotifyContactableNpcsChanged();
             PhoneMenu.CheckPhoneBookAction();
         }
 
@@ -344,6 +337,7 @@ namespace Smartphone
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
         {
             ClearActiveSaveFolderName();
+            ModEntry.NpcNumbers.Clear();
 
             pendingInitNotification = false;
             pendingPhoneOsInitialization = false;
@@ -829,6 +823,8 @@ namespace Smartphone
             }
             return false;
         }
+
+
 
     }
 }

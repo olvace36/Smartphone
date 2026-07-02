@@ -1,375 +1,554 @@
-*** IMPORTANT ***
-*** IMPORTANT ***
-*** IMPORTANT ***
+# Smartphone Framework API Guide
 
-When updating to a newer version of the mod, copy the folder ** userdata ** to the new mod folder.
-This folder contains all data you created (photos, chat history, settings, ...).
+This guide is intended for modders who want to register custom apps or widgets on the Smartphone home screen, create custom on-screen screens (in either Portrait or Landscape mode), send notifications, or integrate with the Contacts and Photo apps.
 
+---
 
-*** ADVANCED AI CUSTOM PROVIDER (CONFIG.JSON ONLY) ***
+## 1. Getting the API
 
-Power users can route Smartphone AI calls to a custom service (local LLM or another provider) by editing config.json.
+Retrieve the `ISmartPhoneApi` interface from SMAPI's Mod Registry, typically within your mod's `GameLaunched` event:
 
-When CustomApiEndpoint is configured, Smartphone uses custom template mode for:
-- NPC chat responses
-- Daily conversation summaries
-- StardewSocial post text generation
-- StardewSocial comment generation
+```csharp
+private ISmartPhoneApi? smartphoneApi;
 
-Network policy:
-- Remote endpoints must use HTTPS.
-- HTTP is only allowed for localhost or loopback hosts (localhost, 127.0.0.1, ::1).
-
-Supported payload placeholders (plain TOKEN and {{TOKEN}} are both supported):
-- INPUT_HERE (combined SYSTEM + USER text)
-- SYSTEM_INPUT_HERE
-- USER_INPUT_HERE
-- SYSTEM_MESSAGE_HERE
-- USER_MESSAGE_HERE
-- MODEL_HERE
-
-Example config.json values:
-
+private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
 {
-	"CustomApiEndpoint": "http://localhost:11434/v1/chat/completions",
-	"CustomApiKey": "",
-	"CustomApiKeyHeader": "Authorization",
-	"CustomApiKeyPrefix": "Bearer",
-	"CustomApiPayloadTemplate": "{\"model\":\"MODEL_HERE\",\"messages\":[{\"role\":\"system\",\"content\":\"SYSTEM_INPUT_HERE\"},{\"role\":\"user\",\"content\":\"USER_INPUT_HERE\"}]}",
-	"CustomApiResponseTextPath": "choices[0].message.content",
-	"CustomApiTimeoutSeconds": 45
+    this.smartphoneApi = this.Helper.ModRegistry.GetApi<ISmartPhoneApi>("d5a1lamdtd.Smartphone");
+    if (this.smartphoneApi == null)
+    {
+        this.Monitor.Log("Smartphone API is unavailable.", LogLevel.Warn);
+        return;
+    }
+}
+```
+
+---
+
+## 2. App & Widget Registration
+
+You can register a custom app icon on the Smartphone home screen. A single API is used for registering both standard icons and widgets of different sizes.
+
+### Registering an App
+Use `RegisterPhoneApp` to register your app. To provide the app icon, pass a `Dictionary<string, Texture2D>` via `themedIconTextures` containing at least a `"default"` key.
+
+```csharp
+bool registered = smartphoneApi.RegisterPhoneApp(
+    ownerModId: this.ModManifest.UniqueID,
+    appId: "my_custom_app",
+    displayName: "My App",
+    onClick: () => OpenMyCustomAppScreen(),
+    closePhoneOnLaunch: true,
+    sourceRect: null,
+    getBadgeCount: () => GetUnreadCount(),
+    supportedSizes: new[] { AppSize.Size1x1 },
+    onDrawWidget: null,
+    themedIconTextures: new Dictionary<string, Texture2D>(StringComparer.OrdinalIgnoreCase)
+    {
+        { "default", myIconTexture }
+    }
+);
+```
+
+#### Supported App Sizes (Widgets)
+The `AppSize` enum defines the footprint of your app icon/widget on the home screen:
+```csharp
+public enum AppSize
+{
+    Size1x1, // Standard app icon
+    Size2x1,
+    Size2x2,
+    Size2x3,
+    Size2x4,
+    Size4x2,
+    Size4x3,
+    Size4x4
+}
+```
+If you provide sizes larger than `Size1x1` in `supportedSizes`, the user can resize your app icon into a widget on their home screen. You must then provide the `onDrawWidget` callback to render the widget content:
+```csharp
+void DrawWidget(SpriteBatch b, Rectangle widgetBounds, AppSize size)
+{
+    // Draw custom widget UI within widgetBounds
+}
+```
+
+### Unregistering an App
+```csharp
+smartphoneApi.UnregisterPhoneApp(this.ModManifest.UniqueID, "my_custom_app");
+```
+
+### Querying Textures
+If your app needs to retrieve standard app icons or icons registered by other apps:
+- **Custom Apps**: `Texture2D? GetAppIconTexture(string appId)`
+- **Built-in Apps**: `Texture2D? GetAppTexture(AppIconType appIconType)`
+  * `AppIconType` values: `Notification`, `AppStore`, `Camera`, `Photo`, `Setting`, `Calendar`.
+
+---
+
+## 3. Creating a Custom On-Screen App UI
+
+If you want your app to render *inside* the phone screen, your `onClick` callback should open a custom class derived from Stardew Valley's `IClickableMenu`. 
+
+The transition will feel seamless if your menu initializes at the phone's current position and handles dragging/scaling events correctly.
+
+### Setup and Layout (Portrait Mode)
+In your custom menu's constructor, query the current phone dimensions and offsets from the API:
+
+```csharp
+public class MyCustomAppScreen : IClickableMenu
+{
+    private readonly ISmartPhoneApi smartphoneApi;
+    private readonly Action onBack;
+
+    private int phoneFrameWidth;
+    private int phoneFrameHeight;
+    private int phoneContentOffsetX;
+    private int phoneContentOffsetY;
+    private float phoneUiScale;
+
+    private Texture2D? phoneFrameTexture;
+    private Texture2D? phoneBackgroundTexture;
+
+    private int contentWidth;
+    private int contentHeight;
+
+    public MyCustomAppScreen(ISmartPhoneApi api, Action onBack) : base()
+    {
+        this.smartphoneApi = api;
+        this.onBack = onBack;
+
+        // Position the menu matching the phone
+        var (px, py) = api.GetPhonePosition();
+        this.xPositionOnScreen = px;
+        this.yPositionOnScreen = py;
+
+        // Get layout dimensions
+        this.phoneFrameWidth = api.GetPhoneFrameWidth();
+        this.phoneFrameHeight = api.GetPhoneFrameHeight();
+        var (offX, offY) = api.GetPhoneContentOffset();
+        this.phoneContentOffsetX = offX;
+        this.phoneContentOffsetY = offY;
+        this.phoneUiScale = api.GetPhoneUiScale();
+
+        this.width = this.phoneFrameWidth;
+        this.height = this.phoneFrameHeight;
+
+        this.phoneFrameTexture = api.GetPhoneFrameTexture();
+        this.phoneBackgroundTexture = api.GetPhoneBackgroundTexture();
+
+        // Calculate the inner screen content bounds
+        if (this.phoneBackgroundTexture != null)
+        {
+            this.contentWidth = (int)Math.Round(this.phoneBackgroundTexture.Width * this.phoneUiScale);
+            this.contentHeight = (int)Math.Round(this.phoneBackgroundTexture.Height * this.phoneUiScale);
+        }
+        else
+        {
+            this.contentWidth = Math.Max(1, this.phoneFrameWidth - (this.phoneContentOffsetX * 2));
+            this.contentHeight = Math.Max(1, this.phoneFrameHeight - this.phoneContentOffsetY - (int)(80 * this.phoneUiScale));
+        }
+    }
+}
+```
+
+### Rendering Content Inside the Screen Bezel
+To ensure your app's content does not bleed outside the phone's bezel screen area, render your screen content using a scissor test with the screen's content boundaries:
+
+```csharp
+private Rectangle GetContentBounds()
+{
+    return new Rectangle(
+        this.xPositionOnScreen + this.phoneContentOffsetX,
+        this.yPositionOnScreen + this.phoneContentOffsetY,
+        this.contentWidth,
+        this.contentHeight
+    );
 }
 
-Notes:
-- CustomApiKey is optional.
-- If your provider returns text in a different field, set CustomApiResponseTextPath (for example output_text, result.text, or candidates[0].content.parts[0].text).
-- In custom template mode, function calling is disabled for chat. The mod use function call for Unlimited Event Expansion only, so you can fall back to use the button instead.
-
-
-*** EXTERNAL APP API (FOR OTHER MODDERS) ***
-
-This mod now exposes a phone app registration API.
-Other mods can register their own app icon on the Smartphone home screen and provide a click callback.
-Check out my another mod call Smartphone - Game App, which is a very basic mod that give you an example of how to register app, app group, and text quick action button
-
-1) Get the API from Smartphone in your mod (usually in GameLaunched):
-
-	ISmartPhoneApi smartphoneApi = Helper.ModRegistry.GetApi<ISmartPhoneApi>("d5a1lamdtd.Smartphone");
-
-2) Load your icon texture (any size works; square 256x256 is a good default for quality):
-
-	Texture2D icon = Helper.ModContent.Load<Texture2D>("assets/market_app.png");
-
-3) Register your app:
-
-	smartphoneApi.RegisterPhoneApp(
-		 ownerModId: this.ModManifest.UniqueID,
-		 appId: "markettown-main",
-		 displayName: "Market",
-		 iconTexture: icon,
-		 onClick: () => OpenMarketTownMenu(),
-		 closePhoneOnLaunch: true,
-		 sortOrder: 100,
-		 sourceRect: null,
-		 isVisible: () => Context.IsWorldReady,
-		 getBadgeCount: () => 0
-	);
-
-4) Optional: unregister if needed:
-
-	smartphoneApi.UnregisterPhoneApp(this.ModManifest.UniqueID, "markettown-main");
-
-
-API method summary:
-- RegisterPhoneApp(ownerModId, appId, displayName, iconTexture, onClick, closePhoneOnLaunch, sortOrder, sourceRect, isVisible, getBadgeCount)
-- UnregisterPhoneApp(ownerModId, appId)
-
-Notes:
-- ownerModId + appId is the unique key. Registering the same key again updates the existing app.
-- If sourceRect is provided, width and height must both be > 0.
-
-
-*** APP GROUP API (MAX 9 ITEMS) ***
-
-You can also create a grouped app (see the example AppGame mod).
-Each group can have up to 9 items.
-
-1) Register the group app icon:
-
-	smartphoneApi.RegisterPhoneAppGroup(
-		 ownerModId: this.ModManifest.UniqueID,
-		 groupId: "market-tools",
-		 displayName: "Market",
-		 iconTexture: groupIcon,
-		 sortOrder: 120,
-		 sourceRect: null,
-		 isVisible: () => Context.IsWorldReady,
-		 getBadgeCount: () => 0
-	);
-
-2) Register items in that group (max 9):
-
-	smartphoneApi.RegisterPhoneAppGroupItem(
-		 ownerModId: this.ModManifest.UniqueID,
-		 groupId: "market-tools",
-		 itemId: "market-log",
-		 displayName: "Log",
-		 iconTexture: logIcon,
-		 onClick: () => OpenMarketTownMenu(),
-		 closePhoneOnLaunch: true,
-		 sortOrder: 0,
-		 sourceRect: null,
-		 isVisible: () => Context.IsWorldReady,
-		 getBadgeCount: () => 0
-	);
-
-3) Optional unregister:
-
-	smartphoneApi.UnregisterPhoneAppGroupItem(this.ModManifest.UniqueID, "market-tools", "market-log");
-	smartphoneApi.UnregisterPhoneAppGroup(this.ModManifest.UniqueID, "market-tools");
-
-
-Additional method summary:
-- RegisterPhoneAppGroup(ownerModId, groupId, displayName, iconTexture, sortOrder, sourceRect, isVisible, getBadgeCount)
-- UnregisterPhoneAppGroup(ownerModId, groupId)
-- RegisterPhoneAppGroupItem(ownerModId, groupId, itemId, displayName, iconTexture, onClick, closePhoneOnLaunch, sortOrder, sourceRect, isVisible, getBadgeCount)
-- UnregisterPhoneAppGroupItem(ownerModId, groupId, itemId)
-
-Notes:
-- RegisterPhoneAppGroup must be called before RegisterPhoneAppGroupItem.
-- ownerModId + groupId + itemId is the unique key. Registering the same key again updates that item.
-- A group can contain at most 9 items. Adding a new 10th item fails.
-- If sourceRect is provided, width and height must both be > 0.
-
-
-*** PHONE NAVIGATION API ***
-
-You can programmatically open Smartphone home or jump directly to a registered app group.
-This is useful for custom app UIs that need a Back button to return to Smartphone.
-
-Example usage:
-
-	bool openedHome = smartphoneApi.OpenPhoneHomeScreen();
-	bool openedGroup = smartphoneApi.OpenPhoneAppGroup(this.ModManifest.UniqueID, "market-tools");
-
-Method summary:
-- OpenPhoneHomeScreen()
-- OpenPhoneAppGroup(ownerModId, groupId)
-
-Notes:
-- OpenPhoneAppGroup returns false if the group is not registered or currently not visible.
-- Both methods return false when the game world is not ready.
-
-
-*** CUSTOM ONSCREEN APP UI API ***
-
-If you register a custom app using `RegisterPhoneApp` or `RegisterPhoneAppGroupItem`, you can assign an `onClick` callback to open your own `IClickableMenu` that renders *inside* the phone screen.
-The Smartphone API provides several helper methods to seamlessly integrate your custom app UI with the phone's appearance and navigation.
-
-Example basic overview of creating an onscreen app:
-
-1) Open your menu:
-
-	smartphoneApi.RegisterPhoneApp(..., onClick: () => Game1.activeClickableMenu = new MyCustomAppScreen(smartphoneApi), ...);
-
-2) Construct your menu using phone layout dimensions:
-
-	// In your MyCustomAppScreen constructor:
-	this.xPositionOnScreen = smartphoneApi.GetPhonePosition().x;
-	this.yPositionOnScreen = smartphoneApi.GetPhonePosition().y;
-	this.width = smartphoneApi.GetPhoneFrameWidth();
-	this.height = smartphoneApi.GetPhoneFrameHeight();
-
-	// Get content offset for rendering inside the bezel
-	var offset = smartphoneApi.GetPhoneContentOffset();
-	Rectangle contentBounds = new Rectangle(
-		this.xPositionOnScreen + offset.offsetX,
-		this.yPositionOnScreen + offset.offsetY,
-		(int)((smartphoneApi.GetPhoneBackgroundTexture()?.Width ?? 1) * smartphoneApi.GetPhoneUiScale()),
-		(int)((smartphoneApi.GetPhoneBackgroundTexture()?.Height ?? 1) * smartphoneApi.GetPhoneUiScale())
-	);
-
-3) Support phone navigation (Home, Lock, Back buttons) in `receiveLeftClick`:
-
-	if (smartphoneApi.HandlePhoneAppBottomNavClick(x, y, this.xPositionOnScreen, this.yPositionOnScreen, onBack: () => /* navigate back */))
-	{
-		return;
-	}
-
-4) Implement drag-to-move and swipe-to-scroll (pseudo-logic):
-	- Track state variables for `isDragging`, `isScrolling`, `scrollOffset`.
-	- In `leftClickHeld(x, y)`:
-		- If clicking on `contentBounds`, set `isScrolling = true` and update `scrollOffset` based on mouse Y delta.
-		- If clicking on phone frame (outside `contentBounds`), set `isDragging = true` and update `this.xPositionOnScreen` and `this.yPositionOnScreen`.
-	- Use `Game1.graphics.GraphicsDevice.ScissorRectangle = contentBounds;` before drawing your app's content to clip overflow during scrolling.
-
-5) Draw your app:
-
-	public override void draw(SpriteBatch b)
-	{
-		// Draw standard Stardew dark overlay
-		b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * 0.6f);
-
-		// Draw phone background
-		Texture2D bg = smartphoneApi.GetPhoneBackgroundTexture();
-		if (bg != null) b.Draw(bg, contentBounds, Color.White);
-
-		// Apply scissor mask for scrollable content
-		b.End();
-		b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState() { ScissorTestEnable = true });
-		var prevScissor = Game1.graphics.GraphicsDevice.ScissorRectangle;
-		Game1.graphics.GraphicsDevice.ScissorRectangle = contentBounds;
-
-		// ---> Draw your custom app content here, adjusting Y positions by `this.scrollOffset` <---
-
-		// Restore mask and draw phone frame overlay
-		b.End();
-		Game1.graphics.GraphicsDevice.ScissorRectangle = prevScissor;
-		b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
-		
-		Texture2D frame = smartphoneApi.GetPhoneFrameTexture();
-		if (frame != null) b.Draw(frame, GetFrameBounds(), Color.White);
-
-		drawMouse(b);
-	}
-
-Method summary:
-- GetPhonePosition()
-- GetPhoneFrameWidth() / GetPhoneFrameHeight()
-- GetPhoneContentOffset()
-- GetPhoneUiScale()
-- GetPhoneFrameTexture() / GetPhoneBackgroundTexture()
-- IsSmallPhoneSize()
-- HandlePhoneAppBottomNavClick(x, y, phoneX, phoneY, onBack)
-
-
-*** TEXT CHAT QUICK ACTION BUTTON API ***
-
-You can register custom quick-action buttons in the Text app chat menu (the menu opened by the ^ button).
-
-Layout behavior:
-- Built-in actions stay at the bottom of the quick-action column:
-  - Attach photo
-  - Schedule event
-  - AI credit info (only shown when shared AI mode is active and ShowAiCredit is enabled)
-- Registered actions always appear above built-in actions.
-- Registered actions are sorted by sortOrder (lower value appears closer to the built-in actions).
-
-Example registration:
-
-	smartphoneApi.RegisterChatQuickActionButton(
-		 ownerModId: this.ModManifest.UniqueID,
-		 actionId: "market-gift-hint",
-		 iconTexture: quickActionIcon,
-		 onClick: npcName => OpenGiftHintMenuForNpc(npcName),
-		 closePhoneOnLaunch: false,
-		 sortOrder: 0,
-		 sourceRect: null,
-		 npcNames: new List<string> { "Abigail", "Lewis" }
-	);
-
-Optional unregister:
-
-	smartphoneApi.UnregisterChatQuickActionButton(this.ModManifest.UniqueID, "market-gift-hint");
-
-Method summary:
-- RegisterChatQuickActionButton(ownerModId, actionId, iconTexture, onClick, closePhoneOnLaunch, sortOrder, sourceRect, npcNames)
-- UnregisterChatQuickActionButton(ownerModId, actionId)
-
-Notes:
-- ownerModId + actionId is the unique key. Registering the same key again updates the action.
-- npcNames is optional. If provided, only listed NPC names can see the action.
-- Custom actions are only shown in NPC conversations (not player-to-player conversations).
-
-
-*** MESSENGER API ***
-
-You can interact with the Smartphone messenger app from another mod.
-
-Example usage:
-
-	// Get list for local player
-	List<string> localNpcList = smartphoneApi.GetPhoneNpcList();
-
-	// Optional target player (UniqueMultiplayerID as string)
-	string targetPlayerId = Game1.player.UniqueMultiplayerID.ToString();
-
-	smartphoneApi.SendSmartphoneMessageFromNPC("Abigail", "Meet me at the beach tonight.", targetPlayerId);
-	smartphoneApi.SendSmartphoneMessageFromPlayer("Abigail", "I will be there!", targetPlayerId);
-	smartphoneApi.SendSmartphoneNotification("New chat message", "Smartphone", targetPlayerId);
-
-Method summary:
-- GetPhoneNpcList(playerId)
-- SendSmartphoneMessageFromNPC(npcName, message, playerId)
-- SendSmartphoneMessageFromPlayer(npcName, message, playerId)
-- SendSmartphoneNotification(message, notificationName, playerId)
-
-Notes:
-- playerId is optional and should be UniqueMultiplayerID as string.
-- For SendSmartphoneMessageFromNPC / SendSmartphoneMessageFromPlayer / SendSmartphoneNotification:
-  - Empty or invalid playerId broadcasts to all online players.
-- For GetPhoneNpcList:
-  - Empty playerId returns local player's list.
-  - Non-empty invalid playerId returns an empty list.
-- npcName must be a valid in-game NPC internal name.
-
-
-*** STARDEWCONNECT SOCIAL API ***
-
-You can create social posts/comments/likes authored by NPCs.
-
-Example usage:
-
-	string? postId = smartphoneApi.CreateStardewConnectPostFromNpc(
-		npcName: "Abigail",
-		postText: "Beautiful sunset at the mountain lake!",
-		attachedImageFile: "abigail_sunset.png"
-	);
-
-	if (!string.IsNullOrWhiteSpace(postId))
-	{
-		smartphoneApi.AddStardewConnectCommentFromNpc(postId, "Leah", "That looks amazing!");
-		smartphoneApi.SetStardewConnectPostLikedFromNpc(postId, "Sebastian", true);
-	}
-
-Method summary:
-- CreateStardewConnectPostFromNpc(npcName, postText, attachedImageFile)
-- AddStardewConnectCommentFromNpc(postId, npcName, commentText)
-- SetStardewConnectPostLikedFromNpc(postId, npcName, liked)
-
-Notes:
-- attachedImageFile should be a file name from the NPC smartphone photo folder.
-- CreateStardewConnectPostFromNpc returns the new post ID, or null if creation failed.
-- AddStardewConnectCommentFromNpc / SetStardewConnectPostLikedFromNpc return false when the operation cannot be applied.
-- In multiplayer, call these from the host/main player for authoritative social state.
-
-
-*** DYNAMIC UNLIMITED EVENT API ***
-
-UEE (or any mod) can register event types that Smartphone AI is allowed to schedule.
-This removes the need to hardcode event names inside Smartphone every time a new event is added.
-
-Example registration from another mod:
-
-	smartphoneApi.RegisterUnlimitedEvent(
-		 ownerModId: this.ModManifest.UniqueID,
-		 eventType: "Stargazing",
-		 triggerEvent: npcName => myUeeApi.TriggerStargazingEvent(npcName),
-		 minimumHeartLevel: 6,
-		 toolDescription: "Use this only after both sides agree to meet tonight for stargazing."
-	);
-
-Unregister when needed:
-
-	smartphoneApi.UnregisterUnlimitedEvent(this.ModManifest.UniqueID, "Stargazing");
-
-Method summary:
-- RegisterUnlimitedEvent(ownerModId, eventType, triggerEvent, minimumHeartLevel, toolDescription)
-- UnregisterUnlimitedEvent(ownerModId, eventType)
-
-Notes:
-- eventType becomes the enum value used by the Schedule_Event tool.
-- minimumHeartLevel controls when the event appears in AI tools.
-- triggerEvent is invoked by Smartphone when the scheduled time is reached.
-- eventType is globally unique. Another mod cannot overwrite an event type owned by a different mod.
-- minimumHeartLevel is clamped to 0 or higher.
+public override void draw(SpriteBatch b)
+{
+    // 1. Draw a dark overlay to dim the rest of the game screen
+    b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * 0.6f);
+
+    Rectangle contentRect = this.GetContentBounds();
+
+    // 2. Draw the wallpaper/background
+    if (this.phoneBackgroundTexture != null)
+    {
+        b.Draw(this.phoneBackgroundTexture, contentRect, Color.White);
+    }
+    else
+    {
+        b.Draw(Game1.staminaRect, contentRect, new Color(30, 30, 30));
+    }
+
+    // 3. Render custom app content using Scissor Masking
+    b.End();
+    b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState { ScissorTestEnable = true });
+    
+    Rectangle previousScissor = Game1.graphics.GraphicsDevice.ScissorRectangle;
+    Game1.graphics.GraphicsDevice.ScissorRectangle = contentRect;
+
+    // ---> DRAW YOUR APP CONTENT HERE <---
+
+    b.End();
+    Game1.graphics.GraphicsDevice.ScissorRectangle = previousScissor;
+    b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+
+    // 4. Draw the phone frame bezel on top of the content
+    if (this.phoneFrameTexture != null)
+    {
+        b.Draw(this.phoneFrameTexture, new Rectangle(this.xPositionOnScreen, this.yPositionOnScreen, this.phoneFrameWidth, this.phoneFrameHeight), Color.White);
+    }
+
+    // 5. Draw the scale adjustment buttons (+ and -) on the phone frame
+    this.smartphoneApi.DrawPhoneSizeButtons(b, this.xPositionOnScreen, this.yPositionOnScreen);
+
+    // 6. Draw standard cursor
+    drawMouse(b);
+}
+```
+
+### Bottom Navigation & Interaction
+Route clicks on the bezel to the standard navigation buttons and size adjustments:
+
+```csharp
+public override void receiveLeftClick(int x, int y, bool playSound = true)
+{
+    // Handle Home/Back bottom navigation
+    if (this.smartphoneApi.HandlePhoneAppBottomNavClick(x, y, this.xPositionOnScreen, this.yPositionOnScreen, onBack: this.onBack))
+    {
+        return;
+    }
+
+    // Handle frame UI scale clicks (+ and -)
+    if (this.smartphoneApi.HandlePhoneSizeButtonsClick(x, y, this.xPositionOnScreen, this.yPositionOnScreen))
+    {
+        return;
+    }
+}
+```
+
+### Scaling and Resizing Keyboard Shortcuts
+Ensure you listen to the configured decrease/increase key triggers inside `receiveKeyPress`:
+
+```csharp
+public override void receiveKeyPress(Microsoft.Xna.Framework.Input.Keys key)
+{
+    if (key == Microsoft.Xna.Framework.Input.Keys.Escape)
+    {
+        this.onBack?.Invoke();
+        return;
+    }
+
+    string keyStr = key.ToString();
+    if (keyStr == this.smartphoneApi.GetDecreaseSizeKey())
+    {
+        this.smartphoneApi.AdjustPhoneSize(-0.1f);
+        return;
+    }
+    if (keyStr == this.smartphoneApi.GetIncreaseSizeKey())
+    {
+        this.smartphoneApi.AdjustPhoneSize(0.1f);
+        return;
+    }
+
+    base.receiveKeyPress(key);
+}
+```
+
+### Preserving Phone Location During Dragging
+In order to allow users to drag the phone anywhere on the screen, check for drags on the bezel area in `leftClickHeld` and update the global coordinate cache in `update`:
+
+```csharp
+private bool isDragging;
+private int dragOffsetX;
+private int dragOffsetY;
+
+public override void leftClickHeld(int x, int y)
+{
+    base.leftClickHeld(x, y);
+
+    if (!this.isDragging)
+    {
+        Rectangle frameBounds = new Rectangle(this.xPositionOnScreen, this.yPositionOnScreen, this.phoneFrameWidth, this.phoneFrameHeight);
+        Rectangle contentBounds = this.GetContentBounds();
+
+        // Start dragging if clicking inside phone bezel but outside screen content area
+        if (frameBounds.Contains(x, y) && !contentBounds.Contains(x, y))
+        {
+            this.isDragging = true;
+            this.dragOffsetX = x - this.xPositionOnScreen;
+            this.dragOffsetY = y - this.yPositionOnScreen;
+        }
+    }
+}
+
+public override void releaseLeftClick(int x, int y)
+{
+    base.releaseLeftClick(x, y);
+    this.isDragging = false;
+}
+
+public override void update(GameTime time)
+{
+    // Update dimensions if scaling changed
+    float currentScale = this.smartphoneApi.GetPhoneUiScale();
+    if (currentScale != this.phoneUiScale)
+    {
+        this.phoneUiScale = currentScale;
+        this.phoneFrameWidth = this.smartphoneApi.GetPhoneFrameWidth();
+        this.phoneFrameHeight = this.smartphoneApi.GetPhoneFrameHeight();
+        var (offX, offY) = this.smartphoneApi.GetPhoneContentOffset();
+        this.phoneContentOffsetX = offX;
+        this.phoneContentOffsetY = offY;
+        
+        this.width = this.phoneFrameWidth;
+        this.height = this.phoneFrameHeight;
+        
+        // Recalculate your custom UI layouts here
+    }
+
+    base.update(time);
+
+    // Apply drag coordinate adjustments
+    if (this.isDragging)
+    {
+        this.xPositionOnScreen = Game1.getMouseX() - this.dragOffsetX;
+        this.yPositionOnScreen = Game1.getMouseY() - this.dragOffsetY;
+        
+        // Sync position globally
+        this.smartphoneApi.SetPhonePosition(this.xPositionOnScreen, this.yPositionOnScreen);
+    }
+}
+```
+
+---
+
+## 4. Landscape Mode Implementation
+
+If your app needs to run in Landscape mode, the phone menu must be drawn rotated by `-90` degrees (`-MathHelper.PiOver2`). 
+
+### Dimension Swapping
+In landscape orientation, the menu's visual width matches the portrait height, and the visual height matches the portrait width:
+
+```csharp
+// Visual dimensions are swapped
+this.width = this.phoneFrameHeight; 
+this.height = this.phoneFrameWidth;
+
+// Center-rotate the on-screen menu coordinates
+this.xPositionOnScreen = px + (this.phoneFrameWidth - this.phoneFrameHeight) / 2;
+this.yPositionOnScreen = py + (this.phoneFrameHeight - this.phoneFrameWidth) / 2;
+```
+
+### Landscape Content Bounds
+The active content area bounds are calculated as follows in landscape mode:
+
+```csharp
+int landscapeContentX = this.xPositionOnScreen + this.phoneContentOffsetY;
+int landscapeContentY = this.yPositionOnScreen + this.phoneFrameWidth - this.phoneContentOffsetX - this.contentWidth;
+int LWidth = this.contentHeight;
+int LHeight = this.contentWidth;
+
+Rectangle landscapeContentBounds = new Rectangle(landscapeContentX, landscapeContentY, LWidth, LHeight);
+```
+
+### Drawing Rotated Textures
+Use the rotation parameter in `SpriteBatch.Draw` with `-MathHelper.PiOver2` to draw the phone background and frame rotated:
+
+```csharp
+// Draw background rotated
+if (this.phoneBackgroundTexture != null)
+{
+    float bgScaleX = (float)this.contentWidth / this.phoneBackgroundTexture.Width;
+    float bgScaleY = (float)this.contentHeight / this.phoneBackgroundTexture.Height;
+    b.Draw(
+        this.phoneBackgroundTexture,
+        new Vector2(landscapeContentX, landscapeContentY + this.contentWidth),
+        null,
+        Color.White,
+        -MathHelper.PiOver2,
+        Vector2.Zero,
+        new Vector2(bgScaleX, bgScaleY),
+        SpriteEffects.None,
+        0f
+    );
+}
+
+// Draw phone frame rotated
+if (this.phoneFrameTexture != null)
+{
+    float scaleX = (float)this.phoneFrameWidth / this.phoneFrameTexture.Width;
+    float scaleY = (float)this.phoneFrameHeight / this.phoneFrameTexture.Height;
+    b.Draw(
+        this.phoneFrameTexture,
+        new Vector2(this.xPositionOnScreen, this.yPositionOnScreen + this.phoneFrameWidth),
+        null,
+        Color.White,
+        -MathHelper.PiOver2,
+        Vector2.Zero,
+        new Vector2(scaleX, scaleY),
+        SpriteEffects.None,
+        0f
+    );
+}
+
+// Render size control buttons rotated
+this.smartphoneApi.DrawPhoneSizeButtons(b, this.xPositionOnScreen, this.yPositionOnScreen, landscape: true);
+```
+
+### Input Coordinate Remapping
+For interactions like bottom navigation, home button, and size button clicks, you must map the mouse coordinate space `(x, y)` back to the portrait coordinate offsets `(px_click, py_click)` before routing inputs to the API:
+
+```csharp
+public override void receiveLeftClick(int x, int y, bool playSound = true)
+{
+    // Retrieve portrait coordinate anchors
+    int px = this.xPositionOnScreen - (this.phoneFrameWidth - this.phoneFrameHeight) / 2;
+    int py = this.yPositionOnScreen - (this.phoneFrameHeight - this.phoneFrameWidth) / 2;
+
+    // Map landscape (x, y) mouse click back to portrait bounds
+    int px_click = px + (this.yPositionOnScreen + this.phoneFrameWidth - y);
+    int py_click = py + (x - this.xPositionOnScreen);
+
+    // Route inputs using mapped coordinates
+    if (this.smartphoneApi.HandlePhoneAppBottomNavClick(px_click, py_click, px, py, onBack: this.onBack))
+    {
+        return;
+    }
+
+    if (this.smartphoneApi.HandlePhoneSizeButtonsClick(px_click, py_click, px, py))
+    {
+        return;
+    }
+}
+```
+
+### Syncing drag coordinates globally in landscape:
+If your landscape window gets dragged, you must compute the equivalent portrait coordinate values when calling `SetPhonePosition`:
+```csharp
+if (this.isDragging)
+{
+    this.xPositionOnScreen = Game1.getMouseX() - this.dragOffsetX;
+    this.yPositionOnScreen = Game1.getMouseY() - this.dragOffsetY;
+    
+    // Map landscape top-left back to portrait coordinates
+    int px = this.xPositionOnScreen - (this.phoneFrameWidth - this.phoneFrameHeight) / 2;
+    int py = this.yPositionOnScreen - (this.phoneFrameHeight - this.phoneFrameWidth) / 2;
+    this.smartphoneApi.SetPhonePosition(px, py);
+}
+```
+
+---
+
+## 5. Contacts Card API
+
+You can register custom content sections (cards) to appear within the Smartphone Contacts information screen, providing up to 4 clickable interaction buttons.
+
+### 1. Implement `IContactActionCardButton`
+Create a helper button class satisfying the interface:
+```csharp
+public class ContactActionCardButton : IContactActionCardButton
+{
+    public string Text { get; set; } = string.Empty;
+    public Color BackgroundColor { get; set; } = Color.White;
+    public Color TextColor { get; set; } = Color.Black;
+    public Action<string>? OnClick { get; set; } // npcName is passed as parameter
+}
+```
+
+### 2. Register the Card
+Register the card using `RegisterContactActionCard`. You can optionally restrict the card's visibility to specific NPCs by passing a list of their internal names:
+
+```csharp
+var playButton = new ContactActionCardButton
+{
+    Text = "Play Game",
+    BackgroundColor = Color.CadetBlue,
+    TextColor = Color.White,
+    OnClick = (npcName) => StartGameWithNPC(npcName)
+};
+
+bool registered = smartphoneApi.RegisterContactActionCard(
+    modId: this.ModManifest.UniqueID,
+    cardTitle: "Arcade Play",
+    buttons: new List<IContactActionCardButton> { playButton },
+    npcNames: new List<string> { "Abigail", "Sebastian" } // Optional filter
+);
+```
+
+### 3. Contact Updates Event
+Listen to `ContactableNpcsChanged` to be notified whenever the list of contactable characters changes (e.g. when friendship levels rise or a character is met):
+```csharp
+smartphoneApi.ContactableNpcsChanged += OnContactableNpcsChanged;
+
+private void OnContactableNpcsChanged(List<string> npcs)
+{
+    // npcs lists all current contactable NPC internal names
+}
+```
+
+---
+
+## 6. Notifications API
+
+Send localized HUD alerts and phone messages to players:
+
+```csharp
+// Sends a notification message.
+// - message: content shown inside the phone notification list
+// - notificationName: title displayed on the in-game HUD alert
+// - playerId: optional Multiplayer ID string (leave blank to broadcast to all players)
+smartphoneApi.SendSmartphoneNotification(
+    message: "Abigail wants to play a game with you!",
+    notificationName: "Smartphone Alert",
+    playerId: Game1.player.UniqueMultiplayerID.ToString()
+);
+```
+
+---
+
+## 7. Photo App API
+
+You can integrate your mod with the Photo app to capture in-game screenshots programmatically or let players select photos.
+
+### Capturing a Photo Programmatically
+```csharp
+// Captures a photo in the game world and returns the path to the saved image
+string savedPhotoPath = smartphoneApi.CaptureNpcPhoto(
+    targetLocation: Game1.currentLocation,
+    captureCenter: Game1.player.getTileLocation(),
+    npc: null,
+    landscape: false,
+    square: false
+);
+```
+
+### Photo Selector Menu
+Open the photo selection screen to retrieve photo textures and metadata JSON string representations:
+```csharp
+smartphoneApi.RetrievePhotos(
+    limit: 3,
+    getTexture: true,
+    getMetadata: true,
+    onComplete: (jsonResult) =>
+    {
+        // Parse the JSON string into List<SelectedPhotoResult>
+    },
+    squareOnly: false
+);
+```
+`SelectedPhotoResult` class properties:
+- `string AbsolutePath`
+- `string FileName`
+- `string Tag`
+- `string Location`
+- `string Timestamp`
+- `byte[]? TextureData`
+
+### Accessing Photo Information Directly
+```csharp
+Texture2D photoTex = smartphoneApi.GetPlayerPhotoTexture("photo_filename.png");
+string metadataJson = smartphoneApi.GetPlayerPhotoMetadata("photo_filename.png");
+```

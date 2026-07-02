@@ -60,20 +60,9 @@ namespace Smartphone
         {
             if (ModEntry.NpcNumbers.Count == 0)
             {
-                // Populate NpcNumbers from existing villagers' modData if it's empty (e.g. on client side or early loading)
                 try
                 {
-                    Utility.ForEachVillager(npc =>
-                    {
-                        if (npc != null && npc.CanSocialize)
-                        {
-                            if (npc.modData.TryGetValue("d5a1lamdtd.Smartphone.PhoneNumber", out string number) && !string.IsNullOrWhiteSpace(number))
-                            {
-                                ModEntry.NpcNumbers[number] = npc.Name;
-                            }
-                        }
-                        return true;
-                    });
+                    PhoneMenu.UpdateNpcNumbers();
                 }
                 catch (Exception ex)
                 {
