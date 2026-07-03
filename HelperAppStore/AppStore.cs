@@ -100,7 +100,18 @@ namespace Smartphone
 
                     if (mod.IconTexture != null)
                     {
-                        b.Draw(mod.IconTexture, new Rectangle(iconX, iconY, iconSize, iconSize), Color.White);
+                        int w = mod.IconTexture.Width;
+                        int h = mod.IconTexture.Height;
+                        Rectangle sourceRect;
+                        if (w > h)
+                        {
+                            sourceRect = new Rectangle((w - h) / 2, 0, h, h);
+                        }
+                        else
+                        {
+                            sourceRect = new Rectangle(0, (h - w) / 2, w, w);
+                        }
+                        b.Draw(mod.IconTexture, new Rectangle(iconX, iconY, iconSize, iconSize), sourceRect, Color.White);
                     }
                     else
                     {
