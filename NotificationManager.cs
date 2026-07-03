@@ -1,9 +1,16 @@
+using System.Collections.Generic;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.GameData.Characters;
 
 namespace Smartphone
 {
+    public class NotificationSaveModel
+    {
+        public List<string> NotificationList { get; set; } = new();
+        public int UnreadNotification { get; set; } = 0;
+    }
+
     public static class NotificationManager
     {
         public static List<string> NotificationList = new();
@@ -17,11 +24,13 @@ namespace Smartphone
         public static void ResetUnreadNotification()
         {
             UnreadNotification = 0;
+            SaveNotificationData();
         }
 
         public static void AddUnreadNotification(int add = 1)
         {
             UnreadNotification += add;
+            SaveNotificationData();
         }
 
         public static List<string> GetNotificationList()
@@ -46,6 +55,8 @@ namespace Smartphone
             DelayedAction.playSoundAfterDelay(ModEntry.currentPhoneSound, 0);
             if (ModEntry.phoneMenu == null || PhoneMenu.currentApp != "appNotification")
                 AddUnreadNotification();
+            else
+                SaveNotificationData();
         }
 
         public static void ClearNotification()
@@ -56,13 +67,19 @@ namespace Smartphone
 
         public static void SaveNotificationData()
         {
-            ModEntry.SHelper.Data.WriteJsonFile(ModEntry.GetSaveDataPath("notificationList"), NotificationList);
+            var model = new NotificationSaveModel
+            {
+                NotificationList = NotificationList,
+                UnreadNotification = UnreadNotification
+            };
+            ModEntry.SHelper.Data.WriteJsonFile(ModEntry.GetSaveDataPath("notification_list.json"), model);
         }
 
         public static void LoadNotificationData()
         {
-            NotificationList = ModEntry.SHelper.Data.ReadJsonFile<List<string>>(ModEntry.GetSaveDataPath("notificationList"))
-                          ?? new List<string>();
+            var model = ModEntry.SHelper.Data.ReadJsonFile<NotificationSaveModel>(ModEntry.GetSaveDataPath("notification_list.json"));
+            NotificationList = model?.NotificationList ?? new List<string>();
+            UnreadNotification = model?.UnreadNotification ?? 0;
         }
     }
 }

@@ -685,6 +685,28 @@ namespace Smartphone
 
         public static async void LaunchNpcPhoneDialogue(NPC npc)
         {
+
+            npc.checkForNewCurrentDialogue(Game1.player.getFriendshipHeartLevelForNPC(npc.Name));
+
+            if (npc.currentMarriageDialogue != null && npc.currentMarriageDialogue.Count > 0)
+            {
+                if (npc.CurrentDialogue == null)
+                    npc.CurrentDialogue = new Stack<Dialogue>();
+
+                for (int i = npc.currentMarriageDialogue.Count - 1; i >= 0; i--)
+                {
+                    var dialogueRef = npc.currentMarriageDialogue[i];
+                    Dialogue actualDialogue = dialogueRef.GetDialogue(npc);
+
+                    if (actualDialogue != null)
+                    {
+                        npc.CurrentDialogue.Push(actualDialogue);
+                    }
+                }
+
+                npc.currentMarriageDialogue.Clear();
+            }
+
             var dialogueStack = npc.CurrentDialogue;
 
             if (dialogueStack != null && dialogueStack.Count > 0)
@@ -695,13 +717,22 @@ namespace Smartphone
                     {
                         Game1.drawDialogue(npc);
                     }
-                    await System.Threading.Tasks.Task.Delay(50);
+                    await System.Threading.Tasks.Task.Delay(100);
                 }
             }
             else
             {
                 Game1.activeClickableMenu = new DialogueBox(SHelper.Translation.Get("ui.message.npc_hello_thanks_calling", new { npcName = npc.displayName }));
             }
+
+            bool isFriend = Game1.player.friendshipData.TryGetValue(npc.Name, out Friendship? friendship);
+
+            if (isFriend && !friendship.TalkedToToday)
+            {
+                friendship.Points += 20;
+                friendship.TalkedToToday = true;
+            }
+
         }
     }
 }

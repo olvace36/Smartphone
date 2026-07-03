@@ -218,11 +218,11 @@ namespace Smartphone
 
             List<string> selectedFurnitureNames = SelectRandomUniqueNames(furnitureNames, MaxFurnitureTagsPerImage);
             if (selectedFurnitureNames.Count > 0)
-                tags.Add($"#furniture: {string.Join(", ", selectedFurnitureNames)}");
+                tags.Add(SHelper.Translation.Get("camera.tag.furniture", new { list = string.Join(", ", selectedFurnitureNames) }));
 
             List<string> selectedDisplayedItemNames = SelectRandomUniqueNames(displayedItemNames, MaxDisplayedItemTagsPerImage);
             if (selectedDisplayedItemNames.Count > 0)
-                tags.Add($"#displaying: {string.Join(", ", selectedDisplayedItemNames)}");
+                tags.Add(SHelper.Translation.Get("camera.tag.displaying", new { list = string.Join(", ", selectedDisplayedItemNames) }));
         }
 
         private static IEnumerable<(Vector2 Tile, Furniture Furniture)> GetLocationFurniture(GameLocation location)
@@ -457,10 +457,11 @@ namespace Smartphone
 
                 string description = area.description?.Trim() ?? string.Empty;
                 string areaTag = string.IsNullOrWhiteSpace(description)
-                    ? $"#area: {areaName}"
-                    : $"#area: {areaName}, has {description}";
+                    ? SHelper.Translation.Get("camera.tag.area", new { name = areaName })
+                    : SHelper.Translation.Get("camera.tag.area_description", new { name = areaName, description = description });
 
-                if (!tags.Contains($"#front of {areaName}"))
+                string frontOfTag = SHelper.Translation.Get("camera.tag.front_of", new { name = areaName });
+                if (!tags.Contains(frontOfTag))
                     tags.Add(areaTag);
                 return;
             }
@@ -563,7 +564,7 @@ namespace Smartphone
                 && IsPlayerInCurrentLocation()
                 && IsCharacterInsideCapture(Game1.player, captureBounds))
             {
-                tags.Add($"#Player {Game1.player?.displayName}".Trim());
+                tags.Add(SHelper.Translation.Get("camera.tag.player", new { name = Game1.player?.displayName }).ToString().Trim());
                 // AddPlayerClothingTags(tags);
             }
 
@@ -580,9 +581,10 @@ namespace Smartphone
                     if (npc is Pet || npc is Horse)
                         continue;
 
-                    if (IsCharacterInsideCapture(npc, captureBounds) && !tags.Contains($"#{npc.displayName}"))
+                    string npcTag = SHelper.Translation.Get("camera.tag.npc", new { name = npc.displayName });
+                    if (IsCharacterInsideCapture(npc, captureBounds) && !tags.Contains(npcTag))
                     {
-                        tags.Add($"#{npc.displayName}");
+                        tags.Add(npcTag);
                         addedNpcCount++;
                     }
 
@@ -615,17 +617,18 @@ namespace Smartphone
             Game1.player.boots?.Value?.Name.Trim();
             Game1.player.hat?.Value?.Name.Trim();
 
-            string outfitTag = $"player outfit: ";
+            string baseOutfit = SHelper.Translation.Get("camera.tag.outfit");
+            string outfitTag = baseOutfit;
             if (Game1.player.shirtItem?.Value != null && !string.IsNullOrWhiteSpace(Game1.player.shirtItem.Value.Name))
-                outfitTag += $"shirt {Game1.player.shirtItem.Value.Name.Trim()} ";
+                outfitTag += SHelper.Translation.Get("camera.tag.outfit.shirt", new { name = Game1.player.shirtItem.Value.Name.Trim() });
             if (Game1.player.pantsItem?.Value != null && !string.IsNullOrWhiteSpace(Game1.player.pantsItem.Value.Name))
-                outfitTag += $"pants {Game1.player.pantsItem.Value.Name.Trim()} ";
+                outfitTag += SHelper.Translation.Get("camera.tag.outfit.pants", new { name = Game1.player.pantsItem.Value.Name.Trim() });
             if (Game1.player.boots?.Value != null && !string.IsNullOrWhiteSpace(Game1.player.boots.Value.Name))
-                outfitTag += $"boots {Game1.player.boots.Value.Name.Trim()} ";
+                outfitTag += SHelper.Translation.Get("camera.tag.outfit.boots", new { name = Game1.player.boots.Value.Name.Trim() });
             if (Game1.player.hat?.Value != null && !string.IsNullOrWhiteSpace(Game1.player.hat.Value.Name))
-                outfitTag += $"hat {Game1.player.hat.Value.Name.Trim()} ";
+                outfitTag += SHelper.Translation.Get("camera.tag.outfit.hat", new { name = Game1.player.hat.Value.Name.Trim() });
 
-            if (outfitTag != "player outfit: ")
+            if (outfitTag != baseOutfit)
                 tags.Add(outfitTag);
 
         }
@@ -691,14 +694,13 @@ namespace Smartphone
                 if (cropTagCount >= MaxCropTagsPerImage)
                     break;
 
-                string growthState = cropGroup.Value.GetGrowthState();
+                string stateKey = cropGroup.Value.GetGrowthState();
+                string growthState = SHelper.Translation.Get($"camera.tag.crop.{stateKey}");
                 bool isField = cropGroup.Value.Count >= 18;
 
                 string cropTag = isField
-                    ? $"{cropGroup.Key} field {growthState}".Trim()
-                    : $"{cropGroup.Key} {growthState}".Trim();
-
-                cropTag = "#" + string.Join(" ", cropTag.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+                    ? SHelper.Translation.Get("camera.tag.crop_field", new { name = cropGroup.Key, state = growthState })
+                    : SHelper.Translation.Get("camera.tag.crop", new { name = cropGroup.Key, state = growthState });
 
                 if (tags.Add(cropTag))
                     cropTagCount++;
@@ -712,12 +714,12 @@ namespace Smartphone
                 if (fruitTreeTagCount >= MaxFruitTreeTagsPerImage)
                     break;
 
-                string baseTag = fruitTreeGroup.Value.GetRegularTag(fruitTreeGroup.Key);
+                string baseTag = fruitTreeGroup.Value.GetRegularTag(fruitTreeGroup.Key, SHelper.Translation);
                 bool isOrchard = fruitTreeGroup.Value.Count >= 6;
 
                 string fruitTreeTag = isOrchard
-                    ? $"#Orchard {baseTag}"
-                    : "#" + baseTag;
+                    ? SHelper.Translation.Get("camera.tag.orchard", new { name = baseTag })
+                    : SHelper.Translation.Get("camera.tag.fruit_tree", new { name = baseTag });
 
                 if (tags.Add(fruitTreeTag))
                     fruitTreeTagCount++;
@@ -773,7 +775,7 @@ namespace Smartphone
                 .ToList();
 
             if (forageNames.Count > 0)
-                tags.Add($"#forageable: {string.Join(", ", forageNames)}");
+                tags.Add(SHelper.Translation.Get("camera.tag.forageable", new { list = string.Join(", ", forageNames) }));
         }
 
         private static bool IsForageObject(StardewValley.Object locationObject, GameLocation currentLocation)
@@ -906,16 +908,17 @@ namespace Smartphone
                     WithoutFruitCount++;
             }
 
-            public string GetRegularTag(string fruitTreeName)
+            public string GetRegularTag(string fruitTreeName, ITranslationHelper translation)
             {
                 if (WithFruitCount == 0)
                     return fruitTreeName;
 
+                string withFruit = translation.Get("camera.tag.fruit_tree.with_fruit");
                 if (WithoutFruitCount == 0)
-                    return $"{fruitTreeName} with fruit";
+                    return $"{fruitTreeName} {withFruit}".Trim();
 
                 return WithFruitCount >= WithoutFruitCount
-                    ? $"{fruitTreeName} with fruit"
+                    ? $"{fruitTreeName} {withFruit}".Trim()
                     : fruitTreeName;
             }
         }
@@ -962,10 +965,10 @@ namespace Smartphone
                 AddCharacterNameIfPresent(dinoNames, animal);
             }
 
-            AddPetTypeTag(tags, "#cat", catNames);
-            AddPetTypeTag(tags, "#dog", dogNames);
-            AddPetTypeTag(tags, "#horse", horseNames);
-            AddPetTypeTag(tags, "#dino", dinoNames);
+            AddPetTypeTag(tags, "cat", catNames);
+            AddPetTypeTag(tags, "dog", dogNames);
+            AddPetTypeTag(tags, "horse", horseNames);
+            AddPetTypeTag(tags, "dino", dinoNames);
         }
 
         private static void AddCharacterNameIfPresent(HashSet<string> names, Character character)
@@ -975,7 +978,7 @@ namespace Smartphone
                 names.Add(displayName);
         }
 
-        private static void AddPetTypeTag(HashSet<string> tags, string tagPrefix, HashSet<string> names)
+        private static void AddPetTypeTag(HashSet<string> tags, string petType, HashSet<string> names)
         {
             List<string> selectedNames = names
                 .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
@@ -983,7 +986,7 @@ namespace Smartphone
                 .ToList();
 
             if (selectedNames.Count > 0)
-                tags.Add($"{tagPrefix}: {string.Join(", ", selectedNames)}");
+                tags.Add(SHelper.Translation.Get($"camera.tag.pet.{petType}", new { list = string.Join(", ", selectedNames) }));
         }
 
         private static bool IsDinosaurAnimal(FarmAnimal animal)
@@ -1040,8 +1043,8 @@ namespace Smartphone
 
                 bool isBaby = TryInvokeBooleanMember(animal, "isBaby");
                 string animalTag = isBaby
-                    ? $"#baby {animalType}"
-                    : $"#{animalType}";
+                    ? SHelper.Translation.Get("camera.tag.animal.baby", new { type = animalType })
+                    : SHelper.Translation.Get("camera.tag.animal", new { type = animalType });
 
                 if (tags.Add(animalTag))
                     animalTagCount++;
@@ -1222,7 +1225,7 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(heldItemName))
                 return;
 
-            tags.Add($"#holding {heldItemName}");
+            tags.Add(SHelper.Translation.Get("camera.tag.holding", new { name = heldItemName }));
         }
 
         private static void AddBuildingFrontTags(HashSet<string> tags, Rectangle captureBounds)
@@ -1243,14 +1246,14 @@ namespace Smartphone
                     if (string.IsNullOrWhiteSpace(buildingName))
                         continue;
 
-                    tags.Add($"#front of {buildingName}");
+                    tags.Add(SHelper.Translation.Get("camera.tag.front_of", new { name = buildingName }));
                 }
             }
         }
 
         private static void AddWeatherTags(HashSet<string> tags)
         {
-            tags.Add($"#weather {(Game1.currentLocation.GetWeather().Weather.ToString() == "Festival" ? "Sunny" : Game1.currentLocation.GetWeather().Weather.ToString())}");
+            tags.Add(SHelper.Translation.Get("camera.tag.weather", new { weather = (Game1.currentLocation.GetWeather().Weather.ToString() == "Festival" ? "Sunny" : Game1.currentLocation.GetWeather().Weather.ToString()) }));
         }
 
         private static bool AddCurrentEventTags(HashSet<string> tags)
@@ -1261,7 +1264,7 @@ namespace Smartphone
 
             if (Game1.CurrentEvent.isFestival && !string.IsNullOrWhiteSpace(Game1.CurrentEvent.FestivalName))
             {
-                tags.Add($"#{Game1.CurrentEvent.FestivalName.Trim()}");
+                tags.Add(SHelper.Translation.Get("camera.tag.festival", new { name = Game1.CurrentEvent.FestivalName.Trim() }));
                 isAtEvent = true;
             }
 
@@ -1275,9 +1278,9 @@ namespace Smartphone
             {
                 List<string> actorNames = GetCurrentEventActorNames(Game1.CurrentEvent);
                 if (actorNames.Count == 1)
-                    tags.Add($"#event with {actorNames[0]}");
+                    tags.Add(SHelper.Translation.Get("camera.tag.event", new { name = actorNames[0] }));
                 else if (actorNames.Count > 1)
-                    tags.Add($"#event with {string.Join(", ", actorNames.Take(2))}");
+                    tags.Add(SHelper.Translation.Get("camera.tag.event.multiple", new { list = string.Join(", ", actorNames.Take(2)) }));
                 isAtEvent = true;
             }
             return isAtEvent;
@@ -1316,7 +1319,7 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(normalizedEventType) || string.IsNullOrWhiteSpace(normalizedNpcName))
                 return;
 
-            LastTriggeredUnlimitedEventTag = $"{normalizedEventType} with {normalizedNpcName}";
+            LastTriggeredUnlimitedEventTag = SHelper.Translation.Get("camera.tag.unlimited_event", new { eventType = normalizedEventType, npcName = normalizedNpcName });
             LastTriggeredUnlimitedEventYear = Game1.year;
             LastTriggeredUnlimitedEventSeason = Game1.currentSeason ?? string.Empty;
             LastTriggeredUnlimitedEventDay = Game1.dayOfMonth;
@@ -1650,23 +1653,23 @@ namespace Smartphone
 
             if (npc != null && location?.Name == npc.DefaultMap)
             {
-                tags.Add($"#at {npc.displayName}'s home");
+                tags.Add(SHelper.Translation.Get("camera.tag.location.npc_home", new { name = npc.displayName }));
                 return;
             }
 
             if (location == Game1.getFarm())
             {
-                tags.Add("#at the farm");
+                tags.Add(SHelper.Translation.Get("camera.tag.location.farm"));
                 return;
             }
 
             if (location is FarmHouse)
             {
-                tags.Add("#at home");
+                tags.Add(SHelper.Translation.Get("camera.tag.location.home"));
                 return;
             }
 
-            tags.Add($"#visiting {location?.DisplayName}");
+            tags.Add(SHelper.Translation.Get("camera.tag.location.visiting", new { location = location?.DisplayName }));
         }
     }
 }

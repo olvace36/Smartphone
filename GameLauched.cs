@@ -280,7 +280,6 @@ namespace Smartphone
                             try
                             {
                                 SMonitor.Log($"Smartphone: Newer version available", LogLevel.Warn);
-                                Game1.drawLetterMessage(ModEntry.SHelper.Translation.Get("mail.update_warning"));
 
                                 NotificationManager.AddNotification(ModEntry.SHelper.Translation.Get("notification.update_warning"));
                             }

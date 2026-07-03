@@ -1,4 +1,4 @@
 Each child folder is a "theme", for example `phone/default` and `phone/v2` are 2 different design that user can choose
 To create a new design, simply create a new folder, for examle `phone/my_custom_theme`
-Copy the png from a folder to your new folder and make change on it. The only requirement is the naming format must be exactly like original file.
+Copy the png from a folder to your new folder and make change on it. The only requirement is the naming if the file must be exactly like the original file.
 `_base` folder contain some template assets that might help when you want to create totally new design.

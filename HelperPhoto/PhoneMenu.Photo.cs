@@ -673,7 +673,7 @@ namespace Smartphone
             int btnH = ScaleUiValue(PhotoNavBtnHeightBase);
             int btnY = navBar.Center.Y - btnH / 2;
             int textPad = ScaleUiValue(PhotoNavBarTextOffsetBase);
-            float textScale = GetPhoneTextScale(1f);
+            float textScale = GetPhoneTextScale(1f) * phoneUiScale;
 
             string title;
             if (photoFilterType == "all")
@@ -852,8 +852,8 @@ namespace Smartphone
             int tileW = (viewport.Width - tileGap * (PhotoAlbumTileCols + 1)) / PhotoAlbumTileCols;
             int tileImgH = tileW;                                        // square thumbnail
             int tileH = tileImgH + ScaleUiValue(PhotoAlbumTileTextHeight);
-            float titleScale = GetPhoneTextScale(0.9f);
-            float labelScale = GetPhoneTextScale(0.7f);
+            float titleScale = GetPhoneTextScale(0.9f) * phoneUiScale;
+            float labelScale = GetPhoneTextScale(0.7f) * phoneUiScale;
 
             photoAlbumTileBounds.Clear();
             photoAlbumTileKeys.Clear();
@@ -1035,7 +1035,7 @@ namespace Smartphone
                         displayName = ModEntry.SHelper.Translation.Get("ui.photo.favourites");
                     string label = ModEntry.SHelper.Translation.Get("ui.photo.album_count_format", new { name = displayName, count = photoCount });
 
-                    float nameScale = GetPhoneTextScale(0.75f);
+                    float nameScale = GetPhoneTextScale(0.75f) * phoneUiScale;
                     int textPad = ScaleUiValue(PhotoAlbumTileNamePadBase);
                     int maxLabelW = labelRect.Width - textPad * 2;
                     Vector2 labelPos = new Vector2(labelRect.X + textPad, labelRect.Y + textPad);
@@ -1122,7 +1122,7 @@ namespace Smartphone
                 photoDropdownItemBounds.Add(r);
                 if (i > 0)
                     b.Draw(Game1.staminaRect, new Rectangle(dropX, r.Y, dropW, 1), new Color(80, 80, 80));
-                float scale = GetPhoneTextScale(0.8f);
+                float scale = GetPhoneTextScale(0.8f) * phoneUiScale;
                 string displayLabel = items[i] switch
                 {
                     "Delete" => ModEntry.SHelper.Translation.Get("ui.photo.delete"),
@@ -1150,9 +1150,9 @@ namespace Smartphone
             int pad = ScaleUiValue(PhotoModalPadBase);
             int btnH = ScaleUiValue(PhotoModalBtnHeightBase);
             int btnGap = ScaleUiValue(PhotoModalBtnGapBase);
-            float titleScale = GetPhoneTextScale(0.75f);
-            float bodyScale = GetPhoneTextScale(0.72f);
-            float btnScale = GetPhoneTextScale(0.7f);
+            float titleScale = GetPhoneTextScale(0.75f) * phoneUiScale;
+            float bodyScale = GetPhoneTextScale(0.72f) * phoneUiScale;
+            float btnScale = GetPhoneTextScale(0.7f) * phoneUiScale;
 
             string title = photoSelectedIndices.Count > 1
                 ? ModEntry.SHelper.Translation.Get("ui.photo.delete_multiple_confirm", new { count = photoSelectedIndices.Count })
@@ -1200,8 +1200,8 @@ namespace Smartphone
             int mW = ScaleUiValue(PhotoModalWidthBase);
             int pad = ScaleUiValue(PhotoModalPadBase);
             int btnH = ScaleUiValue(PhotoModalBtnHeightBase);
-            float titleScale = GetPhoneTextScale(0.85f);
-            float bodyScale = GetPhoneTextScale(0.72f);
+            float titleScale = GetPhoneTextScale(0.85f) * phoneUiScale;
+            float bodyScale = GetPhoneTextScale(0.72f) * phoneUiScale;
 
             string title = ModEntry.SHelper.Translation.Get("ui.photo.delete_album_confirm");
             string body = ModEntry.SHelper.Translation.Get("ui.photo.delete_album_warning", new { albumName = photoAlbumToDelete });
@@ -1250,8 +1250,8 @@ namespace Smartphone
             int mW = ScaleUiValue(PhotoModalWidthBase);
             int pad = ScaleUiValue(PhotoModalPadBase);
             int itemH = ScaleUiValue(PhotoDropdownItemHBase);
-            float scale = GetPhoneTextScale(0.7f);
-            float titleScale = GetPhoneTextScale(0.85f);
+            float scale = GetPhoneTextScale(0.7f) * phoneUiScale;
+            float titleScale = GetPhoneTextScale(0.85f) * phoneUiScale;
 
             photoAlbumPickerBounds.Clear();
             photoAlbumPickerKeys.Clear();
@@ -1306,9 +1306,9 @@ namespace Smartphone
             int pad = ScaleUiValue(PhotoModalPadBase);
             int btnH = ScaleUiValue(PhotoModalBtnHeightBase);
             int inputH = ScaleUiValue(50);
-            float titleScale = GetPhoneTextScale(0.85f);
-            float btnScale = GetPhoneTextScale(0.72f);
-            float inputScale = GetPhoneTextScale(0.72f);
+            float titleScale = GetPhoneTextScale(0.85f) * phoneUiScale;
+            float btnScale = GetPhoneTextScale(0.72f) * phoneUiScale;
+            float inputScale = GetPhoneTextScale(0.72f) * phoneUiScale;
 
             string titleText = ModEntry.SHelper.Translation.Get("ui.photo.new_album_title");
             Vector2 titleSz = Game1.smallFont.MeasureString(titleText) * titleScale;
@@ -1368,7 +1368,7 @@ namespace Smartphone
                 int barH = ScaleUiValue(PhotoSelectBarHeightBase);
                 Rectangle bar = new(content.X, content.Bottom - barH, content.Width, barH);
                 b.Draw(Game1.staminaRect, bar, new Color(0, 0, 0, 210));
-                float scale = GetPhoneTextScale(0.7f);
+                float scale = GetPhoneTextScale(0.7f) * phoneUiScale;
                 string label = ModEntry.SHelper.Translation.Get("ui.photo.selected_limit_format", new { count = photoSelectedIndices.Count, limit = photoSelectionApiLimit });
                 Vector2 sz = Game1.smallFont.MeasureString(label) * scale;
                 b.DrawString(Game1.smallFont, label,
@@ -1381,7 +1381,7 @@ namespace Smartphone
             int barHNormal = ScaleUiValue(PhotoSelectBarHeightBase);
             Rectangle barNormal = new(content.X, content.Bottom - barHNormal, content.Width, barHNormal);
             b.Draw(Game1.staminaRect, barNormal, new Color(0, 0, 0, 210));
-            float scaleNormal = GetPhoneTextScale(0.7f);
+            float scaleNormal = GetPhoneTextScale(0.7f) * phoneUiScale;
             string labelNormal = ModEntry.SHelper.Translation.Get("ui.photo.selected_count", new { count = photoSelectedIndices.Count });
             Vector2 szNormal = Game1.smallFont.MeasureString(labelNormal) * scaleNormal;
             b.DrawString(Game1.smallFont, labelNormal,
@@ -1477,7 +1477,7 @@ namespace Smartphone
 
                 string hoverText = string.IsNullOrEmpty(ts) ? loc : $"{loc}\n{ts}";
 
-                float tipScale = GetPhoneTextScale(0.7f);
+                float tipScale = GetPhoneTextScale(0.7f) * phoneUiScale;
                 Vector2 tipSize = Game1.smallFont.MeasureString(hoverText) * tipScale;
                 int tipPad = ScaleUiValue(12);
 
@@ -2645,7 +2645,7 @@ namespace Smartphone
             );
 
             // Text drawing and centering logic remains the same
-            float scale = GetPhoneTextScale(1f);
+            float scale = GetPhoneTextScale(0.75f) * phoneUiScale;
             Vector2 sz = Game1.smallFont.MeasureString(label) * scale;
 
             b.DrawString(
@@ -2663,7 +2663,7 @@ namespace Smartphone
 
         private void DrawPhoneIconButton(SpriteBatch b, Rectangle bounds, string icon, Color color)
         {
-            float scale = GetPhoneTextScale(0.7f);
+            float scale = GetPhoneTextScale(0.7f) * phoneUiScale;
             Vector2 sz = Game1.smallFont.MeasureString(icon) * scale;
             b.DrawString(Game1.smallFont, icon,
                 new Vector2(bounds.Center.X - sz.X / 2f, bounds.Center.Y - sz.Y / 2f),
