@@ -180,6 +180,7 @@
   "ui.photo.new_album_title": "New Album Name",
   "ui.photo.selected_count": "{{count}} selected",
   "ui.photo.selected_limit_format": "{{count}}/{{limit}} selected",
+  "ui.photo.square_only": "Square photo only.",
   "ui.photo.album_count_format": "{{name}} ({{count}})",
   "ui.photo.unknown_location": "Unknown Location",
   "ui.photo.no_photo_yet": "No photo yet",

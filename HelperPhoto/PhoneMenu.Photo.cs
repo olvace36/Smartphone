@@ -1431,6 +1431,10 @@ namespace Smartphone
                 b.Draw(Game1.staminaRect, bar, new Color(0, 0, 0, 210));
                 float scale = GetPhoneTextScale(0.7f) * phoneUiScale;
                 string label = ModEntry.SHelper.Translation.Get("ui.photo.selected_limit_format", new { count = photoSelectedIndices.Count, limit = photoSelectionApiLimit });
+                if (photoSelectionApiSquareOnly)
+                {
+                    label = ModEntry.SHelper.Translation.Get("ui.photo.square_only") + " " + label;
+                }
                 Vector2 sz = Game1.smallFont.MeasureString(label) * scale;
                 b.DrawString(Game1.smallFont, label,
                     new Vector2(bar.Center.X - sz.X / 2f, bar.Center.Y - sz.Y / 2f),
