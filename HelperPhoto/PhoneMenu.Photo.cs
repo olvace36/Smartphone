@@ -233,6 +233,10 @@ namespace Smartphone
             {
                 EditableTextFieldKind.PhotoAlbumName => currentApp == "appPhoto" && photoAlbumCreationOpen,
                 EditableTextFieldKind.FolderGroupName => currentApp == null && layoutManager != null && layoutManager.IsEditingFolderName,
+                EditableTextFieldKind.PhoneAppInput => currentApp == "appPhone" && !phoneAppViewingContactDetail &&
+                    ((phoneAppCurrentTab == 0 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact && !phoneAppIsConfirmingDelete) ||
+                     (phoneAppIsAddingContact || phoneAppIsEditingExistingContact) ||
+                     (phoneAppCurrentTab == 2 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact)),
                 _ => false
             };
         }
@@ -279,6 +283,63 @@ namespace Smartphone
                         }
                     }
                     return true;
+
+                case EditableTextFieldKind.PhoneAppInput:
+                    if (currentApp == "appPhone" && !phoneAppViewingContactDetail)
+                    {
+                        bool isSearching = phoneAppCurrentTab == 0 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact && !phoneAppIsConfirmingDelete;
+                        bool isEditing = phoneAppIsAddingContact || phoneAppIsEditingExistingContact;
+                        bool isDialing = phoneAppCurrentTab == 2 && !phoneAppIsAddingContact && !phoneAppIsEditingExistingContact;
+
+                        if (isSearching)
+                        {
+                            if (phoneAppSearchQuery.Length < 20)
+                            {
+                                int available = 20 - phoneAppSearchQuery.Length;
+                                string toAdd = insertionText;
+                                if (toAdd.Length > available) toAdd = toAdd.Substring(0, available);
+                                phoneAppSearchQuery += toAdd;
+                                return true;
+                            }
+                        }
+                        else if (isEditing)
+                        {
+                            if (phoneAppActiveField == 0)
+                            {
+                                if (phoneAppNewContactName.Length < 15)
+                                {
+                                    int available = 15 - phoneAppNewContactName.Length;
+                                    string toAdd = insertionText;
+                                    if (toAdd.Length > available) toAdd = toAdd.Substring(0, available);
+                                    phoneAppNewContactName += toAdd;
+                                    return true;
+                                }
+                            }
+                            else if (phoneAppActiveField == 1)
+                            {
+                                if (phoneAppKeypadBuffer.Length < 15)
+                                {
+                                    int available = 15 - phoneAppKeypadBuffer.Length;
+                                    string toAdd = insertionText;
+                                    if (toAdd.Length > available) toAdd = toAdd.Substring(0, available);
+                                    phoneAppKeypadBuffer += toAdd;
+                                    return true;
+                                }
+                            }
+                        }
+                        else if (isDialing)
+                        {
+                            if (phoneAppKeypadBuffer.Length < 15)
+                            {
+                                int available = 15 - phoneAppKeypadBuffer.Length;
+                                string toAdd = insertionText;
+                                if (toAdd.Length > available) toAdd = toAdd.Substring(0, available);
+                                phoneAppKeypadBuffer += toAdd;
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
 
                 default:
                     return false;
