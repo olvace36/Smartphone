@@ -43,64 +43,52 @@ namespace Smartphone
             int contentY = clipY + ScaleUiValue(23) - phoneAppContactDetailScroll;
 
             NPC targetNpc = null;
-            string npcName = null;
-            if (phoneAppSelectedContactDetail.IsNpc && ModEntry.NpcNumbers.TryGetValue(phoneAppSelectedContactDetail.Number, out npcName))
+            if (phoneAppSelectedContactDetail != null)
             {
-                targetNpc = Game1.getCharacterFromName(npcName);
+                targetNpc = Game1.getCharacterFromName(phoneAppSelectedContactDetail.Name);
             }
 
-            if (targetNpc != null)
+            if (targetNpc == null)
             {
-                int portraitSize = ScaleUiValue(128);
-                int portraitX = bounds.X + (bounds.Width - portraitSize) / 2;
-
-                Textures.DrawCard(b, portraitX - ScaleUiValue(4), contentY - ScaleUiValue(4), portraitSize + ScaleUiValue(8), portraitSize + ScaleUiValue(8), Color.White);
-
-                if (targetNpc.Portrait != null)
-                {
-                    b.Draw(targetNpc.Portrait, new Rectangle(portraitX, contentY, portraitSize, portraitSize), new Rectangle(0, 0, 64, 64), Color.White);
-                }
-
-                contentY += portraitSize + ScaleUiValue(20);
-
-                float nameScale = 1.1f * uiScale;
-                Vector2 nameSz = Game1.dialogueFont.MeasureString(targetNpc.displayName) * nameScale;
-                b.DrawString(Game1.dialogueFont, targetNpc.displayName, new Vector2(bounds.X + (bounds.Width - nameSz.X) / 2, contentY), Color.Black, 0f, Vector2.Zero, nameScale, SpriteEffects.None, 1f);
-
-                contentY += (int)nameSz.Y + ScaleUiValue(25);
-
-                float detailScale = 0.85f * uiScale;
-                string mapName = string.IsNullOrEmpty(targetNpc.DefaultMap) ? ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.unknown") : targetNpc.DefaultMap;
-                string address = ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.address", new { address = mapName });
-                b.DrawString(Game1.smallFont, address, new Vector2(bounds.X + ScaleUiValue(30), contentY), Color.DarkSlateGray, 0f, Vector2.Zero, detailScale, SpriteEffects.None, 1f);
-                contentY += ScaleUiValue(30);
-
-                string ageStr = targetNpc.Age == 0 ? ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.age.adult") : (targetNpc.Age == 1 ? ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.age.teen") : ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.age.child"));
-                string age = ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.age", new { age = ageStr });
-                b.DrawString(Game1.smallFont, age, new Vector2(bounds.X + ScaleUiValue(30), contentY), Color.DarkSlateGray, 0f, Vector2.Zero, detailScale, SpriteEffects.None, 1f);
-                contentY += ScaleUiValue(30);
-
-                string seasonName = string.IsNullOrEmpty(targetNpc.Birthday_Season) ? "" : Utility.capitalizeFirstLetter(targetNpc.Birthday_Season);
-                string bdayVal = string.IsNullOrEmpty(seasonName) ? ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.unknown") : $"{seasonName} {targetNpc.Birthday_Day}";
-                string birthday = ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.birthday", new { birthday = bdayVal });
-                b.DrawString(Game1.smallFont, birthday, new Vector2(bounds.X + ScaleUiValue(30), contentY), Color.DarkSlateGray, 0f, Vector2.Zero, detailScale, SpriteEffects.None, 1f);
-
-                contentY += ScaleUiValue(55);
+                phoneAppViewingContactDetail = false;
+                return;
             }
-            else
+
+            int portraitSize = ScaleUiValue(128);
+            int portraitX = bounds.X + (bounds.Width - portraitSize) / 2;
+
+            Textures.DrawCard(b, portraitX - ScaleUiValue(4), contentY - ScaleUiValue(4), portraitSize + ScaleUiValue(8), portraitSize + ScaleUiValue(8), Color.White);
+
+            if (targetNpc.Portrait != null)
             {
-                float nameScale = 1.1f * uiScale;
-                Vector2 nameSz = Game1.dialogueFont.MeasureString(phoneAppSelectedContactDetail.Name) * nameScale;
-                b.DrawString(Game1.dialogueFont, phoneAppSelectedContactDetail.Name, new Vector2(bounds.X + (bounds.Width - nameSz.X) / 2, contentY + ScaleUiValue(30)), Color.Black, 0f, Vector2.Zero, nameScale, SpriteEffects.None, 1f);
-
-                contentY += (int)nameSz.Y + ScaleUiValue(60);
-
-                float numScale = 0.9f * uiScale;
-                Vector2 numSz = Game1.smallFont.MeasureString(phoneAppSelectedContactDetail.Number) * numScale;
-                b.DrawString(Game1.smallFont, phoneAppSelectedContactDetail.Number, new Vector2(bounds.X + (bounds.Width - numSz.X) / 2, contentY), Color.DarkGray, 0f, Vector2.Zero, numScale, SpriteEffects.None, 1f);
-
-                contentY += ScaleUiValue(110);
+                b.Draw(targetNpc.Portrait, new Rectangle(portraitX, contentY, portraitSize, portraitSize), new Rectangle(0, 0, 64, 64), Color.White);
             }
+
+            contentY += portraitSize + ScaleUiValue(20);
+
+            float nameScale = 1.1f * uiScale;
+            Vector2 nameSz = Game1.dialogueFont.MeasureString(targetNpc.displayName) * nameScale;
+            b.DrawString(Game1.dialogueFont, targetNpc.displayName, new Vector2(bounds.X + (bounds.Width - nameSz.X) / 2, contentY), Color.Black, 0f, Vector2.Zero, nameScale, SpriteEffects.None, 1f);
+
+            contentY += (int)nameSz.Y + ScaleUiValue(25);
+
+            float detailScale = 0.85f * uiScale;
+            string mapName = string.IsNullOrEmpty(targetNpc.DefaultMap) ? ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.unknown") : targetNpc.DefaultMap;
+            string address = ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.address", new { address = mapName });
+            b.DrawString(Game1.smallFont, address, new Vector2(bounds.X + ScaleUiValue(30), contentY), Color.DarkSlateGray, 0f, Vector2.Zero, detailScale, SpriteEffects.None, 1f);
+            contentY += ScaleUiValue(30);
+
+            string ageStr = targetNpc.Age == 0 ? ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.age.adult") : (targetNpc.Age == 1 ? ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.age.teen") : ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.age.child"));
+            string age = ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.age", new { age = ageStr });
+            b.DrawString(Game1.smallFont, age, new Vector2(bounds.X + ScaleUiValue(30), contentY), Color.DarkSlateGray, 0f, Vector2.Zero, detailScale, SpriteEffects.None, 1f);
+            contentY += ScaleUiValue(30);
+
+            string seasonName = string.IsNullOrEmpty(targetNpc.Birthday_Season) ? "" : Utility.capitalizeFirstLetter(targetNpc.Birthday_Season);
+            string bdayVal = string.IsNullOrEmpty(seasonName) ? ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.unknown") : $"{seasonName} {targetNpc.Birthday_Day}";
+            string birthday = ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.birthday", new { birthday = bdayVal });
+            b.DrawString(Game1.smallFont, birthday, new Vector2(bounds.X + ScaleUiValue(30), contentY), Color.DarkSlateGray, 0f, Vector2.Zero, detailScale, SpriteEffects.None, 1f);
+
+            contentY += ScaleUiValue(55);
 
             int btnSize = ScaleUiValue(75);
             Rectangle navBar = new Rectangle(bounds.X + ScaleUiValue(10), contentY, bounds.Width - ScaleUiValue(20), btnSize);
@@ -127,7 +115,7 @@ namespace Smartphone
             }
             b.DrawString(Game1.smallFont, callLabel, new Vector2(callBtn.X + (callBtn.Width - callSz.X) / 2, callBtn.Y + (callBtn.Height - callSz.Y) / 2), Color.White, 0f, Vector2.Zero, callBtnTxtScale, SpriteEffects.None, 1f);
 
-            bool isFav = phoneAppFavoriteNumbers.Contains(phoneAppSelectedContactDetail.Number);
+            bool isFav = phoneAppFavoriteNumbers.Contains(phoneAppSelectedContactDetail.Name);
             Color favBtnColor = isFav ? Color.LightCoral : Color.LightSkyBlue;
             string favTxt = isFav ? ModEntry.SHelper.Translation.Get("ui.phone.unpin") : ModEntry.SHelper.Translation.Get("ui.phone.pin");
 
@@ -147,7 +135,7 @@ namespace Smartphone
             {
                 if (card.AvailableNpcNames != null && card.AvailableNpcNames.Count > 0)
                 {
-                    if (npcName == null || !card.AvailableNpcNames.Exists(name => name.Equals(npcName, StringComparison.OrdinalIgnoreCase)))
+                    if (!card.AvailableNpcNames.Exists(name => name.Equals(targetNpc.Name, StringComparison.OrdinalIgnoreCase)))
                     {
                         continue;
                     }
@@ -211,25 +199,21 @@ namespace Smartphone
 
             int contentY = clipY + ScaleUiValue(23) - phoneAppContactDetailScroll;
             NPC targetNpc = null;
-            string npcName = null;
-            if (phoneAppSelectedContactDetail.IsNpc && ModEntry.NpcNumbers.TryGetValue(phoneAppSelectedContactDetail.Number, out npcName))
+            if (phoneAppSelectedContactDetail != null)
             {
-                targetNpc = Game1.getCharacterFromName(npcName);
+                targetNpc = Game1.getCharacterFromName(phoneAppSelectedContactDetail.Name);
+            }
+
+            if (targetNpc == null)
+            {
+                phoneAppViewingContactDetail = false;
+                return;
             }
 
             // Sync Hitboxes with Y offsets matching the drawing loop logic
-            if (targetNpc != null)
-            {
-                contentY += ScaleUiValue(128) + ScaleUiValue(20);
-                contentY += (int)(Game1.dialogueFont.MeasureString(targetNpc.displayName).Y * 1.1f * ModEntry.GetActivePhoneUiScale()) + ScaleUiValue(25);
-                contentY += ScaleUiValue(30) * 2 + ScaleUiValue(55);
-            }
-            else
-            {
-                contentY += ScaleUiValue(30);
-                contentY += (int)(Game1.dialogueFont.MeasureString(phoneAppSelectedContactDetail.Name).Y * 1.1f * ModEntry.GetActivePhoneUiScale()) + ScaleUiValue(60);
-                contentY += ScaleUiValue(110);
-            }
+            contentY += ScaleUiValue(128) + ScaleUiValue(20);
+            contentY += (int)(Game1.dialogueFont.MeasureString(targetNpc.displayName).Y * 1.1f * ModEntry.GetActivePhoneUiScale()) + ScaleUiValue(25);
+            contentY += ScaleUiValue(30) * 2 + ScaleUiValue(55);
 
             int btnSize = ScaleUiValue(75);
             Rectangle navBar = new Rectangle(bounds.X + ScaleUiValue(10), contentY, bounds.Width - ScaleUiValue(20), btnSize);
@@ -239,20 +223,20 @@ namespace Smartphone
             if (callBtn.Contains(x, y))
             {
                 Game1.playSound("bigSelect");
-                ExecuteCallAction(phoneAppSelectedContactDetail.Name, phoneAppSelectedContactDetail.Number, phoneAppSelectedContactDetail.IsNpc);
+                ExecuteCallAction(phoneAppSelectedContactDetail.Name);
                 return;
             }
 
             if (favBtn.Contains(x, y))
             {
                 Game1.playSound("coin");
-                if (phoneAppFavoriteNumbers.Contains(phoneAppSelectedContactDetail.Number))
+                if (phoneAppFavoriteNumbers.Contains(phoneAppSelectedContactDetail.Name))
                 {
-                    phoneAppFavoriteNumbers.Remove(phoneAppSelectedContactDetail.Number);
+                    phoneAppFavoriteNumbers.Remove(phoneAppSelectedContactDetail.Name);
                 }
                 else
                 {
-                    phoneAppFavoriteNumbers.Add(phoneAppSelectedContactDetail.Number);
+                    phoneAppFavoriteNumbers.Add(phoneAppSelectedContactDetail.Name);
                 }
                 SavePhoneAppData();
                 return;
@@ -264,7 +248,7 @@ namespace Smartphone
             {
                 if (card.AvailableNpcNames != null && card.AvailableNpcNames.Count > 0)
                 {
-                    if (npcName == null || !card.AvailableNpcNames.Exists(name => name.Equals(npcName, StringComparison.OrdinalIgnoreCase)))
+                    if (!card.AvailableNpcNames.Exists(name => name.Equals(targetNpc.Name, StringComparison.OrdinalIgnoreCase)))
                     {
                         continue;
                     }
@@ -283,8 +267,7 @@ namespace Smartphone
                     if (actionBtn.Contains(x, y))
                     {
                         Game1.playSound("bigSelect");
-                        string target = targetNpc?.Name ?? phoneAppSelectedContactDetail.Name;
-                        btn.OnClick?.Invoke(target);
+                        btn.OnClick?.Invoke(targetNpc.Name);
                         return;
                     }
 

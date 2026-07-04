@@ -58,69 +58,15 @@ namespace Smartphone
 
         public List<string> GetContactableNpcsInternal()
         {
-            if (ModEntry.NpcNumbers.Count == 0)
+            try
             {
-                try
-                {
-                    PhoneMenu.UpdateNpcNumbers();
-                }
-                catch (Exception ex)
-                {
-                    this.monitor?.Log($"Error populating NpcNumbers dynamically: {ex.Message}", LogLevel.Error);
-                }
+                PhoneMenu.UpdateNpcNumbers();
             }
-
-            List<PhoneMenu.Contact> contacts = null;
-            if (ModEntry.phoneMenu != null)
+            catch (Exception ex)
             {
-                contacts = ModEntry.phoneMenu.GetContacts();
+                this.monitor?.Log($"Error populating ContactableNpcs dynamically: {ex.Message}", LogLevel.Error);
             }
-            else
-            {
-                // If the phoneMenu is null (not yet created/opened), read directly from the player's save directory JSON file
-                try
-                {
-                    string saveName = ModEntry.GetActiveSaveFolderName();
-                    if (!string.IsNullOrWhiteSpace(saveName))
-                    {
-                        string folderPath = Path.Combine(ModEntry.SHelper.DirectoryPath, "userdata", saveName);
-                        string filePath = Path.Combine(folderPath, "phone_app_data.json");
-
-                        if (File.Exists(filePath))
-                        {
-                            string json = File.ReadAllText(filePath);
-                            var data = Newtonsoft.Json.Linq.JObject.Parse(json);
-
-                            if (data["Contacts"] != null)
-                                contacts = data["Contacts"].ToObject<List<PhoneMenu.Contact>>();
-                            else if (data["CustomContacts"] != null)
-                                contacts = data["CustomContacts"].ToObject<List<PhoneMenu.Contact>>();
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    ModEntry.SMonitor?.Log($"Error reading contacts for GetContactableNpcs: {ex.Message}", LogLevel.Error);
-                }
-            }
-
-            if (contacts == null)
-                contacts = new List<PhoneMenu.Contact>();
-
-            // Find all NPC internal names corresponding to the phone numbers in the contacts list
-            List<string> npcNames = new();
-            foreach (var contact in contacts)
-            {
-                if (ModEntry.NpcNumbers.TryGetValue(contact.Number, out string npcName))
-                {
-                    if (!string.IsNullOrWhiteSpace(npcName) && !npcNames.Contains(npcName))
-                    {
-                        npcNames.Add(npcName);
-                    }
-                }
-            }
-
-            return npcNames;
+            return ModEntry.ContactableNpcs.ToList();
         }
 
         public bool RegisterContactActionCard(string modId, string cardTitle, IList<IContactActionCardButton> buttons, List<string> npcNames = null)

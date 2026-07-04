@@ -1352,8 +1352,6 @@ namespace Smartphone
                     return true;
                 case BuiltinAppPhoneId:
                     phoneAppCurrentTab = 0; // Default landing: Contacts
-                    phoneAppIsAddingContact = false;
-                    phoneAppKeypadBuffer = "";
                     currentApp = "appPhone";
                     return true;
                 default:
@@ -1508,13 +1506,6 @@ namespace Smartphone
 
             if (currentApp == "appPhone")
             {
-                if (phoneAppIsAddingContact)
-                {
-                    phoneAppIsAddingContact = false;
-                    Game1.playSound("cancel");
-                    return true;
-                }
-
                 if (phoneAppViewingContactDetail)
                 {
                     phoneAppViewingContactDetail = false;

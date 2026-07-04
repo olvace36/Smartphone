@@ -65,8 +65,7 @@ namespace Smartphone
         private int hudPhoneBackgroundImageTargetWidth = 0;
         private int hudPhoneBackgroundImageTargetHeight = 0;
 
-        private NPC lastSpeaker = null;
-        public static Dictionary<string, string> NpcNumbers = new(StringComparer.OrdinalIgnoreCase);
+        public static HashSet<string> ContactableNpcs = new(StringComparer.OrdinalIgnoreCase);
         // *************************** ENTRY ***************************
         //
 
@@ -90,8 +89,6 @@ namespace Smartphone
             helper.Events.GameLoop.GameLaunched += OnGameLauched;
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
             helper.Events.GameLoop.Saving += OnSaving;
-            helper.Events.Player.InventoryChanged += OnInventoryChanged;
-            helper.Events.Display.MenuChanged += OnMenuChanged;
             helper.Events.GameLoop.TimeChanged += OnTimeChange;
             helper.Events.GameLoop.DayStarted += OnDayStarted;
             helper.Events.GameLoop.ReturnedToTitle += OnReturnedToTitle;
@@ -104,50 +101,11 @@ namespace Smartphone
             // dev tool: prepare for grid overlay
             solidPixel = new Texture2D(Game1.graphics.GraphicsDevice, 1, 1);
             solidPixel.SetData(new[] { Color.White });
-
-            ShopManager shopManager = new ShopManager(helper, Monitor);
-            shopManager.Initialize();
         }
 
 
 
-        private void OnMenuChanged(object sender, MenuChangedEventArgs e)
-        {
-            if (e.NewMenu is DialogueBox)
-            {
-                NPC speaker = Game1.currentSpeaker;
-                if (speaker == null) return;
-                lastSpeaker = speaker;
-            }
 
-            if (e.OldMenu is DialogueBox && lastSpeaker != null)
-            {
-                string npcName = lastSpeaker.Name;
-
-                if (!string.IsNullOrWhiteSpace(Config.BlacklistNpc))
-                {
-                    var blacklist = Config.BlacklistNpc.Split(',').Select(p => p.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    if (blacklist.Contains(npcName)) return;
-                }
-
-                int requiredHearts = Config.FriendshipRequirement == "Friend" ? 250 : 1;
-                int currentHearts = Game1.player.getFriendshipLevelForNPC(npcName);
-
-                if (currentHearts >= requiredHearts && !PhoneMenu.HasNpcSharedNumber(npcName) && !lastSpeaker.CurrentDialogue.Any())
-                {
-                    if (PhoneMenu.TryShareNpcNumber(npcName, out string npcPhone))
-                    {
-                        string customDialogue = ModEntry.SHelper.Translation.Get("ui.message.npc_share_number", new { playerName = Game1.player.Name, phoneNumber = npcPhone });
-
-                        Game1.chatBox.addInfoMessage(ModEntry.SHelper.Translation.Get("ui.chat.save_number", new { npcName = npcName, phoneNumber = npcPhone }));
-
-                        lastSpeaker.CurrentDialogue.Push(new Dialogue(lastSpeaker, "key", customDialogue));
-
-                        Game1.activeClickableMenu = new DialogueBox(lastSpeaker.CurrentDialogue.Pop());
-                    }
-                }
-            }
-        }
 
 
 
@@ -306,37 +264,12 @@ namespace Smartphone
 
             PhoneMenu.UpdateNpcNumbers();
             ModEntry.NotifyContactableNpcsChanged();
-            PhoneMenu.CheckPhoneBookAction();
-        }
-
-        private void OnInventoryChanged(object sender, InventoryChangedEventArgs e)
-        {
-            if (!Context.IsWorldReady || !e.IsLocalPlayer) return;
-
-            // Check if the target item was added to the player's inventory
-            foreach (var item in e.Added)
-            {
-                // Replace with your item's Qualified ID or Name check
-                if (item != null && item.QualifiedItemId == "(O)d5a1lamdtd.Smartphone.PhoneBook")
-                {
-                    // Set the flag on the player. This is saved automatically with the game save file.
-                    Game1.player.modData["d5a1lamdtd.Smartphone.BoughtAllNumbers"] = "true";
-
-                    // Remove the item immediately since it's consumed
-                    Game1.player.removeItemFromInventory(item);
-
-                    NotificationManager.AddNotification(
-                    ModEntry.SHelper.Translation.Get("ui.phone.bought_phonebook_message")
-                );
-                    break;
-                }
-            }
         }
 
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
         {
             ClearActiveSaveFolderName();
-            ModEntry.NpcNumbers.Clear();
+            ModEntry.ContactableNpcs.Clear();
 
             pendingInitNotification = false;
             pendingPhoneOsInitialization = false;
