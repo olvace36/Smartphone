@@ -483,6 +483,14 @@ namespace Smartphone
                         {
                             // Snap back
                             lockScreenUnlockDragOffset = 0f;
+
+                            // Tap in the bottom area
+                            if (Math.Abs(dragDeltaY) < ScaleUiValue(10) && Math.Abs(touchScrollStartX - x) < ScaleUiValue(10))
+                            {
+                                lockScreenUnlockAnimating = true;
+                                lockScreenUnlockElapsedSeconds = 0d;
+                                Game1.playSound("shwip");
+                            }
                         }
                     }
                     else
@@ -495,9 +503,12 @@ namespace Smartphone
                                 NotificationManager.ResetUnreadNotification();
                                 Game1.playSound("smallSelect");
                             }
-                            else
+                            else if (!CheckLockScreenCardClick(x, y))
                             {
-                                CheckLockScreenCardClick(x, y);
+                                // Tap anywhere else to unlock
+                                lockScreenUnlockAnimating = true;
+                                lockScreenUnlockElapsedSeconds = 0d;
+                                Game1.playSound("shwip");
                             }
                         }
                     }
@@ -863,6 +874,17 @@ namespace Smartphone
 
         public override void receiveKeyPress(Keys key)
         {
+            if (rootLandingState == RootLandingState.LockScreen)
+            {
+                if (!lockScreenUnlockAnimating && (key == Keys.Space || key == Keys.Enter))
+                {
+                    lockScreenUnlockAnimating = true;
+                    lockScreenUnlockElapsedSeconds = 0d;
+                    Game1.playSound("shwip");
+                    return;
+                }
+            }
+
             if (currentApp == null && layoutManager != null)
             {
                 if (layoutManager.CurrentPage == layoutManager.TotalPages && layoutManager.IsSearchingAppLibrary)

@@ -59,7 +59,7 @@
   "app.contacts.name": "Contacts",
   "ui.lockscreen.initializing": "Initializing hapykeOS",
   "ui.lockscreen.update_available": "New version available",
-  "ui.lockscreen.swipe_to_unlock": "Swipe up to unlock",
+  "ui.lockscreen.swipe_to_unlock": "Tap or swipe to unlock",
   "ui.weather.today": "Today",
   "ui.weather.forecast": "Forecast",
   "ui.setting.title": "Settings",

@@ -915,7 +915,7 @@ namespace Smartphone
             lockScreenContentScrollOffset = Math.Clamp(lockScreenContentScrollOffset, 0f, maxScroll);
         }
 
-        private void CheckLockScreenCardClick(int x, int y)
+        private bool CheckLockScreenCardClick(int x, int y)
         {
             foreach (var card in lockScreenCardBounds)
             {
@@ -927,9 +927,10 @@ namespace Smartphone
                     lockScreenUnlockAnimating = false;
                     lockScreenUnlockElapsedSeconds = 0d;
                     Game1.playSound("smallSelect");
-                    break;
+                    return true;
                 }
             }
+            return false;
         }
 
         private void UpdateLockScreenScroll(GameTime time)
