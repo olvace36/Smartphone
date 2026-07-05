@@ -21,36 +21,8 @@ namespace Smartphone
                 try
                 {
                     // 1. Scan the App Cache for Stats
-                    int newAppsCount = 0;
-                    int updatesCount = 0;
-
-                    if (AppStoreManager.AllMods != null)
-                    {
-                        foreach (var mod in AppStoreManager.AllMods)
-                        {
-                            if (mod == null) continue;
-
-                            // Check if app is new (published within 10 days)
-                            if (DateTime.TryParse(mod.PublishedAt, out DateTime pubDate))
-                            {
-                                if ((DateTime.UtcNow - pubDate).TotalDays <= 10)
-                                {
-                                    newAppsCount++;
-                                }
-                            }
-
-                            // Check if installed app has an update available
-                            var modInfo = AppStoreManager.GetInstalledMod(mod.UniqueID, mod.UpdateKey);
-                            if (modInfo != null)
-                            {
-                                string currentVersion = modInfo.Manifest.Version.ToString();
-                                if (AppStoreManager.IsNewerVersion(currentVersion, mod.LatestVersion))
-                                {
-                                    updatesCount++;
-                                }
-                            }
-                        }
-                    }
+                    int newAppsCount = AppStoreManager.CachedNewAppsCount;
+                    int updatesCount = AppStoreManager.CachedUpdatesCount;
 
                     // 2. Open Session Tracking & Base Randomization Choice
                     bool isCurrentlyOpen = Game1.activeClickableMenu is PhoneMenu;
@@ -123,33 +95,7 @@ namespace Smartphone
 
         public static int GetAppStoreBadgeCount()
         {
-            try
-            {
-                int updatesCount = 0;
-                if (AppStoreManager.AllMods != null)
-                {
-                    foreach (var mod in AppStoreManager.AllMods)
-                    {
-                        if (mod == null) continue;
-
-                        var modInfo = AppStoreManager.GetInstalledMod(mod.UniqueID, mod.UpdateKey);
-                        if (modInfo != null)
-                        {
-                            string currentVersion = modInfo.Manifest.Version.ToString();
-                            if (AppStoreManager.IsNewerVersion(currentVersion, mod.LatestVersion))
-                            {
-                                updatesCount++;
-                            }
-                        }
-                    }
-                }
-                return updatesCount;
-            }
-            catch (Exception ex)
-            {
-                ModEntry.SMonitor?.Log($"Error calculating AppStore badge count: {ex.Message}", StardewModdingAPI.LogLevel.Trace);
-                return 0;
-            }
+            return AppStoreManager.CachedUpdatesCount;
         }
     }
 }

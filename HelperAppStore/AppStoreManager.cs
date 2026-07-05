@@ -47,6 +47,8 @@ namespace Smartphone
 
         public static List<AppStoreMod> AllMods { get; private set; } = new List<AppStoreMod>();
         public static List<AppStoreMod> Mods { get; private set; } = new List<AppStoreMod>();
+        public static int CachedUpdatesCount { get; private set; } = 0;
+        public static int CachedNewAppsCount { get; private set; } = 0;
         public static Dictionary<string, Texture2D> DescriptionImages { get; private set; } = new Dictionary<string, Texture2D>();
         private static HashSet<string> FetchingDescriptionImages { get; set; } = new HashSet<string>();
         private static Dictionary<string, byte[]> fetchedDescriptionBytes = new Dictionary<string, byte[]>();
@@ -215,6 +217,7 @@ namespace Smartphone
 
             AllMods = parsedMods;
             ApplySortAndTypeFilter("Latest", "App");
+            CalculateStoreData();
         }
 
         public static IModInfo GetInstalledMod(string uniqueID, string updateKey)
@@ -280,6 +283,50 @@ namespace Smartphone
                 default:
                     Mods = filteredMods.OrderByDescending(m => DateTime.TryParse(m.PublishedAt, out var dt) ? dt : DateTime.MinValue).ToList();
                     break;
+            }
+        }
+
+        public static void CalculateStoreData()
+        {
+            try
+            {
+                int updatesCount = 0;
+                int newAppsCount = 0;
+
+                if (AllMods != null)
+                {
+                    foreach (var mod in AllMods)
+                    {
+                        if (mod == null) continue;
+
+                        // Check if app is new (published within 10 days)
+                        if (DateTime.TryParse(mod.PublishedAt, out DateTime pubDate))
+                        {
+                            if ((DateTime.UtcNow - pubDate).TotalDays <= 10)
+                            {
+                                newAppsCount++;
+                            }
+                        }
+
+                        // Check if installed app has an update available
+                        var modInfo = GetInstalledMod(mod.UniqueID, mod.UpdateKey);
+                        if (modInfo != null)
+                        {
+                            string currentVersion = modInfo.Manifest.Version.ToString();
+                            if (IsNewerVersion(currentVersion, mod.LatestVersion))
+                            {
+                                updatesCount++;
+                            }
+                        }
+                    }
+                }
+
+                CachedUpdatesCount = updatesCount;
+                CachedNewAppsCount = newAppsCount;
+            }
+            catch (Exception ex)
+            {
+                ModEntry.SMonitor?.Log($"AppStoreManager: Error calculating store data: {ex}", LogLevel.Error);
             }
         }
 
@@ -434,6 +481,9 @@ namespace Smartphone
             ModEntry.SMonitor?.Log("AppStoreManager: DisposeTextures called, but disposal is disabled to preserve cache.", LogLevel.Debug);
         }
 
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string, string), bool> _versionComparisonCache =
+            new System.Collections.Concurrent.ConcurrentDictionary<(string, string), bool>();
+
         public static bool IsNewerVersion(string currentVersionStr, string latestVersionStr)
         {
             if (string.IsNullOrWhiteSpace(latestVersionStr))
@@ -441,10 +491,21 @@ namespace Smartphone
             if (string.IsNullOrWhiteSpace(currentVersionStr))
                 return true;
 
+            var key = (currentVersionStr, latestVersionStr);
+            if (_versionComparisonCache.TryGetValue(key, out bool result))
+                return result;
+
+            result = ComputeIsNewerVersion(currentVersionStr, latestVersionStr);
+            _versionComparisonCache[key] = result;
+            return result;
+        }
+
+        private static bool ComputeIsNewerVersion(string currentVersionStr, string latestVersionStr)
+        {
             try
             {
-                string cleanCurrent = currentVersionStr.TrimStart('v', 'V').Trim();
-                string cleanLatest = latestVersionStr.TrimStart('v', 'V').Trim();
+                string cleanCurrent = NormalizeVersion(currentVersionStr);
+                string cleanLatest = NormalizeVersion(latestVersionStr);
 
                 ISemanticVersion current = new SemanticVersion(cleanCurrent);
                 ISemanticVersion latest = new SemanticVersion(cleanLatest);
@@ -455,6 +516,41 @@ namespace Smartphone
             {
                 return currentVersionStr.Trim() != latestVersionStr.Trim();
             }
+        }
+
+        private static string NormalizeVersion(string version)
+        {
+            if (string.IsNullOrWhiteSpace(version))
+                return "0.0.0";
+
+            string clean = version.TrimStart('v', 'V').Trim();
+            if (string.IsNullOrEmpty(clean))
+                return "0.0.0";
+
+            // Split core version from pre-release / build metadata (e.g., -beta, +build)
+            string core = clean;
+            string metadata = "";
+            int metaIndex = clean.IndexOfAny(new[] { '-', '+' });
+            if (metaIndex >= 0)
+            {
+                core = clean.Substring(0, metaIndex);
+                metadata = clean.Substring(metaIndex);
+            }
+
+            if (core.Length > 0 && char.IsDigit(core[0]))
+            {
+                int dotCount = core.Count(c => c == '.');
+                if (dotCount == 0)
+                {
+                    core += ".0.0";
+                }
+                else if (dotCount == 1)
+                {
+                    core += ".0";
+                }
+            }
+
+            return core + metadata;
         }
     }
 }
