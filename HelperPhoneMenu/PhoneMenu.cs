@@ -27,7 +27,7 @@ namespace Smartphone
             public Func<int>? GetBadgeCount { get; init; }
         }
 
-        partial void InitPhotoTextInput();
+        partial void InitKeyboardTextInput();
 
         internal enum RootLandingState
         {
@@ -283,7 +283,7 @@ namespace Smartphone
 
 
 
-            InitPhotoTextInput();
+            InitKeyboardTextInput();
 
             InitSettingApp();
 

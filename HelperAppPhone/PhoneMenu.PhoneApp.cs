@@ -507,23 +507,6 @@ namespace Smartphone
                     }
                     return;
                 }
-
-                string character = key.ToString();
-                if (key >= Keys.D0 && key <= Keys.D9) character = (key - Keys.D0).ToString();
-                else if (key >= Keys.NumPad0 && key <= Keys.NumPad9) character = (key - Keys.NumPad0).ToString();
-
-                if (character.Length == 1)
-                {
-                    if (phoneAppSearchQuery.Length < 20)
-                    {
-                        bool isShift = Game1.oldKBState.IsKeyDown(Keys.LeftShift) || Game1.oldKBState.IsKeyDown(Keys.RightShift);
-                        phoneAppSearchQuery += isShift ? character.ToUpper() : character.ToLower();
-                    }
-                }
-                else if (key == Keys.Space && phoneAppSearchQuery.Length < 20)
-                {
-                    phoneAppSearchQuery += " ";
-                }
             }
         }
 

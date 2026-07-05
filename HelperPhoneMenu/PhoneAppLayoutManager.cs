@@ -769,6 +769,10 @@ namespace Smartphone
 
         // Expose editing state to the core PhoneMenu text subscriber loop
         public bool IsEditingFolderName => _isEditingFolderName;
+        public Rectangle FolderRenameBoxBounds => _folderRenameBoxBounds;
+        public string FolderNameBuffer => _folderNameBuffer;
+        public Rectangle SearchBoxBounds => _searchBoxBounds;
+        public string SearchQueryBuffer => _searchQuery;
 
         // Allows Android keyboard or direct input snapshots to set the string safely
         internal void SetFolderNameBuffer(string value)
