@@ -798,16 +798,25 @@ namespace Smartphone
 
             if (IsLockButtonPressed(x, y))
             {
+                if (layoutManager != null && layoutManager.IsReorderMode)
+                {
+                    layoutManager.ExitReorderMode();
+                }
                 ClosePhoneMenu();
                 return;
             }
 
             if (IsHomeButtonPressed(x, y))
             {
+                if (layoutManager != null && layoutManager.IsReorderMode)
+                {
+                    layoutManager.ExitReorderMode();
+                    Game1.playSound("smallSelect");
+                    return;
+                }
                 ClosePhoneMenu();
                 ModEntry.OpenPhoneFromHudTrigger();
                 return;
-
             }
 
             if (currentApp == "appCamera")

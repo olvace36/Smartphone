@@ -344,7 +344,7 @@ namespace Smartphone
 
                         if (app1.IconTexture != null)
                         {
-                            b.Draw(app1.IconTexture, iconRect, app1.SourceRect ?? new Rectangle(0, 0, app1.IconTexture.Width, app1.IconTexture.Height), Color.White);
+                            DrawLockScreenAppIcon(b, app1.IconTexture, iconRect, app1.SourceRect);
                         }
                     }
                 }
@@ -371,7 +371,7 @@ namespace Smartphone
 
                         if (app2.IconTexture != null)
                         {
-                            b.Draw(app2.IconTexture, iconRect, app2.SourceRect ?? new Rectangle(0, 0, app2.IconTexture.Width, app2.IconTexture.Height), Color.White);
+                            DrawLockScreenAppIcon(b, app2.IconTexture, iconRect, app2.SourceRect);
                         }
                     }
                 }
@@ -1035,6 +1035,17 @@ namespace Smartphone
             lockScreenUnlockElapsedSeconds = 0d;
             lockScreenTapBounds = Rectangle.Empty;
             TryHandleHomeAppClickPublic(appId);
+        }
+
+        private void DrawLockScreenAppIcon(SpriteBatch b, Texture2D texture, Rectangle bounds, Rectangle? sourceRect)
+        {
+            if (texture == null) return;
+            Rectangle source = sourceRect ?? new Rectangle(0, 0, texture.Width, texture.Height);
+            float scale = Math.Min(bounds.Width / (float)source.Width, bounds.Height / (float)source.Height);
+            int dw = Math.Max(1, (int)Math.Round(source.Width * scale));
+            int dh = Math.Max(1, (int)Math.Round(source.Height * scale));
+            Rectangle drawRect = new Rectangle(bounds.X + (bounds.Width - dw) / 2, bounds.Y + (bounds.Height - dh) / 2, dw, dh);
+            b.Draw(texture, drawRect, source, Color.White);
         }
 
         #endregion
