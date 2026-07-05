@@ -48,7 +48,9 @@ namespace Smartphone
         ChangeSize4x4,
         SelectTheme,
         HideApp,
-        ShowApp
+        ShowApp,
+        PinToScreen1,
+        PinToScreen2
     }
 
     internal sealed class PhoneAppLayoutManager
@@ -1740,6 +1742,42 @@ namespace Smartphone
                     return;
                 }
 
+                if (item.option == DropdownOption.PinToScreen1)
+                {
+                    if (string.Equals(ModEntry.lockScreenPin1, _dropdownAppId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ModEntry.lockScreenPin1 = "";
+                    }
+                    else
+                    {
+                        ModEntry.lockScreenPin1 = _dropdownAppId;
+                    }
+                    AssetHelper.SaveSettings();
+                    _dropdownOpen = false;
+                    _isDropdownShowingThemes = false;
+                    _isDropdownShowingHide = false;
+                    Game1.playSound("smallSelect");
+                    return;
+                }
+
+                if (item.option == DropdownOption.PinToScreen2)
+                {
+                    if (string.Equals(ModEntry.lockScreenPin2, _dropdownAppId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ModEntry.lockScreenPin2 = "";
+                    }
+                    else
+                    {
+                        ModEntry.lockScreenPin2 = _dropdownAppId;
+                    }
+                    AssetHelper.SaveSettings();
+                    _dropdownOpen = false;
+                    _isDropdownShowingThemes = false;
+                    _isDropdownShowingHide = false;
+                    Game1.playSound("smallSelect");
+                    return;
+                }
+
                 _dropdownOpen = false;
                 _isDropdownShowingThemes = false;
                 _isDropdownShowingHide = false;
@@ -2439,13 +2477,27 @@ namespace Smartphone
             int itemH = ScaleUi(32), itemW = ScaleUi(90);
             int x = anchorBounds.X + ScaleUi(11), y = anchorBounds.Bottom + ScaleUi(4);
 
+            int totalH = 3 * (itemH + ScaleUi(2));
             Rectangle contentBounds = _menu.GetPhoneContentBounds();
-            if (y + (itemH + ScaleUi(2)) > contentBounds.Bottom)
+            if (y + totalH > contentBounds.Bottom)
             {
-                y = anchorBounds.Top - (itemH + ScaleUi(2)) - ScaleUi(4);
+                y = anchorBounds.Top - totalH - ScaleUi(4);
             }
 
+            bool isPinned1 = string.Equals(ModEntry.lockScreenPin1, _dropdownAppId, StringComparison.OrdinalIgnoreCase);
+            bool isPinned2 = string.Equals(ModEntry.lockScreenPin2, _dropdownAppId, StringComparison.OrdinalIgnoreCase);
+
+            string label1 = isPinned1
+                ? ModEntry.SHelper.Translation.Get("ui.reorder.unpin_from_screen_1").ToString()
+                : ModEntry.SHelper.Translation.Get("ui.reorder.pin_to_screen_1").ToString();
+
+            string label2 = isPinned2
+                ? ModEntry.SHelper.Translation.Get("ui.reorder.unpin_from_screen_2").ToString()
+                : ModEntry.SHelper.Translation.Get("ui.reorder.pin_to_screen_2").ToString();
+
             _dropdownItems.Add((DropdownOption.HideApp, new Rectangle(x, y, itemW, itemH), ModEntry.SHelper.Translation.Get("ui.reorder.hide_app").ToString()));
+            _dropdownItems.Add((DropdownOption.PinToScreen1, new Rectangle(x, y + itemH + ScaleUi(2), itemW, itemH), label1));
+            _dropdownItems.Add((DropdownOption.PinToScreen2, new Rectangle(x, y + 2 * (itemH + ScaleUi(2)), itemW, itemH), label2));
         }
 
         private void BuildShowDropdownItems(Rectangle anchorBounds)
@@ -2454,13 +2506,27 @@ namespace Smartphone
             int itemH = ScaleUi(32), itemW = ScaleUi(90);
             int x = anchorBounds.X + ScaleUi(11), y = anchorBounds.Bottom + ScaleUi(4);
 
+            int totalH = 3 * (itemH + ScaleUi(2));
             Rectangle contentBounds = _menu.GetPhoneContentBounds();
-            if (y + (itemH + ScaleUi(2)) > contentBounds.Bottom)
+            if (y + totalH > contentBounds.Bottom)
             {
-                y = anchorBounds.Top - (itemH + ScaleUi(2)) - ScaleUi(4);
+                y = anchorBounds.Top - totalH - ScaleUi(4);
             }
 
+            bool isPinned1 = string.Equals(ModEntry.lockScreenPin1, _dropdownAppId, StringComparison.OrdinalIgnoreCase);
+            bool isPinned2 = string.Equals(ModEntry.lockScreenPin2, _dropdownAppId, StringComparison.OrdinalIgnoreCase);
+
+            string label1 = isPinned1
+                ? ModEntry.SHelper.Translation.Get("ui.reorder.unpin_from_screen_1").ToString()
+                : ModEntry.SHelper.Translation.Get("ui.reorder.pin_to_screen_1").ToString();
+
+            string label2 = isPinned2
+                ? ModEntry.SHelper.Translation.Get("ui.reorder.unpin_from_screen_2").ToString()
+                : ModEntry.SHelper.Translation.Get("ui.reorder.pin_to_screen_2").ToString();
+
             _dropdownItems.Add((DropdownOption.ShowApp, new Rectangle(x, y, itemW, itemH), ModEntry.SHelper.Translation.Get("ui.reorder.show_app").ToString()));
+            _dropdownItems.Add((DropdownOption.PinToScreen1, new Rectangle(x, y + itemH + ScaleUi(2), itemW, itemH), label1));
+            _dropdownItems.Add((DropdownOption.PinToScreen2, new Rectangle(x, y + 2 * (itemH + ScaleUi(2)), itemW, itemH), label2));
         }
 
         private void HideApp(string appId)

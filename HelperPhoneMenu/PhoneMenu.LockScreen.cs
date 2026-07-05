@@ -42,6 +42,8 @@ namespace Smartphone
         private float lockScreenStartScrollOffset = 0f;
         private readonly List<(Rectangle Bounds, int OriginalIndex)> lockScreenCardBounds = new();
         private Rectangle lockScreenClearNotificationsBounds = Rectangle.Empty;
+        private Rectangle lockScreenPin1Bounds = Rectangle.Empty;
+        private Rectangle lockScreenPin2Bounds = Rectangle.Empty;
 
         #endregion
 
@@ -88,6 +90,8 @@ namespace Smartphone
 
             DrawWithinPhoneContentClip(b, () =>
             {
+                int mouseX = Game1.getMouseX();
+                int mouseY = Game1.getMouseY();
                 float verticalUnlockOffset;
                 if (lockScreenUnlockAnimating)
                 {
@@ -203,8 +207,8 @@ namespace Smartphone
                     int drawnXButtonY = headerY - (int)Math.Round(scrollYOffset + verticalUnlockOffset) + (headerHeight - xButtonHeight) / 2;
                     lockScreenClearNotificationsBounds = new Rectangle(xButtonX, drawnXButtonY, xButtonWidth, xButtonHeight);
 
-                    int mouseX = Game1.getMouseX();
-                    int mouseY = Game1.getMouseY();
+                    mouseX = Game1.getMouseX();
+                    mouseY = Game1.getMouseY();
                     bool isHovered = new Rectangle(xButtonX, xButtonY, xButtonWidth, xButtonHeight).Contains(mouseX, mouseY);
 
                     Color xBgColor = isHovered ? new Color(100, 100, 100, 180) : new Color(60, 60, 60, 150);
@@ -309,6 +313,72 @@ namespace Smartphone
                 // Draw fixed footer text at bottom (no card background)
                 int footerY = contentBounds.Bottom - footerHeight - (int)Math.Round(verticalUnlockOffset);
                 Rectangle footerBounds = new Rectangle(contentBounds.X, footerY, contentBounds.Width, footerHeight);
+
+                // Quick Launch Buttons
+                int btnSize = ScaleUiValue(50);
+                int btnY = footerBounds.Center.Y - btnSize / 2;
+                int padX = ScaleUiValue(40);
+
+                lockScreenPin1Bounds = new Rectangle(contentBounds.X + padX + xOffset, btnY, btnSize, btnSize);
+                lockScreenPin2Bounds = new Rectangle(contentBounds.Right - padX - btnSize + xOffset, btnY, btnSize, btnSize);
+
+
+
+                var allApps = BuildHomeAppsSnapshotPublic();
+
+                if (IsLockScreenAppPinActive(ModEntry.lockScreenPin1))
+                {
+                    HomeAppEntryProxy? app1 = allApps.FirstOrDefault(a => string.Equals(a.Id, ModEntry.lockScreenPin1, StringComparison.OrdinalIgnoreCase));
+                    if (app1 != null)
+                    {
+                        bool isHovered = lockScreenPin1Bounds.Contains(mouseX, mouseY);
+                        Color bgColor = isHovered ? new Color(120, 120, 120, 180) : new Color(45, 45, 45, 140);
+                        Textures.DrawCard(b, lockScreenPin1Bounds.X, lockScreenPin1Bounds.Y, lockScreenPin1Bounds.Width, lockScreenPin1Bounds.Height, bgColor, 1f, false);
+
+                        int iconSize = ScaleUiValue(43);
+                        Rectangle iconRect = new Rectangle(
+                            lockScreenPin1Bounds.X + (lockScreenPin1Bounds.Width - iconSize) / 2,
+                            lockScreenPin1Bounds.Y + (lockScreenPin1Bounds.Height - iconSize) / 2,
+                            iconSize,
+                            iconSize);
+
+                        if (app1.IconTexture != null)
+                        {
+                            b.Draw(app1.IconTexture, iconRect, app1.SourceRect ?? new Rectangle(0, 0, app1.IconTexture.Width, app1.IconTexture.Height), Color.White);
+                        }
+                    }
+                }
+                else
+                {
+                    lockScreenPin1Bounds = Rectangle.Empty;
+                }
+
+                if (IsLockScreenAppPinActive(ModEntry.lockScreenPin2))
+                {
+                    HomeAppEntryProxy? app2 = allApps.FirstOrDefault(a => string.Equals(a.Id, ModEntry.lockScreenPin2, StringComparison.OrdinalIgnoreCase));
+                    if (app2 != null)
+                    {
+                        bool isHovered = lockScreenPin2Bounds.Contains(mouseX, mouseY);
+                        Color bgColor = isHovered ? new Color(120, 120, 120, 180) : new Color(45, 45, 45, 140);
+                        Textures.DrawCard(b, lockScreenPin2Bounds.X, lockScreenPin2Bounds.Y, lockScreenPin2Bounds.Width, lockScreenPin2Bounds.Height, bgColor, 1f, false);
+
+                        int iconSize = ScaleUiValue(43);
+                        Rectangle iconRect = new Rectangle(
+                            lockScreenPin2Bounds.X + (lockScreenPin2Bounds.Width - iconSize) / 2,
+                            lockScreenPin2Bounds.Y + (lockScreenPin2Bounds.Height - iconSize) / 2,
+                            iconSize,
+                            iconSize);
+
+                        if (app2.IconTexture != null)
+                        {
+                            b.Draw(app2.IconTexture, iconRect, app2.SourceRect ?? new Rectangle(0, 0, app2.IconTexture.Width, app2.IconTexture.Height), Color.White);
+                        }
+                    }
+                }
+                else
+                {
+                    lockScreenPin2Bounds = Rectangle.Empty;
+                }
 
                 bool showUpdateHint = ModEntry.hasNewVersionAvailable;
                 string hintText = showUpdateHint
@@ -943,6 +1013,28 @@ namespace Smartphone
 
             if (Math.Abs(lockScreenContentScrollOffset - lockScreenContentScrollTarget) <= 0.5f)
                 lockScreenContentScrollOffset = lockScreenContentScrollTarget;
+        }
+
+        private bool IsLockScreenAppPinActive(string appId)
+        {
+            if (string.IsNullOrEmpty(appId)) return false;
+            if (appId.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase)) return true;
+            foreach (var app in ModEntry.GetRegisteredPhoneAppsSnapshot())
+            {
+                if (string.Equals(app.CompositeId, appId, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+        private void LaunchAppFromLockScreen(string appId)
+        {
+            if (string.IsNullOrEmpty(appId)) return;
+            rootLandingState = RootLandingState.Home;
+            lockScreenUnlockAnimating = false;
+            lockScreenUnlockElapsedSeconds = 0d;
+            lockScreenTapBounds = Rectangle.Empty;
+            TryHandleHomeAppClickPublic(appId);
         }
 
         #endregion

@@ -468,6 +468,17 @@ namespace Smartphone
                 Rectangle contentBounds = GetPhoneContentBounds();
                 if (touchStartInContentBounds)
                 {
+                    if (IsLockScreenAppPinActive(ModEntry.lockScreenPin1) && lockScreenPin1Bounds.Contains(x, y) && lockScreenPin1Bounds.Contains(touchScrollStartX, touchScrollStartY))
+                    {
+                        LaunchAppFromLockScreen(ModEntry.lockScreenPin1);
+                        return;
+                    }
+                    if (IsLockScreenAppPinActive(ModEntry.lockScreenPin2) && lockScreenPin2Bounds.Contains(x, y) && lockScreenPin2Bounds.Contains(touchScrollStartX, touchScrollStartY))
+                    {
+                        LaunchAppFromLockScreen(ModEntry.lockScreenPin2);
+                        return;
+                    }
+
                     if (touchScrollStartY >= contentBounds.Bottom - ScaleUiValue(72))
                     {
                         float dragDeltaY = touchScrollStartY - y;
@@ -660,7 +671,16 @@ namespace Smartphone
                     int deltaY = touchScrollStartY - y;
                     if (touchScrollStartY >= contentBounds.Bottom - ScaleUiValue(72))
                     {
-                        lockScreenUnlockDragOffset = Math.Max(0f, deltaY);
+                        bool startedOnPin = (IsLockScreenAppPinActive(ModEntry.lockScreenPin1) && lockScreenPin1Bounds.Contains(touchScrollStartX, touchScrollStartY))
+                                            || (IsLockScreenAppPinActive(ModEntry.lockScreenPin2) && lockScreenPin2Bounds.Contains(touchScrollStartX, touchScrollStartY));
+                        if (startedOnPin)
+                        {
+                            lockScreenUnlockDragOffset = 0f;
+                        }
+                        else
+                        {
+                            lockScreenUnlockDragOffset = Math.Max(0f, deltaY);
+                        }
                     }
                     else
                     {

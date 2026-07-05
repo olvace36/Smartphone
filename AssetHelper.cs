@@ -12,6 +12,8 @@ namespace Smartphone
         public string CurrentPhoneBackground { get; set; } = "";
         public string CurrentPhoneSound { get; set; } = "";
         public string CurrentPhoneTextColor { get; set; } = "";
+        public string LockScreenPin1 { get; set; } = "builtin:phone";
+        public string LockScreenPin2 { get; set; } = "builtin:camera";
     }
 }
 
@@ -153,6 +155,8 @@ public class AssetHelper
 
         // Reset to default value first
         Smartphone.ModEntry.currentPhoneSound = "getNewSpecialItem";
+        Smartphone.ModEntry.lockScreenPin1 = "builtin:phone";
+        Smartphone.ModEntry.lockScreenPin2 = "builtin:camera";
 
         try
         {
@@ -197,6 +201,16 @@ public class AssetHelper
                         Smartphone.ModEntry.currentPhoneSound = "getNewSpecialItem";
                     if (!string.IsNullOrEmpty(data.CurrentPhoneTextColor))
                         Smartphone.ModEntry.currentPhoneTextColor = data.CurrentPhoneTextColor;
+
+                    if (!string.IsNullOrEmpty(data.LockScreenPin1))
+                        Smartphone.ModEntry.lockScreenPin1 = data.LockScreenPin1;
+                    else
+                        Smartphone.ModEntry.lockScreenPin1 = "builtin:phone";
+
+                    if (!string.IsNullOrEmpty(data.LockScreenPin2))
+                        Smartphone.ModEntry.lockScreenPin2 = data.LockScreenPin2;
+                    else
+                        Smartphone.ModEntry.lockScreenPin2 = "builtin:camera";
                 }
             }
 
@@ -224,7 +238,9 @@ public class AssetHelper
                 ComponentThemes = componentThemes,
                 CurrentPhoneBackground = Smartphone.ModEntry.currentPhoneBackground ?? "",
                 CurrentPhoneSound = string.IsNullOrEmpty(Smartphone.ModEntry.currentPhoneSound) ? "getNewSpecialItem" : Smartphone.ModEntry.currentPhoneSound,
-                CurrentPhoneTextColor = Smartphone.ModEntry.currentPhoneTextColor ?? "Black"
+                CurrentPhoneTextColor = Smartphone.ModEntry.currentPhoneTextColor ?? "Black",
+                LockScreenPin1 = Smartphone.ModEntry.lockScreenPin1 ?? "builtin:phone",
+                LockScreenPin2 = Smartphone.ModEntry.lockScreenPin2 ?? "builtin:camera"
             };
 
             string json = Newtonsoft.Json.JsonConvert.SerializeObject(data, Newtonsoft.Json.Formatting.Indented);

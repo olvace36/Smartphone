@@ -447,6 +447,8 @@ namespace Smartphone
         public static string currentPhoneBackground = "";
         public static string currentPhoneSound = "getNewSpecialItem";
         public static string currentPhoneTextColor = "Black";
+        public static string lockScreenPin1 = "builtin:phone";
+        public static string lockScreenPin2 = "builtin:camera";
 
         public static bool takeScreenshot = false;
         public static int currentMenuX;
