@@ -509,15 +509,34 @@ namespace Smartphone
             }
 
             // Detect swipe left/right
-            if (currentApp == null && layoutManager != null && !layoutManager.IsReorderMode && touchStartInContentBounds)
+            bool canSwipeInReorder = layoutManager != null && layoutManager.IsReorderMode && !layoutManager.IsDraggingOrCandidate;
+            if (currentApp == null && layoutManager != null && (!layoutManager.IsReorderMode || canSwipeInReorder) && touchStartInContentBounds)
             {
                 int deltaX = x - touchScrollStartX;
                 int deltaY = y - touchScrollStartY;
-                if (Math.Abs(deltaX) > 50 && Math.Abs(deltaX) > Math.Abs(deltaY) * 1.5)
+
+                bool isAppLibraryPage = layoutManager.CurrentPage == layoutManager.TotalPages;
+                bool allowSwipe = true;
+
+                if (isAppLibraryPage)
+                {
+                    // Strict vertical guard
+                    if (Math.Abs(deltaY) > 20)
+                    {
+                        allowSwipe = false;
+                    }
+                    // Only allow swiping right (finger moves left-to-right, deltaX > 0) to go left
+                    if (deltaX <= 0)
+                    {
+                        allowSwipe = false;
+                    }
+                }
+
+                if (allowSwipe && Math.Abs(deltaX) > 50 && Math.Abs(deltaX) > Math.Abs(deltaY) * 1.5)
                 {
                     if (deltaX > 0)
                     {
-                        if (layoutManager.TryChangePageScroll(-1))
+                        if (layoutManager.TryChangePageScroll(-1, allowAppLibrary: true))
                         {
                             Game1.playSound("shwip");
                             hasTouchSwiped = true;
@@ -525,7 +544,7 @@ namespace Smartphone
                     }
                     else
                     {
-                        if (layoutManager.TryChangePageScroll(1))
+                        if (layoutManager.TryChangePageScroll(1, allowAppLibrary: true))
                         {
                             Game1.playSound("shwip");
                             hasTouchSwiped = true;
@@ -655,14 +674,15 @@ namespace Smartphone
             if (currentApp == null && layoutManager != null)
             {
                 layoutManager.ReceiveLeftClickHeld(x, y);
-                if (layoutManager.IsReorderMode)
+                if (layoutManager.IsReorderMode && layoutManager.CurrentPage != layoutManager.TotalPages)
                     return;
             }
 
             if (!isDragging && !isScrolling)
             {
                 bool photoAllowsScroll = currentApp == "appPhoto" && photoDetailIndex < 0;
-                if (currentApp != null && currentApp != "appCamera" && (currentApp != "appPhoto" || photoAllowsScroll) && GetPhoneContentBounds().Contains(x, y))
+                bool isAppLibrary = currentApp == null && layoutManager != null && layoutManager.CurrentPage == layoutManager.TotalPages;
+                if ((isAppLibrary || (currentApp != null && currentApp != "appCamera" && (currentApp != "appPhoto" || photoAllowsScroll))) && GetPhoneContentBounds().Contains(x, y))
                 {
                     isScrolling = true;
                     lastScrollMouseY = y;
@@ -804,8 +824,19 @@ namespace Smartphone
 
             if (IsHomeLandingInteractive() || (currentApp == null && layoutManager?.IsReorderMode == true))
             {
-                if (layoutManager != null && layoutManager.TryChangePageScroll(direction > 0 ? -1 : 1))
-                    Game1.playSound("shwip");
+                if (layoutManager != null)
+                {
+                    if (layoutManager.CurrentPage == layoutManager.TotalPages)
+                    {
+                        layoutManager.ApplyScrollWheel(direction);
+                    }
+                    else
+                    {
+                        bool allowAppLibrary = !layoutManager.IsReorderMode;
+                        if (layoutManager.TryChangePageScroll(direction > 0 ? -1 : 1, allowAppLibrary))
+                            Game1.playSound("shwip");
+                    }
+                }
             }
             else if (currentApp == "appSetting")
             {
@@ -832,10 +863,18 @@ namespace Smartphone
 
         public override void receiveKeyPress(Keys key)
         {
-            if (currentApp == null && layoutManager != null && layoutManager.IsReorderMode)
+            if (currentApp == null && layoutManager != null)
             {
-                if (layoutManager.HandleKeyPress(key))
-                    return;
+                if (layoutManager.CurrentPage == layoutManager.TotalPages && layoutManager.IsSearchingAppLibrary)
+                {
+                    if (layoutManager.HandleSearchKeyPress(key))
+                        return;
+                }
+                else if (layoutManager.IsReorderMode)
+                {
+                    if (layoutManager.HandleKeyPress(key))
+                        return;
+                }
             }
 
             if (currentApp == "appPhoto" && HandlePhotoAlbumNameKeyPress(key))

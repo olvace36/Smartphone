@@ -33,6 +33,7 @@ namespace Smartphone
         public List<List<LayoutItem>> Pages { get; set; } = new();
         public List<LayoutItem> Main { get; set; } = new();
         public List<string> Dock { get; set; } = new();
+        public List<string> HiddenApps { get; set; } = new();
     }
 
     internal enum DropdownOption
@@ -45,7 +46,9 @@ namespace Smartphone
         ChangeSize4x2,
         ChangeSize4x3,
         ChangeSize4x4,
-        SelectTheme
+        SelectTheme,
+        HideApp,
+        ShowApp
     }
 
     internal sealed class PhoneAppLayoutManager
@@ -150,6 +153,26 @@ namespace Smartphone
         private Rectangle _prevPageBounds = Rectangle.Empty;
         private Rectangle _nextPageBounds = Rectangle.Empty;
 
+        private List<string> _hiddenApps = new();
+        private string _searchQuery = string.Empty;
+        private bool _isSearchingAppLibrary;
+        private int _appLibraryScroll;
+        private int _maxAppLibraryScroll;
+        private bool _isDropdownShowingHide;
+        private bool _isDraggingAlphabetIndex;
+        private readonly Dictionary<string, Rectangle> _appLibraryClickBounds = new();
+        private readonly Dictionary<char, int> _alphabetYPositions = new();
+        private readonly List<(char letter, Rectangle rect)> _alphabetIndexBounds = new();
+        private Rectangle _searchBoxBounds = Rectangle.Empty;
+        private Rectangle _cancelButtonBounds = Rectangle.Empty;
+        private string? _clickedAppLibraryAppId;
+        private bool _appLibraryClickCandidate;
+        private Rectangle _appLibraryViewport = Rectangle.Empty;
+
+        public bool IsSearchingAppLibrary => _isSearchingAppLibrary;
+        public int TotalPages => _pages.Count;
+        public bool IsDraggingOrCandidate => _isDragging || _isDragCandidate;
+
         public PhoneAppLayoutManager(PhoneMenu menu)
         {
             _menu = menu;
@@ -164,6 +187,7 @@ namespace Smartphone
             _openFolder = null;
             _isEditingFolderName = false;
             _isDropdownShowingThemes = false;
+            _isDropdownShowingHide = false;
         }
 
         public void ExitReorderMode()
@@ -173,6 +197,8 @@ namespace Smartphone
             _dropdownOpen = false;
             _openFolder = null;
             _isEditingFolderName = false;
+            _isDropdownShowingThemes = false;
+            _isDropdownShowingHide = false;
             CleanupEmptyPages();
             SaveLayout();
         }
@@ -326,6 +352,18 @@ namespace Smartphone
             List<HomeAppEntryProxy> allApps = BuildAllAppsSnapshot();
             SyncLayoutWithApps(allApps);
 
+            if (_currentPage == _pages.Count)
+            {
+                DrawAppLibraryPage(b, allApps);
+                if (IsReorderMode)
+                {
+                    DrawDoneButton(b);
+                }
+                if (_dropdownOpen)
+                    DrawDropdown(b);
+                return;
+            }
+
             DrawDock(b, allApps);
 
             if (IsReorderMode && _openFolder == null)
@@ -372,6 +410,11 @@ namespace Smartphone
 
         public bool ReceiveLeftClick(int x, int y)
         {
+            if (!_menu.GetPhoneContentBounds().Contains(x, y))
+            {
+                return false;
+            }
+
             if (IsReorderMode && _doneButtonBounds.Contains(x, y) && _openFolder == null)
             {
                 Game1.playSound("smallSelect");
@@ -385,6 +428,12 @@ namespace Smartphone
                 BuildDefaultLayout(BuildAllAppsSnapshot());
                 SaveLayout();
                 _menu.ResetPhoneBackgroundToDefault();
+                return true;
+            }
+
+            if (_currentPage == _pages.Count)
+            {
+                HandleAppLibraryClick(x, y);
                 return true;
             }
 
@@ -406,16 +455,36 @@ namespace Smartphone
                             // Check if the cursor coordinates are inside the app icon's bounding hitbox
                             if (_mainClickBounds.TryGetValue(item.AppId + "_" + _dropdownForMainIndex, out Rectangle appBounds) && appBounds.Contains(x, y))
                             {
-                                // If we aren't already viewing themes, transition to the texture selection view
-                                if (!_isDropdownShowingThemes)
+                                if (!_isDropdownShowingThemes && !_isDropdownShowingHide)
                                 {
                                     _isDropdownShowingThemes = true;
+                                    _isDropdownShowingHide = false;
                                     List<HomeAppEntryProxy> allApps = BuildAllAppsSnapshot();
                                     HomeAppEntryProxy? app = FindApp(allApps, item.AppId);
 
                                     BuildThemeDropdownItems(appBounds, app);
                                     Game1.playSound("smallSelect");
-                                    return true; // Consume the click and remain open
+                                    return true;
+                                }
+                                else if (_isDropdownShowingThemes)
+                                {
+                                    _isDropdownShowingThemes = false;
+                                    _isDropdownShowingHide = true;
+
+                                    BuildHideDropdownItems(appBounds);
+                                    Game1.playSound("smallSelect");
+                                    return true;
+                                }
+                                else if (_isDropdownShowingHide)
+                                {
+                                    _isDropdownShowingThemes = false;
+                                    _isDropdownShowingHide = false;
+                                    List<HomeAppEntryProxy> allApps = BuildAllAppsSnapshot();
+                                    HomeAppEntryProxy? app = FindApp(allApps, item.AppId);
+
+                                    BuildDropdownItems(appBounds, app);
+                                    Game1.playSound("smallSelect");
+                                    return true;
                                 }
                             }
                         }
@@ -424,6 +493,7 @@ namespace Smartphone
                     // Otherwise, clicking completely outside closes the menu entirely
                     _dropdownOpen = false;
                     _isDropdownShowingThemes = false;
+                    _isDropdownShowingHide = false;
                 }
                 return true;
             }
@@ -433,7 +503,7 @@ namespace Smartphone
                 if (_isEditingFolderName && !_folderRenameBoxBounds.Contains(x, y))
                 {
                     _isEditingFolderName = false;
-                    _openFolder.FolderName = string.IsNullOrWhiteSpace(_folderNameBuffer) ? "Folder" : _folderNameBuffer;
+                    _openFolder.FolderName = string.IsNullOrWhiteSpace(_folderNameBuffer) ? ModEntry.SHelper.Translation.Get("ui.reorder.folder").ToString() : _folderNameBuffer;
                     SaveLayout();
                 }
 
@@ -469,7 +539,7 @@ namespace Smartphone
                 {
                     if (_isEditingFolderName)
                     {
-                        _openFolder.FolderName = string.IsNullOrWhiteSpace(_folderNameBuffer) ? "Folder" : _folderNameBuffer;
+                        _openFolder.FolderName = string.IsNullOrWhiteSpace(_folderNameBuffer) ? ModEntry.SHelper.Translation.Get("ui.reorder.folder").ToString() : _folderNameBuffer;
                     }
                     CleanupEmptyPages();
                     SaveLayout();
@@ -540,6 +610,25 @@ namespace Smartphone
         {
             if (_dropdownOpen) return;
 
+            if (_currentPage == _pages.Count)
+            {
+                if (_isDraggingAlphabetIndex)
+                {
+                    foreach (var indexBound in _alphabetIndexBounds)
+                    {
+                        if (y >= indexBound.rect.Y && y < indexBound.rect.Bottom)
+                        {
+                            if (_alphabetYPositions.TryGetValue(indexBound.letter, out int targetY))
+                            {
+                                _appLibraryScroll = Math.Clamp(targetY, 0, _maxAppLibraryScroll);
+                            }
+                            break;
+                        }
+                    }
+                }
+                return;
+            }
+
             if (_isDragCandidate && !_dragStarted)
             {
                 int dx = x - _clickStartX;
@@ -588,6 +677,38 @@ namespace Smartphone
 
         public void ReleaseLeftClick(int x, int y)
         {
+            _isDraggingAlphabetIndex = false;
+            if (_currentPage == _pages.Count)
+            {
+                if (_appLibraryClickCandidate)
+                {
+                    _appLibraryClickCandidate = false;
+                    int dx = Math.Abs(x - _clickStartX);
+                    int dy = Math.Abs(y - _clickStartY);
+                    if (dx <= 10 && dy <= 10 && !_menu.HasTouchSwiped && !string.IsNullOrEmpty(_clickedAppLibraryAppId) && _menu.GetPhoneContentBounds().Contains(x, y) && _appLibraryViewport.Contains(x, y))
+                    {
+                        string appId = _clickedAppLibraryAppId;
+                        Rectangle rowRect = _appLibraryClickBounds.TryGetValue(appId, out var r) ? r : Rectangle.Empty;
+
+                        if (IsReorderMode)
+                        {
+                            if (_hiddenApps.Contains(appId))
+                            {
+                                _dropdownAppId = appId;
+                                BuildShowDropdownItems(rowRect);
+                                _dropdownOpen = true;
+                                Game1.playSound("smallSelect");
+                            }
+                        }
+                        else
+                        {
+                            HandleAppLaunch(appId);
+                        }
+                    }
+                }
+                return;
+            }
+
             if (_isDragging)
             {
                 DropDraggedItem(x, y);
@@ -663,7 +784,7 @@ namespace Smartphone
                 if (key == Keys.Enter)
                 {
                     _isEditingFolderName = false;
-                    _openFolder.FolderName = string.IsNullOrWhiteSpace(_folderNameBuffer) ? "Folder" : _folderNameBuffer;
+                    _openFolder.FolderName = string.IsNullOrWhiteSpace(_folderNameBuffer) ? ModEntry.SHelper.Translation.Get("ui.reorder.folder").ToString() : _folderNameBuffer;
                     SaveLayout();
                     return true;
                 }
@@ -688,7 +809,7 @@ namespace Smartphone
             }
         }
 
-        public bool TryChangePageScroll(int delta)
+        public bool TryChangePageScroll(int delta, bool allowAppLibrary = true)
         {
             if (_dropdownOpen) return false;
 
@@ -702,8 +823,13 @@ namespace Smartphone
                 return true;
             }
 
-            int next = Math.Clamp(_currentPage + delta, 0, Math.Max(0, _pages.Count - 1));
+            int maxPage = (IsReorderMode && !allowAppLibrary) ? _pages.Count - 1 : _pages.Count;
+            int next = Math.Clamp(_currentPage + delta, 0, Math.Max(0, maxPage));
             if (next == _currentPage) return false;
+
+            _isSearchingAppLibrary = false;
+            _searchQuery = string.Empty;
+
             _currentPage = next;
             return true;
         }
@@ -728,6 +854,7 @@ namespace Smartphone
                 }
 
                 _dock = data.Dock ?? new List<string>();
+                _hiddenApps = data.HiddenApps ?? new List<string>();
 
                 if (data.Pages != null && data.Pages.Count > 0)
                 {
@@ -787,7 +914,8 @@ namespace Smartphone
                 PhoneLayoutData data = new PhoneLayoutData
                 {
                     Pages = _pages,
-                    Dock = _dock
+                    Dock = _dock,
+                    HiddenApps = _hiddenApps
                 };
 
                 string json = JsonConvert.SerializeObject(data, Formatting.Indented);
@@ -902,7 +1030,7 @@ namespace Smartphone
                 }
             }
 
-            var missingApps = allApps.Where(a => !trackedIds.Contains(a.Id));
+            var missingApps = allApps.Where(a => !trackedIds.Contains(a.Id) && !_hiddenApps.Contains(a.Id));
             foreach (var app in missingApps)
             {
                 var targetPage = _pages.Last();
@@ -923,7 +1051,7 @@ namespace Smartphone
                 });
             }
 
-            _currentPage = Math.Clamp(_currentPage, 0, _pages.Count - 1);
+            _currentPage = Math.Clamp(_currentPage, 0, _pages.Count);
         }
 
         private (int col, int row) FindFirstAvailableGridPosition(List<LayoutItem> page, int w, int h)
@@ -977,7 +1105,7 @@ namespace Smartphone
                    row < other.GridRow + oh && row + h > other.GridRow;
         }
 
-        private void RelocateItem(LayoutItem item, int preferredPage)
+        private int RelocateItem(LayoutItem item, int preferredPage)
         {
             (int w, int h) = GetSizeDims(item.Size);
             int pIdx = preferredPage;
@@ -996,7 +1124,7 @@ namespace Smartphone
                     item.GridCol = c;
                     item.GridRow = r;
                     page.Add(item);
-                    break;
+                    return pIdx;
                 }
                 pIdx++;
             }
@@ -1291,6 +1419,7 @@ namespace Smartphone
 
         private void DrawPageIndicator(SpriteBatch b)
         {
+            if (_currentPage == _pages.Count) return;
             if (_pages.Count <= 1) return;
             Rectangle contentBounds = _menu.GetPhoneContentBounds();
             int dotSize = ScaleUi(8), dotSpacing = ScaleUi(14);
@@ -1391,7 +1520,7 @@ namespace Smartphone
             }
 
             // --- MOVE GROUP NAME OUTSIDE THE BOX ---
-            string title = _isEditingFolderName ? (_folderNameBuffer + "|") : (_openFolder.FolderName ?? "Folder");
+            string title = _isEditingFolderName ? (_folderNameBuffer + "|") : (_openFolder.FolderName ?? ModEntry.SHelper.Translation.Get("ui.reorder.folder").ToString());
             Vector2 titleSize = Game1.dialogueFont.MeasureString(title) * 0.8f;
 
             // Placed ScaleUi(45) pixels above the upper boundary edge of the group container box
@@ -1587,10 +1716,33 @@ namespace Smartphone
                     ApplyTheme(_dropdownAppId!, item.label);
                     _dropdownOpen = false;
                     _isDropdownShowingThemes = false;
+                    _isDropdownShowingHide = false;
+                    return;
+                }
+
+                if (item.option == DropdownOption.HideApp)
+                {
+                    HideApp(_dropdownAppId!);
+                    _dropdownOpen = false;
+                    _isDropdownShowingThemes = false;
+                    _isDropdownShowingHide = false;
+                    Game1.playSound("trashcan");
+                    return;
+                }
+
+                if (item.option == DropdownOption.ShowApp)
+                {
+                    ShowApp(_dropdownAppId!);
+                    _dropdownOpen = false;
+                    _isDropdownShowingThemes = false;
+                    _isDropdownShowingHide = false;
+                    Game1.playSound("smallSelect");
                     return;
                 }
 
                 _dropdownOpen = false;
+                _isDropdownShowingThemes = false;
+                _isDropdownShowingHide = false;
                 Game1.playSound("smallSelect");
                 return;
             }
@@ -1998,7 +2150,7 @@ namespace Smartphone
                     LayoutItem newFolder = new LayoutItem
                     {
                         AppId = FolderAppId,
-                        FolderName = "Folder",
+                        FolderName = ModEntry.SHelper.Translation.Get("ui.reorder.folder").ToString(),
                         GridCol = targetItem.GridCol,
                         GridRow = targetItem.GridRow,
                         Size = AppSize.Size1x1,
@@ -2279,6 +2431,399 @@ namespace Smartphone
             {
                 _dropdownItems.Add((DropdownOption.SelectTheme, new Rectangle(x, y + i * (itemH + ScaleUi(2)), itemW, itemH), themes[i]));
             }
+        }
+
+        private void BuildHideDropdownItems(Rectangle anchorBounds)
+        {
+            _dropdownItems.Clear();
+            int itemH = ScaleUi(32), itemW = ScaleUi(90);
+            int x = anchorBounds.X + ScaleUi(11), y = anchorBounds.Bottom + ScaleUi(4);
+
+            Rectangle contentBounds = _menu.GetPhoneContentBounds();
+            if (y + (itemH + ScaleUi(2)) > contentBounds.Bottom)
+            {
+                y = anchorBounds.Top - (itemH + ScaleUi(2)) - ScaleUi(4);
+            }
+
+            _dropdownItems.Add((DropdownOption.HideApp, new Rectangle(x, y, itemW, itemH), ModEntry.SHelper.Translation.Get("ui.reorder.hide_app").ToString()));
+        }
+
+        private void BuildShowDropdownItems(Rectangle anchorBounds)
+        {
+            _dropdownItems.Clear();
+            int itemH = ScaleUi(32), itemW = ScaleUi(90);
+            int x = anchorBounds.X + ScaleUi(11), y = anchorBounds.Bottom + ScaleUi(4);
+
+            Rectangle contentBounds = _menu.GetPhoneContentBounds();
+            if (y + (itemH + ScaleUi(2)) > contentBounds.Bottom)
+            {
+                y = anchorBounds.Top - (itemH + ScaleUi(2)) - ScaleUi(4);
+            }
+
+            _dropdownItems.Add((DropdownOption.ShowApp, new Rectangle(x, y, itemW, itemH), ModEntry.SHelper.Translation.Get("ui.reorder.show_app").ToString()));
+        }
+
+        private void HideApp(string appId)
+        {
+            if (string.IsNullOrEmpty(appId)) return;
+            if (!_hiddenApps.Contains(appId))
+            {
+                _hiddenApps.Add(appId);
+            }
+            // Remove from dock
+            _dock.RemoveAll(id => string.Equals(id, appId, StringComparison.OrdinalIgnoreCase));
+            // Remove from pages
+            foreach (var page in _pages)
+            {
+                page.RemoveAll(item => !item.IsFolder && string.Equals(item.AppId, appId, StringComparison.OrdinalIgnoreCase));
+                foreach (var folder in page.Where(f => f.IsFolder))
+                {
+                    folder.FolderItems.RemoveAll(id => string.Equals(id, appId, StringComparison.OrdinalIgnoreCase));
+                    CleanupFolderPages(folder);
+                }
+            }
+            CleanupEmptyPages();
+            SaveLayout();
+        }
+
+        private void ShowApp(string appId)
+        {
+            if (string.IsNullOrEmpty(appId)) return;
+            _hiddenApps.Remove(appId);
+
+            // Add back to first available slot on the first available page starting from index 0
+            LayoutItem newItem = new LayoutItem { AppId = appId, Size = AppSize.Size1x1 };
+            int targetPage = RelocateItem(newItem, 0);
+
+            CleanupEmptyPages();
+            SaveLayout();
+
+            // Set current page to where it was added
+            _currentPage = targetPage;
+            _isSearchingAppLibrary = false;
+            _searchQuery = string.Empty;
+        }
+
+        public void ApplyScrollWheel(int direction)
+        {
+            if (_currentPage == _pages.Count)
+            {
+                int delta = direction > 0 ? -ScaleUi(40) : ScaleUi(40);
+                _appLibraryScroll = Math.Clamp(_appLibraryScroll + delta, 0, _maxAppLibraryScroll);
+            }
+        }
+
+        public void ApplyTouchScrollDelta(int pixelDelta)
+        {
+            if (_currentPage == _pages.Count)
+            {
+                _appLibraryScroll = Math.Clamp(_appLibraryScroll + pixelDelta, 0, _maxAppLibraryScroll);
+            }
+        }
+
+        private void HandleAppLibraryClick(int x, int y)
+        {
+            _appLibraryClickCandidate = false;
+            _clickedAppLibraryAppId = null;
+
+            if (_dropdownOpen)
+            {
+                if (_dropdownItems.Any(item => item.bounds.Contains(x, y)))
+                {
+                    HandleDropdownClick(x, y);
+                }
+                else
+                {
+                    _dropdownOpen = false;
+                    _isDropdownShowingThemes = false;
+                    _isDropdownShowingHide = false;
+                }
+                return;
+            }
+
+            // Click Cancel Button
+            if (_isSearchingAppLibrary && _cancelButtonBounds.Contains(x, y))
+            {
+                _isSearchingAppLibrary = false;
+                _searchQuery = string.Empty;
+                Game1.playSound("smallSelect");
+                return;
+            }
+
+            // Click Search Box
+            if (_searchBoxBounds.Contains(x, y))
+            {
+                _isSearchingAppLibrary = true;
+                Game1.playSound("smallSelect");
+                return;
+            }
+
+            // Click Alphabet Index Column
+            foreach (var indexBound in _alphabetIndexBounds)
+            {
+                if (indexBound.rect.Contains(x, y))
+                {
+                    _isDraggingAlphabetIndex = true;
+                    if (_alphabetYPositions.TryGetValue(indexBound.letter, out int targetY))
+                    {
+                        _appLibraryScroll = Math.Clamp(targetY, 0, _maxAppLibraryScroll);
+                        Game1.playSound("shwip");
+                    }
+                    return;
+                }
+            }
+
+            // Click App Rows
+            foreach (var clickBound in _appLibraryClickBounds)
+            {
+                if (clickBound.Value.Contains(x, y))
+                {
+                    _appLibraryClickCandidate = true;
+                    _clickedAppLibraryAppId = clickBound.Key;
+                    _clickStartX = x;
+                    _clickStartY = y;
+                    return;
+                }
+            }
+
+            // Click outside search box clears search focus
+            if (_isSearchingAppLibrary)
+            {
+                _isSearchingAppLibrary = false;
+            }
+        }
+
+        private void DrawAppLibraryPage(SpriteBatch b, List<HomeAppEntryProxy> allApps)
+        {
+            _appLibraryClickBounds.Clear();
+            _alphabetIndexBounds.Clear();
+
+            Rectangle phoneContent = _menu.GetPhoneContentBounds();
+            Color nameColor = GetHomeTextColor();
+
+            // Draw Search Box
+            int searchY = IsReorderMode ? ScaleUi(42) : ScaleUi(20);
+            int searchH = ScaleUi(42);
+            int totalW = phoneContent.Width - ScaleUi(64);
+
+            Rectangle searchBoxRect;
+            if (_isSearchingAppLibrary)
+            {
+                searchBoxRect = new Rectangle(phoneContent.X + ScaleUi(32), phoneContent.Y + searchY, totalW - ScaleUi(80), searchH);
+                _cancelButtonBounds = new Rectangle(phoneContent.X + ScaleUi(32) + totalW - ScaleUi(70), phoneContent.Y + searchY, ScaleUi(70), searchH);
+            }
+            else
+            {
+                searchBoxRect = new Rectangle(phoneContent.X + ScaleUi(32), phoneContent.Y + searchY, totalW, searchH);
+                _cancelButtonBounds = Rectangle.Empty;
+            }
+            _searchBoxBounds = searchBoxRect;
+
+            // Draw Search Box Background (semi-transparent white glassmorphic look)
+            Textures.DrawCard(b, searchBoxRect.X, searchBoxRect.Y, searchBoxRect.Width, searchBoxRect.Height, Color.White * 0.15f, 1f, false);
+
+            // Draw Magnifying Glass Icon (from Game1.mouseCursors at (80, 0, 13, 13))
+            Rectangle magnifyingGlassSrc = new Rectangle(80, 0, 13, 13);
+            int iconSz = ScaleUi(16);
+            b.Draw(Game1.mouseCursors, new Rectangle(searchBoxRect.X + ScaleUi(12), searchBoxRect.Y + (searchBoxRect.Height - iconSz) / 2, iconSz, iconSz), magnifyingGlassSrc, Color.White * 0.7f);
+
+            // Draw Search text
+            string printableSearch = _searchQuery;
+            Color txtColor = nameColor;
+            if (string.IsNullOrEmpty(printableSearch))
+            {
+                printableSearch = ModEntry.SHelper.Translation.Get("ui.app_library").ToString();
+                txtColor = nameColor * 0.5f;
+            }
+            else if (_isSearchingAppLibrary && (DateTime.UtcNow.Millisecond / 500) % 2 == 0)
+            {
+                printableSearch += "|";
+            }
+
+            float searchTxtScale = _menu.GetPhoneTextScale(0.8f);
+            Vector2 searchTxtSz = Game1.smallFont.MeasureString(printableSearch) * searchTxtScale;
+            b.DrawString(Game1.smallFont, printableSearch, new Vector2(searchBoxRect.X + ScaleUi(36), searchBoxRect.Y + (searchBoxRect.Height - searchTxtSz.Y) / 2), txtColor, 0f, Vector2.Zero, searchTxtScale, SpriteEffects.None, 1f);
+
+            // Draw Cancel Button
+            if (_isSearchingAppLibrary)
+            {
+                string cancelLabel = ModEntry.SHelper.Translation.Get("ui.button.cancel").ToString();
+                float cancelScale = _menu.GetPhoneTextScale(0.8f);
+                Vector2 cancelSz = Game1.smallFont.MeasureString(cancelLabel) * cancelScale;
+                b.DrawString(Game1.smallFont, cancelLabel, new Vector2(_cancelButtonBounds.X + (_cancelButtonBounds.Width - cancelSz.X) / 2, _cancelButtonBounds.Y + (_cancelButtonBounds.Height - cancelSz.Y) / 2), nameColor, 0f, Vector2.Zero, cancelScale, SpriteEffects.None, 1f);
+            }
+
+            // Scrollable list start Y and height
+            int listY = searchBoxRect.Bottom + ScaleUi(15);
+            int listH = phoneContent.Bottom - listY - ScaleUi(10);
+            Rectangle listViewport = new Rectangle(phoneContent.X, listY, phoneContent.Width, listH);
+            _appLibraryViewport = listViewport;
+
+            // Prepare alphabetical grouping
+            var appsToDisplay = allApps;
+            if (!string.IsNullOrEmpty(_searchQuery))
+            {
+                appsToDisplay = allApps.Where(a => a.DisplayName.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+
+            SortedDictionary<char, List<HomeAppEntryProxy>> groups = new();
+            foreach (var app in appsToDisplay)
+            {
+                char firstChar = string.IsNullOrEmpty(app.DisplayName) ? '#' : char.ToUpper(app.DisplayName[0]);
+                if (firstChar < 'A' || firstChar > 'Z')
+                {
+                    firstChar = '#';
+                }
+
+                if (!groups.ContainsKey(firstChar))
+                {
+                    groups[firstChar] = new List<HomeAppEntryProxy>();
+                }
+                groups[firstChar].Add(app);
+            }
+
+            var sortedGroupKeys = groups.Keys.OrderBy(c => c == '#' ? 'Z' + 1 : c).ToList();
+
+            // Calculate Y offsets for quick letter jump
+            _alphabetYPositions.Clear();
+            int currentOffset = 0;
+            int headerH = ScaleUi(32);
+            int rowH = ScaleUi(72);
+
+            foreach (char gKey in sortedGroupKeys)
+            {
+                _alphabetYPositions[gKey] = currentOffset;
+                groups[gKey] = groups[gKey].OrderBy(a => a.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
+                currentOffset += headerH + (groups[gKey].Count * rowH);
+            }
+
+            _maxAppLibraryScroll = Math.Max(0, currentOffset - listH);
+            _appLibraryScroll = Math.Clamp(_appLibraryScroll, 0, _maxAppLibraryScroll);
+
+            // Draw scrollable list using Hardware Scissor clip
+            Rectangle originalScissor = b.GraphicsDevice.ScissorRectangle;
+            b.End();
+            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState { ScissorTestEnable = true });
+
+            Rectangle screenViewport = b.GraphicsDevice.Viewport.Bounds;
+            Rectangle clipRect = Rectangle.Intersect(listViewport, screenViewport);
+            b.GraphicsDevice.ScissorRectangle = clipRect;
+
+            int relativeY = 0;
+            foreach (char gKey in sortedGroupKeys)
+            {
+                // Draw Header
+                Rectangle headerRect = new Rectangle(phoneContent.X + ScaleUi(32), listViewport.Y + relativeY - _appLibraryScroll, phoneContent.Width - ScaleUi(64), headerH);
+                if (headerRect.Bottom > listViewport.Top && headerRect.Top < listViewport.Bottom)
+                {
+                    float letterScale = _menu.GetPhoneTextScale(0.7f);
+                    Vector2 letterSz = Game1.dialogueFont.MeasureString(gKey.ToString()) * letterScale;
+                    b.DrawString(Game1.dialogueFont, gKey.ToString(), new Vector2(headerRect.X, headerRect.Y + (headerRect.Height - letterSz.Y) / 2), nameColor * 0.9f, 0f, Vector2.Zero, letterScale, SpriteEffects.None, 1f);
+                }
+                relativeY += headerH;
+
+                // Draw Apps
+                var groupApps = groups[gKey];
+                for (int i = 0; i < groupApps.Count; i++)
+                {
+                    var app = groupApps[i];
+                    Rectangle rowRect = new Rectangle(phoneContent.X + ScaleUi(32), listViewport.Y + relativeY - _appLibraryScroll, phoneContent.Width - ScaleUi(64) - ScaleUi(36), rowH);
+
+                    if (rowRect.Bottom > listViewport.Top && rowRect.Top < listViewport.Bottom)
+                    {
+                        _appLibraryClickBounds[app.Id] = rowRect;
+                        // Draw App Icon
+                        Rectangle iconRect = new Rectangle(rowRect.X + ScaleUi(4), rowRect.Y + ScaleUi(7), ScaleUi(58), ScaleUi(58));
+                        DrawAppIcon(b, app.IconTexture, iconRect, app.SourceRect);
+
+                        // Draw Display Name
+                        float nameScale = _menu.GetPhoneTextScale(1.31f);
+                        Vector2 nameSz = Game1.smallFont.MeasureString(app.DisplayName) * nameScale;
+                        b.DrawString(Game1.smallFont, app.DisplayName, new Vector2(rowRect.X + ScaleUi(76), rowRect.Y + (rowRect.Height - nameSz.Y) / 2), nameColor, 0f, Vector2.Zero, nameScale, SpriteEffects.None, 1f);
+
+                        // Draw Divider
+                        if (i < groupApps.Count - 1)
+                        {
+                            b.Draw(Game1.staminaRect, new Rectangle(rowRect.X + ScaleUi(76), rowRect.Bottom - 1, rowRect.Width - ScaleUi(76), 1), nameColor * 0.15f);
+                        }
+                    }
+                    relativeY += rowH;
+                }
+            }
+
+            b.End();
+            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
+            b.GraphicsDevice.ScissorRectangle = originalScissor;
+
+            // Draw Alphabet Index Column
+            int alphabetY = phoneContent.Y + ScaleUi(90);
+            int alphabetH = phoneContent.Height - ScaleUi(110);
+            int alphabetW = ScaleUi(28);
+            int alphabetX = phoneContent.Right - ScaleUi(32);
+
+            string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#";
+            int elemH = alphabetH / alphabet.Length;
+
+            for (int i = 0; i < alphabet.Length; i++)
+            {
+                char c = alphabet[i];
+                Rectangle letterRect = new Rectangle(alphabetX, alphabetY + i * elemH, alphabetW, elemH);
+                _alphabetIndexBounds.Add((c, letterRect));
+
+                bool hasGroup = groups.ContainsKey(c);
+                Color letterColor = hasGroup ? nameColor * 0.85f : nameColor * 0.3f;
+
+                float indexTxtScale = _menu.GetPhoneTextScale(0.85f);
+                Vector2 indexTxtSz = Game1.smallFont.MeasureString(c.ToString()) * indexTxtScale;
+                b.DrawString(Game1.smallFont, c.ToString(), new Vector2(letterRect.X + (letterRect.Width - indexTxtSz.X) / 2, letterRect.Y + (letterRect.Height - indexTxtSz.Y) / 2), letterColor, 0f, Vector2.Zero, indexTxtScale, SpriteEffects.None, 1f);
+            }
+        }
+
+        public bool HandleSearchKeyPress(Keys key)
+        {
+            if (!_isSearchingAppLibrary) return false;
+
+            if (key == Keys.Back)
+            {
+                if (_searchQuery.Length > 0)
+                {
+                    _searchQuery = _searchQuery.Substring(0, _searchQuery.Length - 1);
+                    Game1.playSound("thudStep");
+                }
+                return true;
+            }
+            else if (key == Keys.Escape || key == Keys.Enter)
+            {
+                _isSearchingAppLibrary = false;
+                return true;
+            }
+
+            // Suppress all keypresses when typing to prevent game controls triggers
+            return true;
+        }
+
+        public void HandleSearchTextInput(string insertionText)
+        {
+            if (!_isSearchingAppLibrary) return;
+            if (string.IsNullOrEmpty(insertionText)) return;
+
+            foreach (char c in insertionText)
+            {
+                if (char.IsLetterOrDigit(c) || c == ' ' || char.IsPunctuation(c) || char.IsSymbol(c))
+                {
+                    if (_searchQuery.Length < 30)
+                    {
+                        _searchQuery += c;
+                    }
+                }
+            }
+        }
+
+        internal void SetSearchQueryBuffer(string value)
+        {
+            _searchQuery = value ?? string.Empty;
+            if (_searchQuery.Length > 30)
+                _searchQuery = _searchQuery.Substring(0, 30);
         }
     }
 

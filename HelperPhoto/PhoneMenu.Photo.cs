@@ -129,7 +129,8 @@ namespace Smartphone
             None,
             PhotoAlbumName,
             FolderGroupName,
-            PhoneAppInput
+            PhoneAppInput,
+            AppLibrarySearch
         }
 
         private sealed class PhoneTextInputSubscriber : IKeyboardSubscriber
@@ -196,6 +197,9 @@ namespace Smartphone
             if (currentApp == null && layoutManager != null && layoutManager.IsEditingFolderName)
                 return EditableTextFieldKind.FolderGroupName;
 
+            if (currentApp == null && layoutManager != null && layoutManager.IsSearchingAppLibrary)
+                return EditableTextFieldKind.AppLibrarySearch;
+
             if (currentApp == "appPhone")
             {
                 bool isSearching = phoneAppCurrentTab == 0;
@@ -231,6 +235,7 @@ namespace Smartphone
             {
                 EditableTextFieldKind.PhotoAlbumName => currentApp == "appPhoto" && photoAlbumCreationOpen,
                 EditableTextFieldKind.FolderGroupName => currentApp == null && layoutManager != null && layoutManager.IsEditingFolderName,
+                EditableTextFieldKind.AppLibrarySearch => currentApp == null && layoutManager != null && layoutManager.IsSearchingAppLibrary,
                 EditableTextFieldKind.PhoneAppInput => currentApp == "appPhone" && !phoneAppViewingContactDetail &&
                     (phoneAppCurrentTab == 0),
                 _ => false
@@ -277,6 +282,13 @@ namespace Smartphone
                         {
                             layoutManager.HandleTextInput(c);
                         }
+                    }
+                    return true;
+
+                case EditableTextFieldKind.AppLibrarySearch:
+                    if (layoutManager != null)
+                    {
+                        layoutManager.HandleSearchTextInput(insertionText);
                     }
                     return true;
 
@@ -390,7 +402,14 @@ namespace Smartphone
 
         private void ApplyTouchScrollDelta(int pixelDelta)
         {
-            if (currentApp == "appSetting")
+            if (currentApp == null)
+            {
+                if (layoutManager != null)
+                {
+                    layoutManager.ApplyTouchScrollDelta(pixelDelta);
+                }
+            }
+            else if (currentApp == "appSetting")
             {
                 ApplyTouchScrollDeltaSettingApp(pixelDelta);
             }
@@ -440,6 +459,13 @@ namespace Smartphone
                     if (layoutManager != null)
                     {
                         layoutManager.SetFolderNameBuffer(safeText);
+                    }
+                    break;
+
+                case EditableTextFieldKind.AppLibrarySearch:
+                    if (layoutManager != null)
+                    {
+                        layoutManager.SetSearchQueryBuffer(safeText);
                     }
                     break;
             }
