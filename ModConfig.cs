@@ -17,6 +17,7 @@ namespace Smartphone
         public string ShowSizeButton { get; set; } = "Always";
         public int HudPhoneIconOffsetX { get; set; } = 0;
         public int HudPhoneIconOffsetY { get; set; } = 0;
+        public float HudPhoneIconScale { get; set; } = 1.0f;
 
         public bool NotifyNotification { get; set; } = true;
 

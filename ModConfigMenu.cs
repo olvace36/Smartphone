@@ -168,9 +168,9 @@ namespace Smartphone
                 name: () => Helper.Translation.Get("config.name.phone_icon_x"),
                 tooltip: () => Helper.Translation.Get("config.tooltip.phone_icon_x"),
                 getValue: () => Config.HudPhoneIconOffsetX,
-                setValue: value => Config.HudPhoneIconOffsetX = Math.Clamp(value, -2000, 2000),
-                min: -2000,
-                max: 2000,
+                setValue: value => Config.HudPhoneIconOffsetX = Math.Clamp(value, -50000, 50000),
+                min: -50000,
+                max: 50000,
                 interval: 1
             );
 
@@ -179,10 +179,22 @@ namespace Smartphone
                 name: () => Helper.Translation.Get("config.name.phone_icon_y"),
                 tooltip: () => Helper.Translation.Get("config.tooltip.phone_icon_y"),
                 getValue: () => Config.HudPhoneIconOffsetY,
-                setValue: value => Config.HudPhoneIconOffsetY = Math.Clamp(value, -2000, 2000),
-                min: -2000,
-                max: 2000,
+                setValue: value => Config.HudPhoneIconOffsetY = Math.Clamp(value, -50000, 50000),
+                min: -50000,
+                max: 50000,
                 interval: 1
+            );
+
+            configMenu.AddNumberOption(
+                mod: ModManifest,
+                name: () => Helper.Translation.Get("config.name.phone_icon_scale"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.phone_icon_scale"),
+                getValue: () => Config.HudPhoneIconScale,
+                setValue: value => Config.HudPhoneIconScale = Math.Clamp(value, 1f, 6f),
+                min: 1.0f,
+                max: 6.0f,
+                interval: 0.1f,
+                formatValue: value => $"{value:0.00}"
             );
 
             // notification page

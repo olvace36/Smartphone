@@ -45,6 +45,8 @@
   "config.tooltip.phone_icon_x": "Horizontal offset in pixels for the phone icon.\nNegative = move left, positive = move right.",
   "config.name.phone_icon_y": "Phone icon Y",
   "config.tooltip.phone_icon_y": "Vertical offset in pixels for the phone icon.\nNegative = move up, positive = move down.",
+  "config.name.phone_icon_scale": "Phone icon scale",
+  "config.tooltip.phone_icon_scale": "Scale of the phone icon on the screen.",
   "config.name.notification_popups": "Notification app popups",
   "config.tooltip.notification_popups": "Show HUD popups for Notification app updates.",
   "mail.first_time": "=== Smartphone ===^^Looks like this is your first time here, or you have recently updated the mod and >> LOST YOUR DATA @@^^Please note that your data, including contacts, photos, everything,... are saved in                           $$/Mods/Smartphone/Userdata$$ folder.^     >> YOU MUST COPY IT WHEN UPDATE THE MOD @@^^         Thanks for trying out the mod, HaPyke +++",
