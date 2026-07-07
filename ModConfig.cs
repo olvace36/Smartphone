@@ -24,7 +24,7 @@ namespace Smartphone
         public bool DisableUpdateWarning { get; set; } = false;
         public bool ShowPhoneIcon { get; set; } = true;
 
-        public string BlacklistNpc { get; set; } = "Leo, Krobus, Dwarf, Gunther, Birdie, Bouncer, MoonSBV, PanSBV, RaccoonSBV, Leximonster, Dianna, Torts";
+        public string AllowedNpc { get; set; } = "Abigail, Alex, Caroline, Clint, Demetrius, Elliott, Emily, Evelyn, George, Gus, Haley, Harvey, Jas, Jodi, Kent, Leah, Leo, Lewis, Linus, Marnie, Maru, Pam, Penny, Pierre, Robin, Sam, Sandy, Sebastian, Shane, Vincent, Willy, Wizard, Alesia, Andy, Camilla, Claire, Gunther, Isaac, MarlonFay, Martin, MorrisTod, Olivia, Sophia, Susan, Scarlett, Victor";
         public string FriendshipRequirement { get; set; } = "Meet";
 
         public bool RestoreStamina { get; set; } = true;

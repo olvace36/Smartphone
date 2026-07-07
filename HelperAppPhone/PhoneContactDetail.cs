@@ -74,7 +74,8 @@ namespace Smartphone
 
             float detailScale = 0.85f * uiScale;
             string mapName = string.IsNullOrEmpty(targetNpc.DefaultMap) ? ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.unknown") : targetNpc.DefaultMap;
-            string address = ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.address", new { address = mapName });
+            string mapDisplayName = Game1.getLocationFromName(mapName)?.DisplayName;
+            string address = ModEntry.SHelper.Translation.Get("ui.phone.contact_detail.address", new { address = mapDisplayName });
             b.DrawString(Game1.smallFont, address, new Vector2(bounds.X + ScaleUiValue(30), contentY), Color.DarkSlateGray, 0f, Vector2.Zero, detailScale, SpriteEffects.None, 1f);
             contentY += ScaleUiValue(30);
 

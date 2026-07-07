@@ -213,10 +213,10 @@ namespace Smartphone
 
             configMenu.AddTextOption(
                 mod: ModManifest,
-                name: () => Helper.Translation.Get("config.name.blacklist_npc"),
-                tooltip: () => Helper.Translation.Get("config.tooltip.blacklist_npc"),
-                getValue: () => Config.BlacklistNpc,
-                setValue: value => Config.BlacklistNpc = value
+                name: () => Helper.Translation.Get("config.name.allowed_npc"),
+                tooltip: () => Helper.Translation.Get("config.tooltip.allowed_npc"),
+                getValue: () => Config.AllowedNpc,
+                setValue: value => Config.AllowedNpc = value
             );
 
             configMenu.AddNumberOption(

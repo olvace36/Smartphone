@@ -453,6 +453,10 @@ namespace Smartphone
                         layoutManager.SetSearchQueryBuffer(safeText);
                     }
                     break;
+
+                case EditableTextFieldKind.PhoneAppInput:
+                    phoneAppSearchQuery = safeText.Length > 20 ? safeText.Substring(0, 20) : safeText;
+                    break;
             }
 
             if (clearUndoHistory)

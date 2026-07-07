@@ -164,7 +164,6 @@ namespace Smartphone
                 var data = new { RecentCalls = phoneAppRecentCalls, FavoriteNumbers = phoneAppFavoriteNumbers };
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(data, Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(filePath, json);
-                ModEntry.NotifyContactableNpcsChanged();
             }
             catch (Exception ex)
             {
@@ -516,36 +515,27 @@ namespace Smartphone
             {
                 ModEntry.ContactableNpcs.Clear();
 
-                HashSet<string> blacklist = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                if (ModEntry.Config != null && !string.IsNullOrWhiteSpace(ModEntry.Config.BlacklistNpc))
-                {
-                    foreach (var item in ModEntry.Config.BlacklistNpc.Split(','))
-                    {
-                        string trimmed = item.Trim();
-                        if (!string.IsNullOrEmpty(trimmed))
-                            blacklist.Add(trimmed);
-                    }
-                }
+                if (ModEntry.Config == null || string.IsNullOrWhiteSpace(ModEntry.Config.AllowedNpc))
+                    return;
 
                 int requiredHearts = ModEntry.Config.FriendshipRequirement == "Friend" ? 250 : 1;
 
-                Utility.ForEachVillager(npc =>
+                foreach (var item in ModEntry.Config.AllowedNpc.Split(','))
                 {
+                    string npcName = item.Trim();
+                    if (string.IsNullOrEmpty(npcName))
+                        continue;
+
+                    NPC npc = Game1.getCharacterFromName(npcName);
                     if (npc != null && npc.CanSocialize)
                     {
-                        string npcName = npc.Name;
-
-                        if (blacklist.Contains(npcName))
-                            return true;
-
                         int currentHearts = Game1.player.getFriendshipLevelForNPC(npcName);
                         if (currentHearts >= requiredHearts)
                         {
                             ModEntry.ContactableNpcs.Add(npcName);
                         }
                     }
-                    return true;
-                });
+                }
             }
             catch (Exception ex)
             {

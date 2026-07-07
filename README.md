@@ -478,17 +478,6 @@ bool registered = smartphoneApi.RegisterContactActionCard(
 );
 ```
 
-### 3. Contact Updates Event
-Listen to `ContactableNpcsChanged` to be notified whenever the list of contactable characters changes (e.g. when friendship levels rise or a character is met):
-```csharp
-smartphoneApi.ContactableNpcsChanged += OnContactableNpcsChanged;
-
-private void OnContactableNpcsChanged(List<string> npcs)
-{
-    // npcs lists all current contactable NPC internal names
-}
-```
-
 ---
 
 ## 6. Notifications API

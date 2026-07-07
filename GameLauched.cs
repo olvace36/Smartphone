@@ -264,7 +264,6 @@ namespace Smartphone
             LoadImageTags();
 
             PhoneMenu.UpdateNpcNumbers();
-            ModEntry.NotifyContactableNpcsChanged();
 
             string targetModId = this.ModManifest.UniqueID;
             var modInfo = this.Helper.ModRegistry.Get(targetModId);
@@ -308,7 +307,6 @@ namespace Smartphone
             PhoneMenu.RefreshCalendarData();
 
             PhoneMenu.UpdateNpcNumbers();
-            ModEntry.NotifyContactableNpcsChanged();
         }
 
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
@@ -479,12 +477,12 @@ namespace Smartphone
             {
                 int newOffsetX = clampedX + iconWidth / 2 - defaultX - baseIconWidth / 2;
                 int newOffsetY = clampedY + iconHeight / 2 - defaultY - baseIconHeight / 2;
-                
+
                 if (Config.HudPhoneIconOffsetX != newOffsetX || Config.HudPhoneIconOffsetY != newOffsetY)
                 {
                     Config.HudPhoneIconOffsetX = newOffsetX;
                     Config.HudPhoneIconOffsetY = newOffsetY;
-                    
+
                     // Reset drag baseline coordinates so the relative drag remains in sync
                     dragStartOffsetX = newOffsetX;
                     dragStartOffsetY = newOffsetY;

@@ -29,33 +29,6 @@ namespace Smartphone
             this.monitor = monitor;
         }
 
-        private Action<List<string>>? contactableNpcsChanged;
-
-        public event Action<List<string>> ContactableNpcsChanged
-        {
-            add
-            {
-                contactableNpcsChanged += value;
-                try
-                {
-                    value?.Invoke(GetContactableNpcsInternal());
-                }
-                catch (Exception ex)
-                {
-                    this.monitor?.Log($"Error invoking ContactableNpcsChanged callback on subscription: {ex.Message}", LogLevel.Error);
-                }
-            }
-            remove
-            {
-                contactableNpcsChanged -= value;
-            }
-        }
-
-        public void TriggerContactableNpcsChanged(List<string> list)
-        {
-            contactableNpcsChanged?.Invoke(list);
-        }
-
         public List<string> GetContactableNpcsInternal()
         {
             try
@@ -421,22 +394,6 @@ namespace Smartphone
         public override object GetApi()
         {
             return this.apiInstance ??= new ModApi(Monitor);
-        }
-
-        public static void NotifyContactableNpcsChanged()
-        {
-            try
-            {
-                if (Instance?.apiInstance != null)
-                {
-                    var list = Instance.apiInstance.GetContactableNpcsInternal();
-                    Instance.apiInstance.TriggerContactableNpcsChanged(list);
-                }
-            }
-            catch (Exception ex)
-            {
-                SMonitor?.Log($"Error notifying contactable NPCs changed: {ex.Message}", LogLevel.Error);
-            }
         }
 
         public static ModConfig Config;
